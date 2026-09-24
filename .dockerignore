@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/.next/
+.git/
+.github/
+.vs/
+.idea/
+.local/
+.env
+docs/
+samples/
+tests/
+scripts/
+*.md

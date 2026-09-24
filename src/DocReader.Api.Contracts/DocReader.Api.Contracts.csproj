@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DocReader.Api.Contracts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IFormFile in the multipart request contract. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only the domain enums are shared, so a status has one spelling across DTO, database and log. -->
+    <ProjectReference Include="..\DocReader.Domain\DocReader.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

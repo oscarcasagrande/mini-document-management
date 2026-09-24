@@ -1,0 +1,154 @@
+# DocReader PoC — stage 1 of the execution plan (walking skeleton).
+#
+#   docker compose up --build
+#
+# Five mandatory services, as recommended in section 30 of the PRD. postgres and ocr-service publish no
+# port here; docker-compose.dev.yml adds them for development.
+
+name: docreader
+
+services:
+  web-bff:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.web-bff
+    image: docreader/web-bff:stage1
+    restart: unless-stopped
+    environment:
+      # Server side address of the API. The browser never sees it: the BFF proxies every call.
+      DOCREADER_API_BASE_URL: http://api:8080
+      # Addresses the browser does need, because the Swagger link opens in a new tab.
+      DOCREADER_PUBLIC_SWAGGER_URL: http://localhost:${API_PORT:-8080}/swagger
+      DOCREADER_MAX_UPLOAD_BYTES: ${UPLOAD_MAX_SIZE_BYTES:-26214400}
+      DOCREADER_MAX_PAGE_COUNT: ${UPLOAD_MAX_PAGE_COUNT:-50}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    networks:
+      - public
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.api
+    image: docreader/api:stage1
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-docreader};Username=${POSTGRES_USER:-docreader};Password=${POSTGRES_PASSWORD:-docreader};Include Error Detail=false"
+      # Migrations are explicit. The compose file is the one place that opts in, so a single
+      # docker compose up is enough to get a migrated schema.
+      DocReader__Database__RunMigrationsOnStartup: "true"
+      DocReader__Storage__RootPath: /var/lib/docreader/storage
+      DocReader__Upload__MaxSizeBytes: ${UPLOAD_MAX_SIZE_BYTES:-26214400}
+      DocReader__Upload__MaxPageCount: ${UPLOAD_MAX_PAGE_COUNT:-50}
+      DocReader__Idempotency__Ttl: ${IDEMPOTENCY_KEY_TTL:-24:00:00}
+      DocReader__Security__AllowAnonymousAccess: ${ALLOW_ANONYMOUS_ACCESS:-true}
+      DocReader__Security__AllowedCorsOrigins__0: http://localhost:${WEB_PORT:-3000}
+      DocReader__Ocr__BaseUrl: http://ocr-service:8000
+    ports:
+      - "${API_PORT:-8080}:8080"
+    networks:
+      - public
+      - internal
+    volumes:
+      - document-storage:/var/lib/docreader/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ocr-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.worker
+    image: docreader/worker:stage1
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-docreader};Username=${POSTGRES_USER:-docreader};Password=${POSTGRES_PASSWORD:-docreader}"
+      DocReader__Storage__RootPath: /var/lib/docreader/storage
+      DocReader__Ocr__BaseUrl: http://ocr-service:8000
+    networks:
+      - internal
+    volumes:
+      - document-storage:/var/lib/docreader/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ocr-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  ocr-service:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.ocr-service
+    image: docreader/ocr-service:stage1
+    restart: unless-stopped
+    environment:
+      OCR_PROVIDER: paddleocr
+      OCR_MODEL_CACHE_DIR: /var/lib/docreader/ocr-models
+      OCR_LOG_LEVEL: ${OCR_LOG_LEVEL:-INFO}
+    # No published port: the OCR service is reachable only from the internal network.
+    networks:
+      - internal
+    volumes:
+      - ocr-model-cache:/var/lib/docreader/ocr-models
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-docreader}
+      POSTGRES_USER: ${POSTGRES_USER:-docreader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docreader}
+      # Keeps the database deterministic regardless of the host locale.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      TZ: UTC
+      PGTZ: UTC
+    # No published port: the database is reachable only from the internal network.
+    networks:
+      - internal
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready --username=${POSTGRES_USER:-docreader} --dbname=${POSTGRES_DB:-docreader}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+networks:
+  # Browser facing: the interface and the API.
+  public:
+    driver: bridge
+  # Service to service: API, worker, OCR and database.
+  internal:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  document-storage:
+  ocr-model-cache:

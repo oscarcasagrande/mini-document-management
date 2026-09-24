@@ -1,0 +1,46 @@
+# Build context is the repository root:
+#   docker build -f deploy/docker/Dockerfile.api .
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Project files first, so a change in source code does not invalidate the restore layer.
+COPY Directory.Build.props Directory.Packages.props NuGet.config ./
+COPY src/DocReader.Domain/DocReader.Domain.csproj src/DocReader.Domain/
+COPY src/DocReader.Application/DocReader.Application.csproj src/DocReader.Application/
+COPY src/DocReader.Infrastructure/DocReader.Infrastructure.csproj src/DocReader.Infrastructure/
+COPY src/DocReader.Api.Contracts/DocReader.Api.Contracts.csproj src/DocReader.Api.Contracts/
+COPY apps/api/DocReader.Api.csproj apps/api/
+RUN dotnet restore apps/api/DocReader.Api.csproj
+
+COPY src/ src/
+COPY apps/api/ apps/api/
+RUN dotnet publish apps/api/DocReader.Api.csproj \
+      --configuration Release \
+      --no-restore \
+      --output /app/publish \
+      -p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+
+# curl is the health check probe used by docker compose.
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    DOTNET_NOLOGO=1
+
+WORKDIR /app
+COPY --from=build /app/publish ./
+
+# The storage directory is created with the runtime user as its owner. A fresh named volume mounted
+# here inherits that ownership, which is what lets the non root process write originals.
+RUN mkdir -p /var/lib/docreader/storage \
+ && chown -R "${APP_UID}:${APP_UID}" /var/lib/docreader
+
+USER $APP_UID
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "DocReader.Api.dll"]

@@ -1,0 +1,5 @@
+# Stage 1 keeps the image small: only the web stack is installed. PaddleOCR and its vision
+# dependencies arrive with stage 2 of the execution plan.
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5

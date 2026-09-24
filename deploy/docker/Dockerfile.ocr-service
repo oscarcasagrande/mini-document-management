@@ -1,0 +1,32 @@
+# Build context is the repository root:
+#   docker build -f deploy/docker/Dockerfile.ocr-service .
+#
+# Stage 1 keeps this image small: only FastAPI and uvicorn. PaddleOCR with PP-StructureV3 and the model
+# cache arrive with stage 2 of the execution plan.
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    OCR_MODEL_CACHE_DIR=/var/lib/docreader/ocr-models
+
+WORKDIR /app
+
+COPY services/ocr-service/requirements.txt ./
+RUN pip install --no-cache-dir --requirement requirements.txt
+
+COPY services/ocr-service/app/ app/
+
+# Non root runtime user, owning the model cache so stage 2 can populate it on first start.
+RUN useradd --create-home --uid 10001 ocr \
+ && mkdir -p "${OCR_MODEL_CACHE_DIR}" \
+ && chown -R ocr:ocr /app /var/lib/docreader
+
+USER ocr
+EXPOSE 8000
+
+# No curl in the image: the readiness probe uses the interpreter that is already here.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-server-header"]

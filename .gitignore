@@ -1,0 +1,89 @@
+# ---------------------------------------------------------------------------------------------
+# .NET
+# ---------------------------------------------------------------------------------------------
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+*.userprefs
+.vs/
+TestResults/
+*.trx
+*.coverage
+*.nupkg
+
+# ---------------------------------------------------------------------------------------------
+# Node / Next.js
+# ---------------------------------------------------------------------------------------------
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---------------------------------------------------------------------------------------------
+# Python (ocr-service)
+# ---------------------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------------------------
+# Configuração local e segredos
+# ---------------------------------------------------------------------------------------------
+# Só .env.example entra no repositório.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+secrets.json
+
+# ---------------------------------------------------------------------------------------------
+# Dados de volume e cache local
+# ---------------------------------------------------------------------------------------------
+# Nada que o contêiner escreve deve ser versionado: banco, originais enviados e modelos de OCR.
+/.local/
+/postgres-data/
+/document-storage/
+/ocr-model-cache/
+/ocr-models/
+/var/
+
+# ---------------------------------------------------------------------------------------------
+# Documentos
+# ---------------------------------------------------------------------------------------------
+# Nenhum arquivo documental entra no repositório, exceto as amostras sintéticas geradas por
+# scripts/make-samples.mjs. Esta é a rede de segurança contra commitar documento real.
+*.pdf
+*.tif
+*.tiff
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+*.heic
+*.docx
+*.xlsx
+*.zip
+!samples/synthetic/**
+
+# ---------------------------------------------------------------------------------------------
+# Editores e sistema operacional
+# ---------------------------------------------------------------------------------------------
+.idea/
+*.swp
+Thumbs.db
+.DS_Store

@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/apps/">
+    <Project Path="apps/api/DocReader.Api.csproj" />
+    <Project Path="apps/worker/DocReader.Worker.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/DocReader.Api.Contracts/DocReader.Api.Contracts.csproj" />
+    <Project Path="src/DocReader.Application/DocReader.Application.csproj" />
+    <Project Path="src/DocReader.Domain/DocReader.Domain.csproj" />
+    <Project Path="src/DocReader.Infrastructure/DocReader.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/unit/DocReader.UnitTests/DocReader.UnitTests.csproj" />
+  </Folder>
+</Solution>

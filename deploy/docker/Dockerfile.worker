@@ -1,0 +1,41 @@
+# Build context is the repository root:
+#   docker build -f deploy/docker/Dockerfile.worker .
+#
+# Stage 1 of the execution plan ships the worker as a stub with health endpoints. It is already in the
+# topology so stage 2 only has to add the queue consumer.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props Directory.Packages.props NuGet.config ./
+COPY apps/worker/DocReader.Worker.csproj apps/worker/
+RUN dotnet restore apps/worker/DocReader.Worker.csproj
+
+COPY apps/worker/ apps/worker/
+RUN dotnet publish apps/worker/DocReader.Worker.csproj \
+      --configuration Release \
+      --no-restore \
+      --output /app/publish \
+      -p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    DOTNET_NOLOGO=1
+
+WORKDIR /app
+COPY --from=build /app/publish ./
+
+# The worker reads originals from the same volume as the API once it starts processing.
+RUN mkdir -p /var/lib/docreader/storage \
+ && chown -R "${APP_UID}:${APP_UID}" /var/lib/docreader
+
+USER $APP_UID
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "DocReader.Worker.dll"]

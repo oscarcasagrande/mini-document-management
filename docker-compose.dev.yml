@@ -1,0 +1,24 @@
+# Development overlay. It publishes the ports that the acceptance topology deliberately keeps closed,
+# so psql and the OCR service can be reached from the host:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Never use this overlay on a shared machine: it exposes the database.
+
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  ocr-service:
+    ports:
+      - "${OCR_PORT:-8001}:8000"
+
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
+
+  worker:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
