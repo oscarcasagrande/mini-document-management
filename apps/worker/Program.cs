@@ -6,9 +6,8 @@ using DocReader.Worker;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-// Etapa 2 em andamento. A fila já está implementada em PostgresProcessingQueue, com
-// FOR UPDATE SKIP LOCKED conforme a ADR 0001, mas o laço de consumo só é ligado junto com o
-// provedor de OCR: ligar antes marcaria documentos como processados sem processá-los.
+// Etapa 2: o worker consome a fila (ADR 0001) e processa cada documento pelo ocr-service, renovando
+// a reserva do job a cada página (ADR 0002).
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
@@ -22,7 +21,10 @@ builder.Logging.AddJsonConsole(options =>
 
 builder.Services.AddDocReaderApplication(builder.Configuration);
 builder.Services.AddDocReaderInfrastructure(builder.Configuration);
+builder.Services.AddDocReaderProcessing(builder.Configuration);
+builder.Services.AddDocReaderOcrProvider();
 
+builder.Services.AddHostedService<ProcessingWorker>();
 builder.Services.AddHostedService<QueueDepthReporter>();
 
 builder.Services.AddHealthChecks()
@@ -41,8 +43,8 @@ app.MapGet("/", () => Results.Json(new
 {
     service = "worker",
     stage = 2,
-    queueConsumption = "disabled",
-    reason = "aguardando escolha da engine de OCR"
+    queueConsumption = "enabled",
+    ocrEngine = "PP-OCRv5 mobile (ADR 0002)"
 }));
 
 await app.RunAsync();

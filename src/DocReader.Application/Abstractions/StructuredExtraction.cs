@@ -1,7 +1,7 @@
 namespace DocReader.Application.Abstractions;
 
 /// <summary>
-/// Structured fields produced by an extractor. Reserved for stage 3 of the execution plan.
+/// Structured fields produced by an extractor.
 /// </summary>
 /// <param name="DocumentType">Type the extractor is responsible for.</param>
 /// <param name="SchemaVersion">Version of the JSON Schema used.</param>
@@ -19,10 +19,15 @@ public sealed record StructuredExtraction(
 /// <param name="ValidationStatus">VALID, INVALID, NOT_FOUND or UNCERTAIN.</param>
 /// <param name="PageNumber">Page the evidence came from.</param>
 /// <param name="BoundingBox">Evidence polygon as flat x/y pairs.</param>
+/// <param name="ValidationMessages">
+/// Machine readable codes that explain the status, such as CHECK_DIGIT_VALID or NO_LABEL_NEARBY.
+/// Null means none.
+/// </param>
 public sealed record ExtractedFieldValue(
     string? Raw,
     string? Normalized,
     decimal? Confidence,
     string ValidationStatus,
     int? PageNumber,
-    IReadOnlyList<decimal> BoundingBox);
+    IReadOnlyList<decimal> BoundingBox,
+    IReadOnlyList<string>? ValidationMessages = null);

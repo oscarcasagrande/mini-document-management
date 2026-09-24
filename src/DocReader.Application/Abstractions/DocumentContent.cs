@@ -1,7 +1,7 @@
 namespace DocReader.Application.Abstractions;
 
 /// <summary>
-/// Input handed to an OCR provider. Reserved for stage 2 of the execution plan.
+/// Input handed to an OCR provider.
 /// </summary>
 /// <param name="DocumentId">Document being analysed.</param>
 /// <param name="MimeType">Detected MIME type of the original file.</param>

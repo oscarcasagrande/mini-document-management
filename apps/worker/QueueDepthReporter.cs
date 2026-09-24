@@ -5,12 +5,8 @@ using Microsoft.EntityFrameworkCore;
 namespace DocReader.Worker;
 
 /// <summary>
-/// Publica periodicamente a profundidade da fila nos logs.
-///
-/// Na Etapa 2 o worker ainda não consome <c>processing_jobs</c> — a engine de OCR só entra depois da
-/// medição de latência. Este relator existe para que o contêiner diga a verdade enquanto isso: ele
-/// prova que a conexão com o banco e o mapeamento da fila estão de pé, e mostra quanto trabalho está
-/// represado, em vez de apenas repetir que está vivo.
+/// Publica periodicamente a profundidade da fila nos logs: quanto trabalho está represado, em
+/// andamento, concluído ou falho. Roda ao lado do <see cref="ProcessingWorker"/> e só lê.
 /// </summary>
 public sealed class QueueDepthReporter(
     IServiceScopeFactory scopeFactory,
@@ -20,9 +16,6 @@ public sealed class QueueDepthReporter(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation(
-            "Worker iniciado. consumoDaFila=desabilitado motivo=engine-de-ocr-pendente-de-escolha");
-
         using var timer = new PeriodicTimer(Interval);
 
         try

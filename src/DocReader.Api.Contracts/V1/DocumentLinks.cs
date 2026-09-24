@@ -7,4 +7,14 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="Status">Lightweight status for polling.</param>
 /// <param name="Content">Original file, inline by default.</param>
 /// <param name="Download">Original file as an attachment.</param>
-public sealed record DocumentLinks(string Self, string Status, string Content, string Download);
+/// <param name="Text">Raw OCR text, page by page.</param>
+/// <param name="Result">Canonical structured result.</param>
+/// <param name="Reprocess">POST here to run the pipeline again.</param>
+public sealed record DocumentLinks(
+    string Self,
+    string Status,
+    string Content,
+    string Download,
+    string Text,
+    string Result,
+    string Reprocess);

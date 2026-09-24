@@ -40,6 +40,9 @@ class PageMeasurement:
     text_blocks: int = 0
     characters: int = 0
     tables: int = 0
+    texts: list[str] = field(default_factory=list)
+    scores: list[float] = field(default_factory=list)
+    expected: dict[str, dict[str, Any]] = field(default_factory=dict)
     error: str | None = None
 
     @property
@@ -108,10 +111,117 @@ def count_ocr_output(result: Any) -> tuple[int, int, int]:
     return blocks, characters, tables
 
 
+def collect_text(result: Any) -> tuple[list[str], list[float]]:
+    """Texto reconhecido e confiança por bloco, na ordem em que o PaddleOCR devolveu."""
+    texts: list[str] = []
+    scores: list[float] = []
+
+    for page in result or []:
+        payload = getattr(page, "json", None)
+        if isinstance(payload, dict):
+            payload = payload.get("res", payload)
+        elif isinstance(page, dict):
+            payload = page.get("res", page)
+        else:
+            payload = {}
+
+        page_texts = payload.get("rec_texts") or []
+        page_scores = payload.get("rec_scores") or []
+        texts.extend(str(text) for text in page_texts)
+        scores.extend(round(float(score), 4) for score in page_scores)
+
+    return texts, scores
+
+
+# Valores que cada amostra sintética carrega, para medir exatidão e não só contagem de blocos.
+# Os valores vêm de scripts/make-ocr-samples.py; o casamento é por prefixo do nome da amostra.
+EXPECTED_VALUES: dict[str, dict[str, str]] = {
+    "cpf-card-": {
+        "cpf": "111.444.777-35",
+        "name": "MARIA APARECIDA DA SILVA SOUZA",
+        "birthDate": "14/03/1985",
+    },
+    "pagina-texto-densa": {
+        "cpf": "111.444.777-35",
+        "cnpj": "12.ABC.345/01DE-35",
+    },
+    "pagina-tabela": {
+        "total001": "216,00",
+        "total003": "989,00",
+    },
+}
+
+
+def check_expected(sample: str, texts: list[str]) -> dict[str, dict[str, Any]]:
+    """
+    Confere cada valor esperado. `exact` significa que a string aparece, byte a byte, dentro de algum
+    bloco reconhecido; `found_in` guarda o bloco em que apareceu, ou o bloco mais parecido quando não.
+    """
+    import difflib
+
+    expected: dict[str, str] = {}
+    for prefix, values in EXPECTED_VALUES.items():
+        if sample.startswith(prefix):
+            expected = values
+            break
+
+    checked: dict[str, dict[str, Any]] = {}
+    for name, value in expected.items():
+        containing = next((text for text in texts if value in text), None)
+        if containing is not None:
+            checked[name] = {"expected": value, "exact": True, "found_in": containing}
+            continue
+
+        closest = difflib.get_close_matches(value, texts, n=1, cutoff=0.0)
+        checked[name] = {"expected": value, "exact": False, "found_in": closest[0] if closest else None}
+
+    return checked
+
+
+def environment_info() -> dict[str, Any]:
+    """Versões e limites que explicam os números, para o relatório ser reproduzível."""
+    import os
+    from importlib import metadata
+
+    def version(package: str) -> str | None:
+        try:
+            return metadata.version(package)
+        except metadata.PackageNotFoundError:
+            return None
+
+    memory_limit = None
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            raw = Path(path).read_text().strip()
+            memory_limit = None if raw == "max" else int(raw)
+            break
+        except (OSError, ValueError):
+            continue
+
+    return {
+        "python": platform.python_version(),
+        "paddlepaddle": version("paddlepaddle"),
+        "paddleocr": version("paddleocr"),
+        "paddlex": version("paddlex"),
+        "flags_use_mkldnn": os.environ.get("FLAGS_use_mkldnn"),
+        "omp_num_threads": os.environ.get("OMP_NUM_THREADS"),
+        "cpu_count": os.cpu_count(),
+        "memory_limit_bytes": memory_limit,
+    }
+
+
+def mkldnn_enabled() -> bool:
+    """oneDNN fica desligado por padrão: na build 3.3.1 de CPU ele derruba toda inferência."""
+    import os
+
+    return os.environ.get("FLAGS_use_mkldnn", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def build_ppocr(version: str, detection_model: str | None = None) -> Callable[[], Callable[[Path], Any]]:
     """
-    Pipeline de detecção + reconhecimento. `enable_mkldnn=False` é obrigatório: com oneDNN ligado a
-    inferência falha nesta build de CPU.
+    Pipeline de detecção + reconhecimento. `enable_mkldnn` segue `FLAGS_use_mkldnn`, que tem
+    precedência sobre o parâmetro: com o valor padrão (desligado) tudo se comporta como na
+    medição original, e o experimento de oneDNN liga a variável.
     """
 
     def factory() -> Callable[[Path], Any]:
@@ -123,7 +233,7 @@ def build_ppocr(version: str, detection_model: str | None = None) -> Callable[[]
             "use_textline_orientation": False,
             "lang": "pt",
             "ocr_version": version,
-            "enable_mkldnn": False,
+            "enable_mkldnn": mkldnn_enabled(),
         }
         if detection_model:
             options["text_detection_model_name"] = detection_model
@@ -205,7 +315,12 @@ def run_pipeline(name: str, samples: list[Path], repeat: int) -> dict[str, Any]:
         measurement.text_blocks = blocks
         measurement.characters = characters
         measurement.tables = tables
+        measurement.texts, measurement.scores = collect_text(result)
+        measurement.expected = check_expected(path.name, measurement.texts)
         measurements.append(measurement)
+
+        for field_name, outcome in measurement.expected.items():
+            print(f"    {field_name:<10} {'EXATO' if outcome['exact'] else 'DIVERGE'}", flush=True)
 
         print(
             f"  {path.name:<34} {measurement.median_ms:>8.0f} ms  "
@@ -228,10 +343,14 @@ def main() -> int:
     parser.add_argument("--repeat", type=int, default=3, help="Repetições por amostra em regime")
     parser.add_argument("--output", default="/out/ocr-benchmark.json", help="Arquivo JSON de saída")
     parser.add_argument("--only", help="Roda apenas uma pipeline")
+    parser.add_argument("--samples-only", help="Lista de nomes de amostra separados por vírgula")
     args = parser.parse_args()
 
     sample_dir = Path(args.samples)
     samples = sorted(path for path in sample_dir.glob("*.png"))
+    if args.samples_only:
+        wanted = {name.strip() for name in args.samples_only.split(",")}
+        samples = [path for path in samples if path.name in wanted]
     if not samples:
         print(f"Nenhuma amostra .png em {sample_dir}", file=sys.stderr)
         return 1
@@ -243,6 +362,7 @@ def main() -> int:
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "repeat": args.repeat,
         "sampleCount": len(samples),
+        "environment": environment_info(),
         "pipelines": [run_pipeline(name, samples, args.repeat) for name in names],
     }
 

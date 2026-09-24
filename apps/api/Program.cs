@@ -141,9 +141,9 @@ builder.Services.AddSwaggerGen(options =>
             Conventions: JSON in camelCase, timestamps in UTC ISO 8601, errors as
             `application/problem+json`, and an `X-Correlation-Id` header on every response.
 
-            Stage 1 of the execution plan delivers upload, listing, detail, content and deletion. OCR,
-            classification and extraction arrive in later stages, and the fields that carry them stay
-            null until then.
+            Stage 2 of the execution plan delivers upload, listing, detail, content, deletion, OCR
+            (PP-OCRv5 on CPU, see ADR 0002), the raw text and the structured result of the CPF card.
+            Other document types are read as raw text only; their structured fields arrive in stage 3.
             """
     });
 

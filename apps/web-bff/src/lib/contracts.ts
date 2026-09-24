@@ -22,6 +22,30 @@ export interface DocumentLinks {
   status: string;
   content: string;
   download: string;
+  text: string;
+  result: string;
+  reprocess: string;
+}
+
+export type ProcessingJobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+/** Progress of the asynchronous work of a document; null when no job exists. */
+export interface DocumentProcessing {
+  jobStatus: ProcessingJobStatus;
+  attempt: number;
+  maxAttempts: number;
+  pagesCompleted: number;
+  pageCount: number | null;
+  nextAttemptAt: string | null;
+}
+
+/** Answer of GET /documents/{id}/status, small enough to poll. */
+export interface DocumentStatusSnapshot {
+  id: string;
+  protocol: string;
+  status: DocumentStatus;
+  lastError: { code: string; message: string } | null;
+  processing: DocumentProcessing | null;
 }
 
 export interface DocumentSummary {
@@ -66,10 +90,56 @@ export interface DocumentDetail {
     sha256: string;
   };
   classification: { detectedType: string; confidence: number | null } | null;
-  extraction: { ocrProvider: string; schemaVersion: number; overallConfidence: number | null } | null;
+  extraction: {
+    ocrProvider: string;
+    ocrModelVersion: string;
+    schemaVersion: number | null;
+    overallConfidence: number | null;
+    extractedAt: string;
+  } | null;
   lastError: { code: string; message: string } | null;
+  processing: DocumentProcessing | null;
   timeline: DocumentTimelineEntry[];
   links: DocumentLinks;
+}
+
+export type FieldValidationStatus = "VALID" | "INVALID" | "NOT_FOUND" | "UNCERTAIN";
+
+export interface ExtractedField {
+  raw: string | null;
+  normalized: string | null;
+  confidence: number | null;
+  validationStatus: FieldValidationStatus;
+  validationMessages: string[];
+  evidence: { page: number | null; boundingBox: number[] };
+}
+
+/** Answer of GET /documents/{id}/result, the canonical result of section 15 of the PRD. */
+export interface DocumentResult {
+  id: string;
+  protocol: string;
+  status: DocumentStatus;
+  classification: { detectedType: string; confidence: number | null; classifierVersion: string | null };
+  extraction: {
+    ocrProvider: string;
+    ocrModelVersion: string;
+    extractorVersion: string | null;
+    schemaVersion: number | null;
+    overallConfidence: number | null;
+    extractedAt: string;
+    fields: Record<string, ExtractedField>;
+  };
+}
+
+/** Answer of GET /documents/{id}/text: the raw OCR text, page by page. */
+export interface DocumentText {
+  id: string;
+  protocol: string;
+  status: DocumentStatus;
+  ocrProvider: string;
+  ocrModelVersion: string;
+  extractedAt: string;
+  pages: { page: number; text: string }[];
 }
 
 export interface UploadAccepted {

@@ -9,4 +9,5 @@ export const bffRoutes = {
   status: (id: string) => `/api/bff/documents/${encodeURIComponent(id)}/status`,
   content: (id: string) => `/api/bff/documents/${encodeURIComponent(id)}/content`,
   download: (id: string) => `/api/bff/documents/${encodeURIComponent(id)}/content?download=true`,
+  reprocess: (id: string) => `/api/bff/documents/${encodeURIComponent(id)}/reprocess`,
 };

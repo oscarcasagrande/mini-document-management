@@ -1,5 +1,5 @@
-import { fetchJson } from "./api";
-import type { DocumentDetail, DocumentSummary, PagedResponse } from "./contracts";
+import { ApiError, fetchJson } from "./api";
+import type { DocumentDetail, DocumentResult, DocumentSummary, DocumentText, PagedResponse } from "./contracts";
 
 /** Filters accepted by the listing page, mirroring the query string of the API. */
 export interface DocumentFilters {
@@ -45,6 +45,29 @@ export function listDocuments(filters: DocumentFilters): Promise<PagedResponse<D
 
 export function getDocument(id: string): Promise<DocumentDetail> {
   return fetchJson<DocumentDetail>(`/api/v1/documents/${encodeURIComponent(id)}`);
+}
+
+/**
+ * The API answers 409 while a document has no result yet, which is a normal state for the page and
+ * not an error: it maps to null so the page can say "not read yet".
+ */
+async function nullWhenNotReady<T>(request: Promise<T>): Promise<T | null> {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export function getDocumentResult(id: string): Promise<DocumentResult | null> {
+  return nullWhenNotReady(fetchJson<DocumentResult>(`/api/v1/documents/${encodeURIComponent(id)}/result`));
+}
+
+export function getDocumentText(id: string): Promise<DocumentText | null> {
+  return nullWhenNotReady(fetchJson<DocumentText>(`/api/v1/documents/${encodeURIComponent(id)}/text`));
 }
 
 export function getDocumentByProtocol(protocol: string): Promise<DocumentDetail> {
