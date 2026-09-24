@@ -1,4 +1,6 @@
+using DocReader.Application.Abstractions;
 using DocReader.Application.Documents;
+using DocReader.Application.Extraction;
 using DocReader.Application.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,12 +31,19 @@ public static class ApplicationServiceCollectionExtensions
             .Bind(configuration.GetSection(IdempotencyOptions.SectionName))
             .ValidateOnStart();
 
+        services.AddOptions<ProcessingQueueOptions>()
+            .Bind(configuration.GetSection(ProcessingQueueOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddOptions<PagingOptions>()
             .Bind(configuration.GetSection(PagingOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
         services.TryAddTimeProvider();
+
+        services.AddScoped<IDocumentExtractor, BrCpfCardExtractor>();
 
         services.AddScoped<DocumentUploadService>();
         services.AddScoped<DocumentQueryService>();

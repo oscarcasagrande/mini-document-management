@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_CPF_CARD.v1",
+  "title": "Cartão / comprovante de inscrição no CPF",
+  "description": "Primeiro tipo estruturado a ir de ponta a ponta. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": ["cpf", "name", "birthDate"],
+  "additionalProperties": false,
+  "properties": {
+    "cpf": {
+      "description": "Número de inscrição no CPF, normalizado para 11 dígitos sem máscara.",
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{11}$",
+      "examples": ["11144477735"]
+    },
+    "name": {
+      "description": "Nome do titular, em caixa alta, com espaços simples.",
+      "type": ["string", "null"],
+      "minLength": 2,
+      "maxLength": 200,
+      "examples": ["MARIA APARECIDA DA SILVA SOUZA"]
+    },
+    "birthDate": {
+      "description": "Data de nascimento normalizada para ISO 8601.",
+      "type": ["string", "null"],
+      "format": "date",
+      "examples": ["1985-03-14"]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "requiredSignals": ["CADASTRO DE PESSOAS FISICAS"],
+      "optionalSignals": [
+        "NUMERO DE INSCRICAO",
+        "MINISTERIO DA FAZENDA",
+        "SECRETARIA DA RECEITA FEDERAL",
+        "NASCIMENTO"
+      ],
+      "negativeSignals": ["CADASTRO NACIONAL DA PESSOA JURIDICA", "CARTEIRA NACIONAL DE HABILITACAO"],
+      "threshold": 0.7
+    },
+    "validation": {
+      "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",
+      "birthDate": "Data real de calendário, não futura e não anterior a 1900.",
+      "name": "Somente letras, espaços, apóstrofo e hífen, com ao menos duas palavras."
+    }
+  }
+}

@@ -8,10 +8,24 @@ arquitetura é `docs/PRD.md`; este arquivo resume o que precisa estar na cabeça
 PoC local de ingestão, OCR, classificação e extração de documentos brasileiros, executada
 inteiramente por `docker compose up`. Sem cloud, sem API proprietária, sem autenticação.
 
-Plano de execução em etapas (PRD §26). **Etapa atual: 1 — walking skeleton**
-(compose completo, upload pela API, persistência, lista, visualização/download, Swagger).
-`worker` e `ocr-service` existem como stubs com `/health`. Não implemente OCR,
-classificação ou extração antes da aprovação explícita da Etapa 2.
+Plano de execução em etapas (PRD §26).
+
+**Etapa 1 — concluída e aprovada.** Compose completo, upload pela API, persistência, lista,
+visualização/download e Swagger.
+
+**Etapa atual: 2 — OCR ponta a ponta.** Em andamento:
+
+- fila implementada em `PostgresProcessingQueue` com `FOR UPDATE SKIP LOCKED` (ADR 0001);
+- validação de CPF e de data brasileira no domínio;
+- extrator `BR_CPF_CARD` (número, nome, nascimento) sobre linhas de OCR;
+- benchmark de engine em `docs/bench/`.
+
+Pendente, e **bloqueado até a escolha de engine ser aprovada**: `ocr-service` real, provedor
+`IDocumentOcrProvider`, laço de consumo no worker, classificador, persistência de `extractions` e
+`extracted_fields`, endpoints `/text` e `/result`.
+
+O worker **não consome a fila ainda**: ligar o laço antes do provedor de OCR marcaria documentos
+como processados sem processá-los. Ele publica a profundidade da fila nos logs enquanto isso.
 
 ## Estrutura do repositório
 

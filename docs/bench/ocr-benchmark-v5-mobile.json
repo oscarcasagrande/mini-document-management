@@ -1,0 +1,116 @@
+{
+  "generatedAt": "2026-09-24T05:00:17Z",
+  "repeat": 2,
+  "sampleCount": 6,
+  "pipelines": [
+    {
+      "pipeline": "PP-OCRv5 (det mobile)",
+      "load_ms": 4448.3,
+      "peak_rss_mb": 2088.7,
+      "measurements": [
+        {
+          "sample": "cpf-card-escaneado.png",
+          "pipeline": "PP-OCRv5 (det mobile)",
+          "width": 1118,
+          "height": 728,
+          "megapixels": 0.814,
+          "durations_ms": [
+            7013.59182700071,
+            7354.787991000194
+          ],
+          "text_blocks": 12,
+          "characters": 252,
+          "tables": 0,
+          "error": null,
+          "median_ms": 7184.2,
+          "p95_ms": 7354.8
+        },
+        {
+          "sample": "cpf-card-limpo.png",
+          "pipeline": "PP-OCRv5 (det mobile)",
+          "width": 1100,
+          "height": 700,
+          "megapixels": 0.77,
+          "durations_ms": [
+            10663.72946500087,
+            11839.14494900091
+          ],
+          "text_blocks": 12,
+          "characters": 252,
+          "tables": 0,
+          "error": null,
+          "median_ms": 11251.4,
+          "p95_ms": 11839.1
+        },
+        {
+          "sample": "pagina-tabela-escaneada.png",
+          "pipeline": "PP-OCRv5 (det mobile)",
+          "width": 1680,
+          "height": 2357,
+          "megapixels": 3.96,
+          "durations_ms": [
+            26302.30534399925,
+            26120.516192999276
+          ],
+          "text_blocks": 63,
+          "characters": 668,
+          "tables": 0,
+          "error": null,
+          "median_ms": 26211.4,
+          "p95_ms": 26302.3
+        },
+        {
+          "sample": "pagina-tabela.png",
+          "pipeline": "PP-OCRv5 (det mobile)",
+          "width": 1654,
+          "height": 2339,
+          "megapixels": 3.869,
+          "durations_ms": [
+            25922.3323540009,
+            25369.84270100038
+          ],
+          "text_blocks": 62,
+          "characters": 667,
+          "tables": 0,
+          "error": null,
+          "median_ms": 25646.1,
+          "p95_ms": 25922.3
+        },
+        {
+          "sample": "pagina-texto-densa-escaneada.png",
+          "pipeline": "PP-OCRv5 (det mobile)",
+          "width": 1688,
+          "height": 2363,
+          "megapixels": 3.989,
+          "durations_ms": [
+            48683.060339000804,
+            38308.96275499981
+          ],
+          "text_blocks": 33,
+          "characters": 2089,
+          "tables": 0,
+          "error": null,
+          "median_ms": 43496.0,
+          "p95_ms": 48683.1
+        },
+        {
+          "sample": "pagina-texto-densa.png",
+          "pipeline": "PP-OCRv5 (det mobile)",
+          "width": 1654,
+          "height": 2339,
+          "megapixels": 3.869,
+          "durations_ms": [
+            40816.345196999464,
+            40782.54235499844
+          ],
+          "text_blocks": 36,
+          "characters": 2093,
+          "tables": 0,
+          "error": null,
+          "median_ms": 40799.4,
+          "p95_ms": 40816.3
+        }
+      ]
+    }
+  ]
+}

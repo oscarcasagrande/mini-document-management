@@ -10,6 +10,7 @@
     <Project Path="src/DocReader.Infrastructure/DocReader.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/integration/DocReader.IntegrationTests/DocReader.IntegrationTests.csproj" />
     <Project Path="tests/unit/DocReader.UnitTests/DocReader.UnitTests.csproj" />
   </Folder>
 </Solution>

@@ -1,6 +1,7 @@
 using DocReader.Application.Abstractions;
 using DocReader.Infrastructure.Files;
 using DocReader.Infrastructure.Persistence;
+using DocReader.Infrastructure.Queue;
 using DocReader.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -35,6 +36,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IIdempotencyStore, PostgresIdempotencyStore>();
         services.AddScoped<IProtocolGenerator, PostgresProtocolGenerator>();
+        services.AddScoped<IProcessingQueue, PostgresProcessingQueue>();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddSingleton<IPageCounter, DocumentPageCounter>();
 

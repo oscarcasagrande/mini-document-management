@@ -1,9 +1,14 @@
 using System.Text.Json;
+using DocReader.Application;
+using DocReader.Infrastructure;
+using DocReader.Infrastructure.Persistence;
 using DocReader.Worker;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-// Stage 1 of the execution plan ships the worker as a stub: it is part of the compose topology and it
-// answers health probes, but it does not consume the queue yet. Stage 2 adds the consumer described in
-// docs/adr/0001-postgresql-como-fila.md, using FOR UPDATE SKIP LOCKED over processing_jobs.
+// Etapa 2 em andamento. A fila já está implementada em PostgresProcessingQueue, com
+// FOR UPDATE SKIP LOCKED conforme a ADR 0001, mas o laço de consumo só é ligado junto com o
+// provedor de OCR: ligar antes marcaria documentos como processados sem processá-los.
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
@@ -15,21 +20,29 @@ builder.Logging.AddJsonConsole(options =>
     options.JsonWriterOptions = new JsonWriterOptions { Indented = false };
 });
 
-builder.Services.AddHealthChecks();
-builder.Services.AddHostedService<StageOneHeartbeat>();
+builder.Services.AddDocReaderApplication(builder.Configuration);
+builder.Services.AddDocReaderInfrastructure(builder.Configuration);
+
+builder.Services.AddHostedService<QueueDepthReporter>();
+
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<DocReaderDbContext>("postgres", tags: ["ready"]);
 
 var app = builder.Build();
 
-app.MapHealthChecks("/health");
-app.MapHealthChecks("/health/live");
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
 
 app.MapGet("/", () => Results.Json(new
 {
     service = "worker",
-    stage = 1,
-    role = "stub",
-    note = "Queue consumption starts in stage 2 of the execution plan."
+    stage = 2,
+    queueConsumption = "disabled",
+    reason = "aguardando escolha da engine de OCR"
 }));
 
 await app.RunAsync();

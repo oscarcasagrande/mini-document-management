@@ -1,0 +1,47 @@
+# Imagem de medição: instala PaddleOCR CPU com as pipelines candidatas para que a escolha de engine
+# da Etapa 2 seja feita com número, não com opinião. É descartável — a imagem de produção do
+# ocr-service instala só a pipeline escolhida.
+#
+#   docker build -f deploy/docker/Dockerfile.ocr-bench -t docreader/ocr-bench .
+FROM python:3.12-slim AS bench
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    OMP_NUM_THREADS=4
+
+# Onde o PaddleX guarda os pesos baixados. Montado como volume para não rebaixar a cada execução.
+ENV PADDLE_PDX_CACHE_HOME=/var/lib/docreader/ocr-models
+
+# O backend oneDNN quebra a inferência nesta build de CPU com
+# "ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]".
+# Desligado aqui e também por parâmetro em cada pipeline.
+ENV FLAGS_use_mkldnn=false
+
+# Evita a checagem de conectividade com os hosters a cada criação de modelo.
+ENV PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+
+# libgl e libglib são exigidas pelo opencv que vem junto do paddleocr.
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends \
+      libgl1 \
+      libglib2.0-0 \
+      libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# paddlex[ocr] traz as dependências extras que o PP-StructureV3 exige para montar a pipeline de
+# layout; sem elas ele falha na criação da pipeline, não na inferência.
+RUN pip install --no-cache-dir \
+      "paddlepaddle==3.3.1" \
+      "paddleocr==3.7.0" \
+      "paddlex[ocr]==3.7.2"
+
+# O script é montado em runtime: assim iterar nele não custa um rebuild desta imagem, que é pesada,
+# e o .dockerignore pode seguir excluindo scripts/ das imagens de produção.
+#
+#   docker run --rm -v "$PWD/scripts:/scripts:ro" -v "$PWD/samples/synthetic/ocr:/samples:ro" \
+#     -v ocr-bench-models:/var/lib/docreader/ocr-models -v "$PWD/docs/bench:/out" \
+#     docreader/ocr-bench --repeat 3
+ENTRYPOINT ["python", "/scripts/ocr_benchmark.py"]

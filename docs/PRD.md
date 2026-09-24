@@ -176,12 +176,18 @@ Um arquivo processado pelo OCR não será automaticamente considerado estruturad
 
 ### Tipos estruturados prioritários
 
-1. CIN/RG;
-2. CNH;
-3. comprovante de residência;
-4. comprovante/cartão de CNPJ;
-5. CCMEI;
-6. contrato social.
+1. **cartão/comprovante de inscrição no CPF** (`BR_CPF_CARD`);
+2. CIN/RG;
+3. CNH;
+4. comprovante de residência;
+5. comprovante/cartão de CNPJ;
+6. CCMEI;
+7. contrato social.
+
+O `BR_CPF_CARD` é o primeiro tipo a percorrer o caminho completo, da ingestão à extração validada, e
+serve de referência para os demais. Campos: número de inscrição, nome e data de nascimento, com
+validação de dígito verificador do CPF conforme RF-012. Schema em
+`schemas/documents/BR_CPF_CARD.v1.json`.
 
 Todos os demais tipos deverão ser aceitos como `GENERIC_OCR`.
 
