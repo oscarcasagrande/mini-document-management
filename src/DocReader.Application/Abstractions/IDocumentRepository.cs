@@ -39,6 +39,12 @@ public interface IDocumentRepository
     Task<ExtractionTextView?> FindLatestExtractionTextAsync(Guid documentId, CancellationToken ct);
 
     /// <summary>
+    /// Most recent extraction with the stored OCR payload (blocks and coordinates), for replaying the
+    /// extraction. Heavy: only the diagnostics ask for it.
+    /// </summary>
+    Task<ExtractionOcrView?> FindLatestExtractionOcrAsync(Guid documentId, CancellationToken ct);
+
+    /// <summary>
     /// Queues a new processing attempt (RF-013). The check for an active job and the insert happen
     /// under a lock on the document row, so two concurrent requests cannot both succeed; a unique
     /// index on active jobs backs that up in the database.

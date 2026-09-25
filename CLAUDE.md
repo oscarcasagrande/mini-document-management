@@ -25,6 +25,20 @@ classificação, extrator e testes. A extração é por rótulo e geometria (`Li
 
 **Etapa 4 — avaliação e hardening: framework pronto, medição em documento real pendente.** Aguarda aprovação.
 
+**Etapa 5 — calibração dos extratores contra OCR real: feita para CNH e RIC/RG; os outros cinco tipos não foram
+medidos em documento real.**
+
+- `GET /api/v1/documents/{id}/extraction-diagnostics` refaz a extração sobre os blocos de OCR gravados e explica cada
+  campo (motivo, rótulos tentados, candidatos, cobertura). Os blocos normalizados vão em `raw_ocr_result` (`blocks`, ao
+  lado do `raw` do provedor); extração anterior a isso cai em `PAGE_TEXT`, sem coordenadas. O rastro (`ExtractionTrace`)
+  é opcional e o `LineSearch` o alimenta por escopo de campo; CPF e contrato social não passam por ele.
+- Casamento de rótulo tolerante (`LabelKeys`, `MatchTolerant` no `LineSearch`), bloco vertical ignorado como valor,
+  `Following` que não atravessa rótulo, data com espaço, nome em várias linhas, blocos da mesma linha visual juntos
+  (`RowMerger`) e "<" da MRZ perdido no fim reposto. Extratores subiram para `1.1.0`.
+- Medido em documento real (dois exemplares, um por tipo): CNH 4/8 → 7/8, RIC 2/10 → 10/10 campos lidos. A categoria da
+  CNH é uma letra que o OCR não lê. Fixtures `cnh-real` e `ric-real` em `Fixtures/ocr`, mascaradas, com
+  `RealDocumentExtractionTests`.
+
 - **Classificação por evidência** (`rules-2.0.0`): cada tipo soma o peso das evidências achadas, subtrai a
   contra-evidência e é aceito no limiar (0,6; `DocReader:Classification:MinimumScore` / `CLASSIFICATION_MIN_SCORE`
   o substitui para todos). Nenhuma frase é obrigatória; `SearchableText` casa sem acento e caixa, com palavras
@@ -43,7 +57,7 @@ classificação, extrator e testes. A extração é por rótulo e geometria (`Li
   indicadores do PRD §3. Formato do ground truth e métricas em `docs/evaluation.md`; testes em `tests/accuracy`.
   Recusa pasta dentro do repo, não escreve valor de campo no relatório sem `--include-values`, apaga da API o
   que enviou. Smoke test com `samples/synthetic/documents` (`--truth-suffix .expected.json`).
-- Testes: 522 unitários (as sete amostras rodam sobre **OCR real** capturado em
+- Testes: 559 unitários (as sete amostras rodam sobre **OCR real** capturado em
   `tests/unit/DocReader.UnitTests/Fixtures/ocr`), 21 de integração, 29 do `pytest` do OCR, 49 do avaliador.
   Ponta a ponta: `tests/e2e/stage3_acceptance.py`.
 - Latência de A4 fechada no ADR 0002: o alvo (≤ 18 s/página) é atingido **sem limite de CPU** (pior caso
@@ -235,6 +249,11 @@ Coisas que já custaram tempo e não se enxergam no código.
   amostras traziam e deram `UNKNOWN` em CNH e RG reais. Ao mexer em classificação, rode o diagnóstico em um documento
   real, não só os testes. A **extração** ainda não foi calibrada assim: nos dois documentos reais de exemplo a CNH
   perde `name`, `registrationNumber`, `category` e `firstLicenseDate`, e o RIC perde quase tudo.
+- **Cobertura alta em amostra não é cobertura em documento.** Dois exemplares (uma CNH e um RIC) calibraram esta etapa; outro
+  estado, outra geração de layout ou foto ruim vão trazer rótulos e ordens novas. O primeiro passo é sempre
+  `extraction-diagnostics` no documento que falhou, e o segundo é uma fixture mascarada em `Fixtures/ocr`.
+- **Valor errado com status VALID é pior que NOT_FOUND.** O `birthPlace` do RIC saía `VALID` com o número vertical da borda
+  da carteira, que o OCR entrega como bloco alto e estreito alinhado ao rótulo. Confira o valor, não só o status.
 - **Resultado gravado não muda sozinho.** Depois de mudar regras, `recorded` e `current` do diagnóstico divergem até o
   `POST .../reprocess`; o `/result` continua mostrando a classificação antiga.
 

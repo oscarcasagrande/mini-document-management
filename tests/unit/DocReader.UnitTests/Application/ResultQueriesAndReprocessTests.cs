@@ -1,6 +1,7 @@
 using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
+using DocReader.Application.Extraction;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Processing;
 using DocReader.UnitTests.Fakes;
@@ -57,7 +58,12 @@ public sealed class ResultQueriesAndReprocessTests
     }
 
     private static DocumentQueryService QueryService(InMemoryDocumentStore store) =>
-        new(store, new InMemoryFileStorage(), new RulesDocumentClassifier(), NullLogger<DocumentQueryService>.Instance);
+        new(
+            store,
+            new InMemoryFileStorage(),
+            new RulesDocumentClassifier(),
+            [new BrCnhExtractor(new FakeTimeProvider(Now)), new BrCinExtractor(new FakeTimeProvider(Now))],
+            NullLogger<DocumentQueryService>.Instance);
 
     private static DocumentReprocessingService ReprocessService(InMemoryDocumentStore store) =>
         new(store, new FakeTimeProvider(Now.AddHours(1)), NullLogger<DocumentReprocessingService>.Instance);

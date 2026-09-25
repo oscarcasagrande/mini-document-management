@@ -15,7 +15,7 @@ public sealed class BrCcmeiExtractor(TimeProvider timeProvider) : IDocumentExtra
 {
     public const string TypeName = "BR_CCMEI";
 
-    public const string ExtractorVersion = "br-ccmei-1.0.0";
+    public const string ExtractorVersion = "br-ccmei-1.1.0";
 
     private const int AddressLines = 3;
 
@@ -47,33 +47,37 @@ public sealed class BrCcmeiExtractor(TimeProvider timeProvider) : IDocumentExtra
 
     public string Version => ExtractorVersion;
 
-    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct) => ExtractAsync(result, null, ct);
+
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, ExtractionTrace? trace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(result);
 
         var lines = OcrTextLine.From(result);
-        var search = new LineSearch(lines, KnownLabels);
+        var search = new LineSearch(lines, KnownLabels, trace);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
-        var (activityCode, activityDescription) = FieldReaders.Activity(search, ActivityLabels);
-        var (address, postalCode, city, state) = ExtractAddress(search);
+        var (activityCode, activityDescription) = search.Fields(
+            ["mainActivityCode", "mainActivityDescription"], () => FieldReaders.Activity(search, ActivityLabels));
+        var (address, postalCode, city, state) = search.Fields(
+            ["address", "postalCode", "city", "state"], () => ExtractAddress(search));
 
         var fields = new Dictionary<string, ExtractedFieldValue>(StringComparer.Ordinal)
         {
-            ["cnpj"] = FieldReaders.Cnpj(search, CnpjLabels),
-            ["legalName"] = FieldReaders.Text(search, LegalNameLabels, minimumLength: 3),
-            ["tradeName"] = FieldReaders.Text(search, TradeNameLabels, minimumLength: 2),
-            ["openingDate"] = FieldReaders.Date(search, OpeningLabels, DateKind.Issue, today),
-            ["shareCapital"] = FieldReaders.Money(search, CapitalLabels),
+            ["cnpj"] = search.Field("cnpj", () => FieldReaders.Cnpj(search, CnpjLabels)),
+            ["legalName"] = search.Field("legalName", () => FieldReaders.Text(search, LegalNameLabels, minimumLength: 3)),
+            ["tradeName"] = search.Field("tradeName", () => FieldReaders.Text(search, TradeNameLabels, minimumLength: 2)),
+            ["openingDate"] = search.Field("openingDate", () => FieldReaders.Date(search, OpeningLabels, DateKind.Issue, today)),
+            ["shareCapital"] = search.Field("shareCapital", () => FieldReaders.Money(search, CapitalLabels)),
             ["mainActivityCode"] = activityCode,
             ["mainActivityDescription"] = activityDescription,
             ["address"] = address,
             ["postalCode"] = postalCode,
             ["city"] = city,
             ["state"] = state,
-            ["holderName"] = FieldReaders.Name(search, HolderNameLabels),
-            ["holderCpf"] = FieldReaders.Cpf(search, HolderCpfLabels),
-            ["holderBirthDate"] = FieldReaders.Date(search, HolderBirthLabels, DateKind.Birth, today),
-            ["certificateDate"] = FieldReaders.Date(search, CertificateLabels, DateKind.Issue, today)
+            ["holderName"] = search.Field("holderName", () => FieldReaders.Name(search, HolderNameLabels)),
+            ["holderCpf"] = search.Field("holderCpf", () => FieldReaders.Cpf(search, HolderCpfLabels)),
+            ["holderBirthDate"] = search.Field("holderBirthDate", () => FieldReaders.Date(search, HolderBirthLabels, DateKind.Birth, today)),
+            ["certificateDate"] = search.Field("certificateDate", () => FieldReaders.Date(search, CertificateLabels, DateKind.Issue, today))
         };
 
         return Task.FromResult(new StructuredExtraction(

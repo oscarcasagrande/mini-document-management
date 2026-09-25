@@ -31,7 +31,9 @@ public sealed partial class BrSocialContractExtractor(TimeProvider timeProvider)
 
     public string Version => ExtractorVersion;
 
-    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct) => ExtractAsync(result, null, ct);
+
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, ExtractionTrace? trace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(result);
 

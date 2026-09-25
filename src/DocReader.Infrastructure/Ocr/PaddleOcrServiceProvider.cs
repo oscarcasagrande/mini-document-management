@@ -226,7 +226,8 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
 
     /// <summary>
     /// Keeps each page's provider payload as it came, wrapped with the page number, so RF-008 holds:
-    /// the raw result is preserved, not reinterpreted.
+    /// the raw result is preserved, not reinterpreted. Next to it goes the page's normalized blocks, the exact
+    /// input the extractors saw, so an extraction can be replayed and explained later without the provider.
     /// </summary>
     private static string BuildRawResult(IReadOnlyList<PageAnalysisDto> pages)
     {
@@ -244,6 +245,7 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
                 writer.WriteNumber("imageWidth", page.ImageWidth);
                 writer.WriteNumber("imageHeight", page.ImageHeight);
                 writer.WriteNumber("durationMs", page.DurationMs);
+                WriteBlocks(writer, page.Blocks);
                 writer.WritePropertyName("raw");
                 if (page.Raw.ValueKind == JsonValueKind.Undefined)
                 {
@@ -262,6 +264,37 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
         }
 
         return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static void WriteBlocks(Utf8JsonWriter writer, IReadOnlyList<BlockDto> blocks)
+    {
+        writer.WriteStartArray("blocks");
+
+        foreach (var block in blocks)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("text", block.Text);
+
+            if (block.Confidence is { } confidence)
+            {
+                writer.WriteNumber("confidence", confidence);
+            }
+            else
+            {
+                writer.WriteNull("confidence");
+            }
+
+            writer.WriteStartArray("boundingBox");
+            foreach (var coordinate in block.BoundingBox ?? [])
+            {
+                writer.WriteNumberValue(coordinate);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
     }
 
     private sealed record PageAnalysisDto(

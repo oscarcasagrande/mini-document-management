@@ -2,6 +2,7 @@ using System.Text.Json;
 using DocReader.Application.Abstractions;
 using DocReader.Application.Classification;
 using DocReader.Application.Errors;
+using DocReader.Application.Extraction;
 using DocReader.Domain.Documents;
 using Microsoft.Extensions.Logging;
 
@@ -15,6 +16,7 @@ public sealed class DocumentQueryService(
     IDocumentRepository repository,
     IFileStorage storage,
     IDocumentClassifier classifier,
+    IEnumerable<IDocumentExtractor> extractors,
     ILogger<DocumentQueryService> logger)
 {
     private static readonly JsonSerializerOptions StoredJson = new(JsonSerializerDefaults.Web);
@@ -98,6 +100,72 @@ public sealed class DocumentQueryService(
             text.Text.Summary,
             [.. pages.Select(page => new DocumentTextPage(page.PageNumber, page.Text))],
             diagnostics);
+    }
+
+    /// <summary>
+    /// Explains the extraction of the latest extraction: the OCR blocks with coordinates as the extractor received
+    /// them and, for every field, what the rules in force now read, why a field failed and what its rule searched.
+    /// Nothing is written.
+    /// </summary>
+    /// <exception cref="ResultNotReadyException">There is no extraction yet, or every attempt failed.</exception>
+    public async Task<DocumentExtractionDiagnostics> GetExtractionDiagnosticsAsync(Guid id, CancellationToken ct)
+    {
+        var document = await GetByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
+        var stored = await repository.FindLatestExtractionOcrAsync(id, ct).ConfigureAwait(false)
+            ?? throw new ResultNotReadyException(id, document.Status);
+        var recorded = await repository.FindLatestExtractionResultAsync(id, ct).ConfigureAwait(false);
+
+        var (ocr, source) = StoredOcr.Rebuild(
+            stored.RawOcrResultJson,
+            stored.PageTextsJson,
+            stored.Summary.OcrProvider,
+            stored.Summary.OcrModelVersion);
+        var lines = OcrTextLine.From(ocr);
+
+        var (documentType, typeSource) = ResolveDocumentType(document, lines);
+        var extractor = documentType is null ? null : extractors.FirstOrDefault(candidate => candidate.DocumentType == documentType);
+
+        var note = source == StoredOcr.PageText
+            ? "This extraction was stored before OCR blocks were kept, so there are no coordinates and the rules ran on plain lines. Reprocess the document to get the real diagnosis."
+            : null;
+
+        if (extractor is null)
+        {
+            var reason = documentType is null
+                ? "The document is UNKNOWN, so no extractor applies. See classification-diagnostics."
+                : $"There is no extractor for {documentType}.";
+
+            return new DocumentExtractionDiagnostics(
+                document,
+                stored.Summary,
+                ExtractionDiagnoser.WithoutExtractor(documentType, typeSource, source, lines, note is null ? reason : $"{reason} {note}"));
+        }
+
+        var trace = new ExtractionTrace();
+        var extraction = await extractor.ExtractAsync(ocr, trace, ct).ConfigureAwait(false);
+        var recordedStatuses = recorded?.Fields.ToDictionary(field => field.FieldPath, field => field.ValidationStatus, StringComparer.Ordinal)
+            ?? [];
+
+        return new DocumentExtractionDiagnostics(
+            document,
+            stored.Summary,
+            ExtractionDiagnoser.Build(
+                documentType!, typeSource, extractor.Version, source, lines, extraction, trace, recordedStatuses, note));
+    }
+
+    private (string? Type, string Source) ResolveDocumentType(Document document, IReadOnlyList<OcrTextLine> lines)
+    {
+        if (!string.IsNullOrEmpty(document.DetectedDocumentType)
+            && document.DetectedDocumentType != ClassificationResult.UnknownType)
+        {
+            return (document.DetectedDocumentType, "RECORDED");
+        }
+
+        var current = classifier.Diagnose(string.Join('\n', lines.Select(line => line.Text)));
+
+        return current.DocumentType == ClassificationResult.UnknownType
+            ? (null, "RECORDED")
+            : (current.DocumentType, "CURRENT_CLASSIFICATION");
     }
 
     /// <summary>

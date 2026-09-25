@@ -2,6 +2,7 @@ using System.Text.Json;
 using DocReader.Api.Contracts.V1;
 using DocReader.Application.Classification;
 using DocReader.Application.Documents;
+using DocReader.Application.Extraction;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Processing;
 
@@ -158,6 +159,63 @@ public static class DocumentResponseMapper
                 ? [.. diagnostics.Pages.Select(page => new DocumentTextPageResponse(page.PageNumber, page.Text))]
                 : null);
     }
+
+    public static ExtractionDiagnosticsResponse ToExtractionDiagnostics(
+        DocumentExtractionDiagnostics diagnostics,
+        bool includeText)
+    {
+        var document = diagnostics.Document;
+        var current = diagnostics.Diagnostics;
+
+        return new ExtractionDiagnosticsResponse(
+            document.Id,
+            document.Protocol,
+            document.Status,
+            diagnostics.Extraction.CreatedAt,
+            diagnostics.Extraction.ExtractorVersion,
+            current.DocumentType,
+            current.DocumentTypeSource,
+            current.ExtractorVersion,
+            current.OcrInput,
+            current.Note,
+            new ExtractionCoverageResponse(
+                current.Coverage.Expected,
+                current.Coverage.Extracted,
+                current.Coverage.Valid,
+                current.Coverage.ExtractedRatio,
+                current.Coverage.ValidRatio),
+            [.. current.Fields.Select(field => ToDiagnosedField(field, includeText))],
+            includeText
+                ? [.. current.Pages.Select(page => new DiagnosedPageResponse(
+                    page.Page,
+                    [.. page.Blocks.Select(block => new DiagnosedBlockResponse(
+                        block.Index, block.Text, block.Confidence, block.BoundingBox))]))]
+                : null);
+    }
+
+    private static DiagnosedFieldResponse ToDiagnosedField(DiagnosedField field, bool includeText) => new(
+        field.Path,
+        field.Status,
+        field.Reason,
+        field.Explanation,
+        field.Messages,
+        includeText ? field.Raw : null,
+        includeText ? field.Normalized : null,
+        field.Confidence,
+        field.Page,
+        field.BoundingBox,
+        field.RecordedStatus,
+        field.Rule is null
+            ? null
+            : new DiagnosedRuleResponse(
+                [.. field.Rule.Labels.Select(label => new DiagnosedLabelResponse(label.Label, label.LineIndexes))],
+                field.Rule.CandidatesSeen,
+                [.. field.Rule.Candidates.Select(candidate => new DiagnosedCandidateResponse(
+                    candidate.LineIndex,
+                    candidate.Page,
+                    includeText ? candidate.Text : null,
+                    candidate.Penalty,
+                    candidate.Accepted))]));
 
     private static ClassificationEvidenceResponse ToEvidence(EvidenceDiagnostics evidence) => new(
         evidence.Name,

@@ -130,6 +130,37 @@ documento legítimo perto do limiar, há duas saídas: acrescentar o rótulo que
 tipo (`DocumentTypeProfile.cs` e o schema, que um teste mantém iguais) ou baixar `CLASSIFICATION_MIN_SCORE` em
 `.env` (afeta todos os tipos; reprocesse para aplicar).
 
+### Depurar uma extração
+
+Um campo que veio vazio, ou com o valor errado, também se explica em uma chamada. O endpoint refaz a extração, com as
+regras em vigor, sobre os **blocos de OCR gravados** (texto e coordenadas, como o extrator os recebeu) e mostra, por
+campo, o que aconteceu:
+
+```bash
+curl -s "http://localhost:8080/api/v1/documents/$ID/extraction-diagnostics"                   # com blocos e valores
+curl -s "http://localhost:8080/api/v1/documents/$ID/extraction-diagnostics?includeText=false" # só status, motivos e linhas
+```
+
+- `coverage`: campos do tipo, quantos foram lidos (`extracted`, qualquer status que não seja `NOT_FOUND`) e quantos
+  são válidos. É a medida de "quanto o extrator leu deste documento".
+- `fields[]`: `status`, `reason` e `explanation` por campo. Os motivos são `FOUND`, `LABEL_NOT_FOUND` (nenhum rótulo do
+  campo apareceu no texto), `VALUE_EMPTY` (o rótulo apareceu e não havia valor ao lado ou embaixo), `VALUE_REJECTED`
+  (havia candidatos, nenhum com o formato esperado), `VALIDATION_FAILED` (leu e reprovou, com o valor preservado em
+  `raw`), `VALUE_UNCERTAIN` e `PATTERN_NOT_FOUND` (campos que não usam rótulo, como a MRZ). `recordedStatus` é o
+  que foi gravado; difere de `status` depois de mudar as regras, até o `reprocess`.
+- `fields[].rule`: os rótulos procurados e as linhas em que apareceram, quantos candidatos a valor foram examinados e
+  quais (`accepted` marca o que virou o valor).
+- `pages[].blocks[]`: cada bloco com `index` (é o número que rótulos e candidatos citam), texto, confiança e polígono.
+  `includeText=false` omite blocos, valores lidos e textos de candidatos.
+
+Extrações gravadas antes de os blocos serem guardados vêm com `ocrInput: PAGE_TEXT` (linhas sem coordenadas) e um aviso:
+reprocesse o documento. CPF e contrato social não leem por rótulo e por isso não trazem `rule`.
+
+Os extratores casam rótulo de forma tolerante: ignoram acento e caixa, aceitam palavras coladas, sinal de "Nº"/"1ª"
+trocado e numerador ("2e 1 NOME E SOBRENOME"), rótulos bilíngues ("NOME/NAME", "RG/UF"), uma letra errada a cada
+oito ("FILUAÇÃO") e datas impressas com espaço ("12 07 1975", só perto do rótulo). Uma variação nova de documento
+real entra como rótulo alternativo na lista do extrator e como caso em `RealDocumentExtractionTests`.
+
 **Latência.** Uma página A4 densa leva ~16 s de OCR com o contêiner sem limite de CPU e ~28 s limitado a 4 CPUs
 (ADR 0002). O alvo do PRD (cinco páginas em 90 s) vale para o primeiro caso. Não imponha limite de CPU ao
 `ocr-service` sem reler o ADR.

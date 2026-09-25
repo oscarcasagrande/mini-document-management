@@ -25,6 +25,13 @@ internal static partial class ExtractionPatterns
     [GeneratedRegex(@"(?<!\d)\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4}(?!\d)", RegexOptions.CultureInvariant)]
     public static partial Regex Date();
 
+    /// <summary>
+    /// Data impressa com espaço no lugar da barra, "12 07 1975", como sai de alguns RGs. Só vale como reserva, perto
+    /// de um rótulo de data: sem o rótulo, três números separados por espaço são qualquer coisa.
+    /// </summary>
+    [GeneratedRegex(@"(?<!\d)\d{1,2} {1,2}\d{1,2} {1,2}\d{4}(?!\d)", RegexOptions.CultureInvariant)]
+    public static partial Regex DateSpaced();
+
     /// <summary>Data por extenso, "24 de setembro de 2026", em qualquer caixa e com ou sem acento.</summary>
     [GeneratedRegex(@"(?<!\d)\d{1,2}\s+DE\s+[A-Z]{4,9}\s+DE\s+\d{4}(?!\d)", RegexOptions.CultureInvariant)]
     public static partial Regex LongDate();

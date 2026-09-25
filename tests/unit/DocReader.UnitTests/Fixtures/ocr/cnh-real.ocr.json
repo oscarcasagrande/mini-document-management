@@ -1,0 +1,980 @@
+{
+ "source": "cnh exemplo.jpg",
+ "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
+ "pages": [
+  {
+   "page": 1,
+   "imageWidth": 912,
+   "imageHeight": 1216,
+   "durationMs": 8385,
+   "blocks": [
+    {
+     "text": "REPUBLICAFEDERATIVADOBRASIL",
+     "confidence": 0.997315,
+     "boundingBox": [
+      147,
+      15,
+      689,
+      15,
+      689,
+      48,
+      147,
+      48
+     ]
+    },
+    {
+     "text": "BR",
+     "confidence": 0.856129,
+     "boundingBox": [
+      741,
+      26,
+      810,
+      26,
+      810,
+      59,
+      741,
+      59
+     ]
+    },
+    {
+     "text": "MINISTERIODAINFRAESTRUTURA",
+     "confidence": 0.999759,
+     "boundingBox": [
+      188,
+      45,
+      659,
+      47,
+      658,
+      74,
+      188,
+      72
+     ]
+    },
+    {
+     "text": "BR",
+     "confidence": 0.977645,
+     "boundingBox": [
+      741,
+      40,
+      810,
+      45,
+      808,
+      78,
+      739,
+      73
+     ]
+    },
+    {
+     "text": "SECRETARIANACIONALDETRANSITO",
+     "confidence": 0.998244,
+     "boundingBox": [
+      174,
+      69,
+      664,
+      68,
+      664,
+      92,
+      174,
+      93
+     ]
+    },
+    {
+     "text": "CARTEIRA NACIONAL DE HABILITAÇÃO/DRIVER LICENSE/PERMISO DE CONDUCCIÓN",
+     "confidence": 0.98935,
+     "boundingBox": [
+      150,
+      103,
+      869,
+      102,
+      869,
+      136,
+      150,
+      137
+     ]
+    },
+    {
+     "text": "2e 1 NOME E SOBRENOME",
+     "confidence": 0.954019,
+     "boundingBox": [
+      154,
+      155,
+      361,
+      154,
+      361,
+      175,
+      154,
+      176
+     ]
+    },
+    {
+     "text": "1° HABILITAÇÃO",
+     "confidence": 0.96954,
+     "boundingBox": [
+      724,
+      153,
+      830,
+      153,
+      830,
+      173,
+      724,
+      173
+     ]
+    },
+    {
+     "text": "NOME SOCIAL TESTE CENTO E DEZ",
+     "confidence": 0.995928,
+     "boundingBox": [
+      159,
+      174,
+      486,
+      174,
+      486,
+      198,
+      159,
+      198
+     ]
+    },
+    {
+     "text": "24/05/2022",
+     "confidence": 0.999998,
+     "boundingBox": [
+      735,
+      169,
+      834,
+      171,
+      833,
+      196,
+      735,
+      194
+     ]
+    },
+    {
+     "text": "3 DATA, LOCAL E UF DE NASCIMENTO",
+     "confidence": 0.966823,
+     "boundingBox": [
+      405,
+      206,
+      651,
+      204,
+      651,
+      224,
+      405,
+      226
+     ]
+    },
+    {
+     "text": "19/09/1981 SAO PAULO/SP",
+     "confidence": 0.999392,
+     "boundingBox": [
+      405,
+      225,
+      639,
+      223,
+      639,
+      248,
+      405,
+      250
+     ]
+    },
+    {
+     "text": "4a DATA EMISSÃO",
+     "confidence": 0.996844,
+     "boundingBox": [
+      412,
+      257,
+      531,
+      255,
+      531,
+      276,
+      413,
+      278
+     ]
+    },
+    {
+     "text": "4b VALIDADE",
+     "confidence": 0.999481,
+     "boundingBox": [
+      575,
+      257,
+      667,
+      254,
+      668,
+      275,
+      576,
+      278
+     ]
+    },
+    {
+     "text": "ACC",
+     "confidence": 0.999987,
+     "boundingBox": [
+      747,
+      261,
+      781,
+      261,
+      781,
+      276,
+      747,
+      276
+     ]
+    },
+    {
+     "text": "24/05/2022",
+     "confidence": 0.999998,
+     "boundingBox": [
+      421,
+      275,
+      518,
+      275,
+      518,
+      300,
+      421,
+      300
+     ]
+    },
+    {
+     "text": "23/05/2023",
+     "confidence": 0.999962,
+     "boundingBox": [
+      585,
+      276,
+      681,
+      276,
+      681,
+      300,
+      585,
+      300
+     ]
+    },
+    {
+     "text": "83955921",
+     "confidence": 0.368356,
+     "boundingBox": [
+      731,
+      277,
+      803,
+      277,
+      803,
+      299,
+      731,
+      299
+     ]
+    },
+    {
+     "text": "D",
+     "confidence": 0.980916,
+     "boundingBox": [
+      824,
+      273,
+      841,
+      273,
+      841,
+      287,
+      824,
+      287
+     ]
+    },
+    {
+     "text": "4c DOC. IDENTIDADE /ÓRG. EMISSOR/UF",
+     "confidence": 0.973681,
+     "boundingBox": [
+      402,
+      309,
+      675,
+      307,
+      675,
+      327,
+      402,
+      329
+     ]
+    },
+    {
+     "text": "123456789 SSPSP",
+     "confidence": 0.999313,
+     "boundingBox": [
+      400,
+      329,
+      565,
+      327,
+      565,
+      352,
+      400,
+      354
+     ]
+    },
+    {
+     "text": "4d CPF",
+     "confidence": 0.998549,
+     "boundingBox": [
+      403,
+      361,
+      450,
+      361,
+      450,
+      379,
+      403,
+      379
+     ]
+    },
+    {
+     "text": "5N°REGISTRO",
+     "confidence": 0.962065,
+     "boundingBox": [
+      589,
+      361,
+      691,
+      361,
+      691,
+      378,
+      589,
+      378
+     ]
+    },
+    {
+     "text": "9 CAT. HAB.",
+     "confidence": 0.976826,
+     "boundingBox": [
+      754,
+      358,
+      833,
+      358,
+      833,
+      375,
+      754,
+      375
+     ]
+    },
+    {
+     "text": "000000",
+     "confidence": 0.999873,
+     "boundingBox": [
+      83,
+      374,
+      119,
+      374,
+      119,
+      529,
+      83,
+      529
+     ]
+    },
+    {
+     "text": "111.444.777-35",
+     "confidence": 0.999996,
+     "boundingBox": [
+      410,
+      377,
+      548,
+      377,
+      548,
+      404,
+      410,
+      404
+     ]
+    },
+    {
+     "text": "04512345621",
+     "confidence": 0.999996,
+     "boundingBox": [
+      595,
+      378,
+      715,
+      378,
+      715,
+      402,
+      595,
+      402
+     ]
+    },
+    {
+     "text": "NACIONALIDADE",
+     "confidence": 0.99957,
+     "boundingBox": [
+      403,
+      412,
+      517,
+      412,
+      517,
+      432,
+      403,
+      432
+     ]
+    },
+    {
+     "text": "BRASILEIRO",
+     "confidence": 0.999942,
+     "boundingBox": [
+      398,
+      430,
+      515,
+      430,
+      515,
+      455,
+      398,
+      455
+     ]
+    },
+    {
+     "text": "FILIAÇÃO",
+     "confidence": 0.999719,
+     "boundingBox": [
+      401,
+      458,
+      468,
+      458,
+      468,
+      480,
+      401,
+      480
+     ]
+    },
+    {
+     "text": "PAI DO TESTE HCAB DEZ",
+     "confidence": 0.995494,
+     "boundingBox": [
+      399,
+      482,
+      591,
+      482,
+      591,
+      503,
+      399,
+      503
+     ]
+    },
+    {
+     "text": "PAI AFETIVO CENTO E DEZ",
+     "confidence": 0.992691,
+     "boundingBox": [
+      399,
+      511,
+      606,
+      511,
+      606,
+      535,
+      399,
+      535
+     ]
+    },
+    {
+     "text": "MAE DO TESTE HCAB DEZ",
+     "confidence": 0.99362,
+     "boundingBox": [
+      400,
+      544,
+      602,
+      544,
+      602,
+      565,
+      400,
+      565
+     ]
+    },
+    {
+     "text": "MAE AFETIVACENTO E DEZ",
+     "confidence": 0.945623,
+     "boundingBox": [
+      398,
+      576,
+      612,
+      576,
+      612,
+      597,
+      398,
+      597
+     ]
+    },
+    {
+     "text": "7 ASSINATURA DO PORTADOR",
+     "confidence": 0.99755,
+     "boundingBox": [
+      157,
+      616,
+      353,
+      616,
+      353,
+      636,
+      157,
+      636
+     ]
+    },
+    {
+     "text": "0",
+     "confidence": 0.956102,
+     "boundingBox": [
+      267,
+      666,
+      277,
+      666,
+      277,
+      674,
+      267,
+      674
+     ]
+    },
+    {
+     "text": "ACC",
+     "confidence": 0.999568,
+     "boundingBox": [
+      150,
+      683,
+      206,
+      679,
+      208,
+      706,
+      152,
+      710
+     ]
+    },
+    {
+     "text": "6t0",
+     "confidence": 0.401526,
+     "boundingBox": [
+      200,
+      682,
+      232,
+      682,
+      232,
+      706,
+      200,
+      706
+     ]
+    },
+    {
+     "text": "D",
+     "confidence": 0.512539,
+     "boundingBox": [
+      503,
+      677,
+      522,
+      677,
+      522,
+      709,
+      503,
+      709
+     ]
+    },
+    {
+     "text": "A",
+     "confidence": 0.999934,
+     "boundingBox": [
+      154,
+      712,
+      170,
+      712,
+      170,
+      734,
+      154,
+      734
+     ]
+    },
+    {
+     "text": "05",
+     "confidence": 0.795007,
+     "boundingBox": [
+      200,
+      708,
+      238,
+      708,
+      238,
+      738,
+      200,
+      738
+     ]
+    },
+    {
+     "text": "D1",
+     "confidence": 0.999763,
+     "boundingBox": [
+      504,
+      706,
+      531,
+      706,
+      531,
+      734,
+      504,
+      734
+     ]
+    },
+    {
+     "text": "一",
+     "confidence": 0.603305,
+     "boundingBox": [
+      538,
+      710,
+      574,
+      710,
+      574,
+      733,
+      538,
+      733
+     ]
+    },
+    {
+     "text": "A1",
+     "confidence": 0.999948,
+     "boundingBox": [
+      153,
+      743,
+      177,
+      743,
+      177,
+      766,
+      153,
+      766
+     ]
+    },
+    {
+     "text": "05",
+     "confidence": 0.32506,
+     "boundingBox": [
+      198,
+      740,
+      236,
+      740,
+      236,
+      771,
+      198,
+      771
+     ]
+    },
+    {
+     "text": "BE",
+     "confidence": 0.99991,
+     "boundingBox": [
+      504,
+      741,
+      538,
+      741,
+      538,
+      765,
+      504,
+      765
+     ]
+    },
+    {
+     "text": "D",
+     "confidence": 0.274578,
+     "boundingBox": [
+      538,
+      742,
+      591,
+      742,
+      591,
+      764,
+      538,
+      764
+     ]
+    },
+    {
+     "text": "B",
+     "confidence": 0.982765,
+     "boundingBox": [
+      154,
+      772,
+      175,
+      772,
+      175,
+      793,
+      154,
+      793
+     ]
+    },
+    {
+     "text": "60",
+     "confidence": 0.852812,
+     "boundingBox": [
+      200,
+      770,
+      236,
+      770,
+      236,
+      800,
+      200,
+      800
+     ]
+    },
+    {
+     "text": "23/05/2023",
+     "confidence": 0.999978,
+     "boundingBox": [
+      348,
+      773,
+      430,
+      773,
+      430,
+      797,
+      348,
+      797
+     ]
+    },
+    {
+     "text": "CE",
+     "confidence": 0.99996,
+     "boundingBox": [
+      505,
+      772,
+      540,
+      772,
+      540,
+      796,
+      505,
+      796
+     ]
+    },
+    {
+     "text": "11",
+     "confidence": 0.427416,
+     "boundingBox": [
+      535,
+      774,
+      596,
+      774,
+      596,
+      795,
+      535,
+      795
+     ]
+    },
+    {
+     "text": "B1",
+     "confidence": 0.996042,
+     "boundingBox": [
+      153,
+      799,
+      177,
+      799,
+      177,
+      822,
+      153,
+      822
+     ]
+    },
+    {
+     "text": "D",
+     "confidence": 0.377399,
+     "boundingBox": [
+      203,
+      804,
+      232,
+      804,
+      232,
+      824,
+      203,
+      824
+     ]
+    },
+    {
+     "text": "C1E",
+     "confidence": 0.841101,
+     "boundingBox": [
+      504,
+      797,
+      595,
+      797,
+      595,
+      825,
+      504,
+      825
+     ]
+    },
+    {
+     "text": "C",
+     "confidence": 0.996415,
+     "boundingBox": [
+      156,
+      831,
+      169,
+      831,
+      169,
+      850,
+      156,
+      850
+     ]
+    },
+    {
+     "text": "DE",
+     "confidence": 0.999994,
+     "boundingBox": [
+      507,
+      831,
+      546,
+      831,
+      546,
+      850,
+      507,
+      850
+     ]
+    },
+    {
+     "text": "",
+     "confidence": 0,
+     "boundingBox": [
+      536,
+      828,
+      596,
+      824,
+      598,
+      848,
+      537,
+      851
+     ]
+    },
+    {
+     "text": "C",
+     "confidence": 0.931234,
+     "boundingBox": [
+      164,
+      856,
+      178,
+      870,
+      165,
+      883,
+      151,
+      869
+     ]
+    },
+    {
+     "text": "D1E",
+     "confidence": 0.999252,
+     "boundingBox": [
+      506,
+      862,
+      546,
+      862,
+      546,
+      881,
+      506,
+      881
+     ]
+    },
+    {
+     "text": "12 OBSERVAÇÕES",
+     "confidence": 0.981032,
+     "boundingBox": [
+      160,
+      899,
+      286,
+      897,
+      286,
+      918,
+      160,
+      920
+     ]
+    },
+    {
+     "text": "CHANCELA",
+     "confidence": 0.999959,
+     "boundingBox": [
+      702,
+      1015,
+      792,
+      1015,
+      792,
+      1043,
+      702,
+      1043
+     ]
+    },
+    {
+     "text": "-00036",
+     "confidence": 0.999899,
+     "boundingBox": [
+      242,
+      1077,
+      293,
+      1077,
+      293,
+      1100,
+      242,
+      1100
+     ]
+    },
+    {
+     "text": "ASSINATURA DO EMISSOR",
+     "confidence": 0.982135,
+     "boundingBox": [
+      662,
+      1092,
+      835,
+      1092,
+      835,
+      1112,
+      662,
+      1112
+     ]
+    },
+    {
+     "text": "LOCAL",
+     "confidence": 0.999701,
+     "boundingBox": [
+      153,
+      1120,
+      203,
+      1120,
+      203,
+      1135,
+      153,
+      1135
+     ]
+    },
+    {
+     "text": "50000000000",
+     "confidence": 0.999988,
+     "boundingBox": [
+      690,
+      1118,
+      807,
+      1120,
+      807,
+      1142,
+      690,
+      1140
+     ]
+    },
+    {
+     "text": "ARICANDUVA, SP",
+     "confidence": 0.984062,
+     "boundingBox": [
+      153,
+      1135,
+      314,
+      1135,
+      314,
+      1162,
+      153,
+      1162
+     ]
+    },
+    {
+     "text": "SP000000000",
+     "confidence": 0.999847,
+     "boundingBox": [
+      691,
+      1140,
+      812,
+      1140,
+      812,
+      1160,
+      691,
+      1160
+     ]
+    },
+    {
+     "text": "DISTRITO FEDERAL",
+     "confidence": 0.999179,
+     "boundingBox": [
+      350,
+      1167,
+      653,
+      1167,
+      653,
+      1197,
+      350,
+      1197
+     ]
+    }
+   ]
+  }
+ ]
+}

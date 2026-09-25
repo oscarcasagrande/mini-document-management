@@ -301,6 +301,42 @@ public sealed class DocumentsController(
     }
 
     /// <summary>
+    /// Explains how the fields of a document were extracted, for debugging a field that came out empty or wrong.
+    /// </summary>
+    /// <remarks>
+    /// Runs the extraction again, with the rules in force now, over the OCR blocks stored with the latest
+    /// extraction. It returns the blocks with their coordinates (<c>pages</c>), the coverage (how many fields
+    /// were read) and, for every field, its status, the reason (<c>LABEL_NOT_FOUND</c>, <c>VALUE_EMPTY</c>,
+    /// <c>VALUE_REJECTED</c>, <c>VALIDATION_FAILED</c> and so on), a sentence explaining it, and what its rule
+    /// searched: the labels tried, the lines they were found on and the candidate values examined.
+    /// <c>recordedStatus</c> is what was stored when the document was processed; it differs from <c>status</c>
+    /// after the rules changed, until the document is reprocessed. Nothing is written. The OCR text, the values
+    /// read and the candidate texts are included by default, the same content as <c>/text</c> and <c>/result</c>;
+    /// <c>includeText=false</c> leaves them out and keeps the statuses, reasons and line numbers. An extraction
+    /// stored before blocks were kept has no coordinates (<c>ocrInput</c> is <c>PAGE_TEXT</c>): reprocess it.
+    /// Answers 409 while there is nothing to return yet, or when every attempt failed.
+    /// </remarks>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="includeText">Whether to include the OCR text and the values read. Defaults to true.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="200">The extraction, explained.</response>
+    /// <response code="404">No document with this id.</response>
+    /// <response code="409">The document has no result yet, or its processing failed.</response>
+    [HttpGet("{id:guid}/extraction-diagnostics")]
+    [ProducesResponseType(typeof(ExtractionDiagnosticsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
+    public async Task<ActionResult<ExtractionDiagnosticsResponse>> GetExtractionDiagnosticsAsync(
+        Guid id,
+        [FromQuery] bool includeText = true,
+        CancellationToken ct = default)
+    {
+        var diagnostics = await queryService.GetExtractionDiagnosticsAsync(id, ct);
+
+        return Ok(DocumentResponseMapper.ToExtractionDiagnostics(diagnostics, includeText));
+    }
+
+    /// <summary>
     /// Returns the canonical structured result.
     /// </summary>
     /// <remarks>

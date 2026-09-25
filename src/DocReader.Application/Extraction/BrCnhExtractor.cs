@@ -15,7 +15,7 @@ public sealed partial class BrCnhExtractor(TimeProvider timeProvider) : IDocumen
 {
     public const string TypeName = "BR_CNH";
 
-    public const string ExtractorVersion = "br-cnh-1.0.0";
+    public const string ExtractorVersion = "br-cnh-1.1.0";
 
     public const string CategoryValid = "CATEGORY_VALID";
 
@@ -33,7 +33,7 @@ public sealed partial class BrCnhExtractor(TimeProvider timeProvider) : IDocumen
         .. NameLabels, .. CpfLabels, .. BirthLabels, .. RegistrationLabels, .. CategoryLabels,
         .. FirstLicenseLabels, .. IssueLabels, .. ExpirationLabels,
         "FILIACAO", "DOC. IDENTIDADE / ORG. EMISSOR / UF", "DOC IDENTIDADE", "ORGAO EMISSOR", "PERMISSAO",
-        "OBSERVACOES", "LOCAL", "ASSINATURA DO PORTADOR", "REPUBLICA FEDERATIVA DO BRASIL",
+        "OBSERVACOES", "LOCAL", "NACIONALIDADE", "ASSINATURA DO PORTADOR", "ASSINATURA DO EMISSOR", "CHANCELA", "REPUBLICA FEDERATIVA DO BRASIL",
         "MINISTERIO DOS TRANSPORTES", "SECRETARIA NACIONAL DE TRANSITO", "CARTEIRA NACIONAL DE HABILITACAO",
         "AMOSTRA SINTETICA - SEM VALOR LEGAL", "AMOSTRA SINTETICA SEM VALOR LEGAL"
     ];
@@ -50,23 +50,25 @@ public sealed partial class BrCnhExtractor(TimeProvider timeProvider) : IDocumen
 
     public string Version => ExtractorVersion;
 
-    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct) => ExtractAsync(result, null, ct);
+
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, ExtractionTrace? trace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        var search = new LineSearch(OcrTextLine.From(result), KnownLabels);
+        var search = new LineSearch(OcrTextLine.From(result), KnownLabels, trace);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
 
         var fields = new Dictionary<string, ExtractedFieldValue>(StringComparer.Ordinal)
         {
-            ["name"] = FieldReaders.Name(search, NameLabels),
-            ["cpf"] = FieldReaders.Cpf(search, CpfLabels),
-            ["birthDate"] = FieldReaders.Date(search, BirthLabels, DateKind.Birth, today),
-            ["registrationNumber"] = ExtractRegistration(search),
-            ["category"] = ExtractCategory(search),
-            ["firstLicenseDate"] = FieldReaders.Date(search, FirstLicenseLabels, DateKind.Issue, today),
-            ["issueDate"] = FieldReaders.Date(search, IssueLabels, DateKind.Issue, today),
-            ["expirationDate"] = FieldReaders.Date(search, ExpirationLabels, DateKind.Expiration, today)
+            ["name"] = search.Field("name", () => FieldReaders.Name(search, NameLabels)),
+            ["cpf"] = search.Field("cpf", () => FieldReaders.Cpf(search, CpfLabels)),
+            ["birthDate"] = search.Field("birthDate", () => FieldReaders.Date(search, BirthLabels, DateKind.Birth, today)),
+            ["registrationNumber"] = search.Field("registrationNumber", () => ExtractRegistration(search)),
+            ["category"] = search.Field("category", () => ExtractCategory(search)),
+            ["firstLicenseDate"] = search.Field("firstLicenseDate", () => FieldReaders.Date(search, FirstLicenseLabels, DateKind.Issue, today)),
+            ["issueDate"] = search.Field("issueDate", () => FieldReaders.Date(search, IssueLabels, DateKind.Issue, today)),
+            ["expirationDate"] = search.Field("expirationDate", () => FieldReaders.Date(search, ExpirationLabels, DateKind.Expiration, today))
         };
 
         return Task.FromResult(new StructuredExtraction(

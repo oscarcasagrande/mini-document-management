@@ -921,6 +921,105 @@
         }
       }
     },
+    "/api/v1/documents/{id}/extraction-diagnostics": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Explains how the fields of a document were extracted, for debugging a field that came out empty or wrong.",
+        "description": "Runs the extraction again, with the rules in force now, over the OCR blocks stored with the latest\nextraction. It returns the blocks with their coordinates (`pages`), the coverage (how many fields\nwere read) and, for every field, its status, the reason (`LABEL_NOT_FOUND`, `VALUE_EMPTY`,\n`VALUE_REJECTED`, `VALIDATION_FAILED` and so on), a sentence explaining it, and what its rule\nsearched: the labels tried, the lines they were found on and the candidate values examined.\n`recordedStatus` is what was stored when the document was processed; it differs from `status`\nafter the rules changed, until the document is reprocessed. Nothing is written. The OCR text, the values\nread and the candidate texts are included by default, the same content as `/text` and `/result`;\n`includeText=false` leaves them out and keeps the statuses, reasons and line numbers. An extraction\nstored before blocks were kept has no coordinates (`ocrInput` is `PAGE_TEXT`): reprocess it.\nAnswers 409 while there is nothing to return yet, or when every attempt failed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "includeText",
+            "in": "query",
+            "description": "Whether to include the OCR text and the values read. Defaults to true.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/extraction-diagnostics",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The extraction, explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionDiagnosticsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/extraction-diagnostics",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The document has no result yet, or its processing failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Result not available",
+                  "status": 409,
+                  "detail": "The document is OCR_RUNNING and has no result yet. Poll the status endpoint and try again when it is COMPLETED.",
+                  "instance": "/api/v1/documents/{id}/extraction-diagnostics",
+                  "errorCode": "RESULT_NOT_READY",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/{id}/result": {
       "get": {
         "tags": [
@@ -1327,6 +1426,193 @@
             "description": "Errors tolerated for a FUZZY match.",
             "format": "int32",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiagnosedBlockResponse": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Reading-order position; the one labels and candidates refer to.",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string",
+            "description": "Recognised text."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "OCR confidence between 0 and 1.",
+            "format": "double",
+            "nullable": true
+          },
+          "boundingBox": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "Polygon as flat x/y pairs, in pixels of the analysed page image."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiagnosedCandidateResponse": {
+        "type": "object",
+        "properties": {
+          "lineIndex": {
+            "type": "integer",
+            "description": "Block index the candidate came from.",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page of the block.",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string",
+            "description": "Candidate text. Omitted with `includeText=false`.",
+            "nullable": true
+          },
+          "penalty": {
+            "type": "number",
+            "description": "Confidence discount for the distance from the label.",
+            "format": "double"
+          },
+          "accepted": {
+            "type": "boolean",
+            "description": "Whether the value read came from this candidate."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiagnosedFieldResponse": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Field path in the schema of the type."
+          },
+          "status": {
+            "type": "string",
+            "description": "VALID, INVALID, NOT_FOUND or UNCERTAIN, with the rules in force now."
+          },
+          "reason": {
+            "type": "string",
+            "description": "FOUND, FOUND_WITHOUT_LABEL, LABEL_NOT_FOUND, VALUE_EMPTY, VALUE_REJECTED, VALIDATION_FAILED, VALUE_UNCERTAIN or PATTERN_NOT_FOUND."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "The reason in a sentence."
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Machine readable validation codes."
+          },
+          "raw": {
+            "type": "string",
+            "description": "Value as read. Omitted with `includeText=false`.",
+            "nullable": true
+          },
+          "normalized": {
+            "type": "string",
+            "description": "Normalized value. Omitted with `includeText=false`.",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence between 0 and 1.",
+            "format": "double",
+            "nullable": true
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page of the evidence.",
+            "format": "int32",
+            "nullable": true
+          },
+          "boundingBox": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "Flat x/y pairs, in pixels of the analysed page image."
+          },
+          "recordedStatus": {
+            "type": "string",
+            "description": "Status stored when the document was processed; differs from `status` after a rule change, until reprocessing.",
+            "nullable": true
+          },
+          "rule": {
+            "$ref": "#/components/schemas/DiagnosedRuleResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiagnosedLabelResponse": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Label searched, normalized without accents and in upper case."
+          },
+          "foundOnLines": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Block indexes (see `pages`) where it appeared."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiagnosedPageResponse": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosedBlockResponse"
+            },
+            "description": "Blocks of the page, in reading order."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiagnosedRuleResponse": {
+        "type": "object",
+        "properties": {
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosedLabelResponse"
+            },
+            "description": "Labels searched, each with the lines it was found on (empty when it was not found)."
+          },
+          "candidatesSeen": {
+            "type": "integer",
+            "description": "How many candidate values the rule examined.",
+            "format": "int32"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosedCandidateResponse"
+            },
+            "description": "The first candidates examined."
           }
         },
         "additionalProperties": false
@@ -2196,6 +2482,221 @@
           }
         },
         "additionalProperties": false
+      },
+      "ExtractionCoverageResponse": {
+        "type": "object",
+        "properties": {
+          "expected": {
+            "type": "integer",
+            "description": "Fields of the type, not counting dynamic ones such as contract partners.",
+            "format": "int32"
+          },
+          "extracted": {
+            "type": "integer",
+            "description": "Fields read, valid or not: any status other than NOT_FOUND.",
+            "format": "int32"
+          },
+          "valid": {
+            "type": "integer",
+            "description": "Fields read and valid.",
+            "format": "int32"
+          },
+          "extractedRatio": {
+            "type": "number",
+            "description": "Extracted over expected, between 0 and 1.",
+            "format": "double"
+          },
+          "validRatio": {
+            "type": "number",
+            "description": "Valid over expected, between 0 and 1.",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExtractionDiagnosticsResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "extractedAt": {
+            "type": "string",
+            "description": "Instant the OCR of the latest extraction was persisted, in UTC.",
+            "format": "date-time"
+          },
+          "recordedExtractorVersion": {
+            "type": "string",
+            "description": "Extractor version stored with the latest extraction.",
+            "nullable": true
+          },
+          "documentType": {
+            "type": "string",
+            "description": "Type whose extractor ran; null when the document is UNKNOWN.",
+            "nullable": true
+          },
+          "documentTypeSource": {
+            "type": "string",
+            "description": "RECORDED, or CURRENT_CLASSIFICATION when the recorded type was UNKNOWN and today's rules recognise one."
+          },
+          "extractorVersion": {
+            "type": "string",
+            "description": "Extractor version that ran now.",
+            "nullable": true
+          },
+          "ocrInput": {
+            "type": "string",
+            "description": "BLOCKS (with coordinates) or PAGE_TEXT (an older extraction: plain lines, no geometry)."
+          },
+          "note": {
+            "type": "string",
+            "description": "A warning about this diagnosis, when there is one.",
+            "nullable": true
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/ExtractionCoverageResponse"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosedFieldResponse"
+            },
+            "description": "One entry per field of the type."
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosedPageResponse"
+            },
+            "description": "The OCR blocks with coordinates, page by page. Omitted with `includeText=false`.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Why the fields of a document came out as they did: the OCR blocks with coordinates as the extractor received\nthem, and for every field what the extraction rules in force now read, the reason it failed and what its rule\nsearched. Compare `status` with `recordedStatus` to see a result made stale by a rule change.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "status": "COMPLETED",
+          "extractedAt": "2026-09-24T22:00:00Z",
+          "recordedExtractorVersion": "br-cnh-1.0.0",
+          "documentType": "BR_CNH",
+          "documentTypeSource": "RECORDED",
+          "extractorVersion": "br-cnh-1.1.0",
+          "ocrInput": "BLOCKS",
+          "note": null,
+          "coverage": {
+            "expected": 8,
+            "extracted": 7,
+            "valid": 7,
+            "extractedRatio": 0.875,
+            "validRatio": 0.875
+          },
+          "fields": [
+            {
+              "path": "name",
+              "status": "VALID",
+              "reason": "FOUND",
+              "explanation": "The value was read.",
+              "messages": [ ],
+              "raw": "MARIA APARECIDA DA SILVA SOUZA",
+              "normalized": "MARIA APARECIDA DA SILVA SOUZA",
+              "confidence": 0.99,
+              "page": 1,
+              "boundingBox": [
+                159,
+                174,
+                486,
+                174,
+                486,
+                198,
+                159,
+                198
+              ],
+              "recordedStatus": "NOT_FOUND",
+              "rule": {
+                "labels": [
+                  {
+                    "label": "NOME",
+                    "foundOnLines": [ ]
+                  },
+                  {
+                    "label": "NOME E SOBRENOME",
+                    "foundOnLines": [
+                      6
+                    ]
+                  }
+                ],
+                "candidatesSeen": 1,
+                "candidates": [
+                  {
+                    "lineIndex": 8,
+                    "page": 1,
+                    "text": "MARIA APARECIDA DA SILVA SOUZA",
+                    "penalty": 0,
+                    "accepted": true
+                  }
+                ]
+              }
+            },
+            {
+              "path": "category",
+              "status": "NOT_FOUND",
+              "reason": "VALUE_EMPTY",
+              "explanation": "The label was found on line 22, but no value was next to it, to its right or below it.",
+              "messages": [ ],
+              "raw": null,
+              "normalized": null,
+              "confidence": null,
+              "page": null,
+              "boundingBox": [ ],
+              "recordedStatus": "NOT_FOUND",
+              "rule": {
+                "labels": [
+                  {
+                    "label": "CAT HAB",
+                    "foundOnLines": [
+                      22
+                    ]
+                  }
+                ],
+                "candidatesSeen": 0,
+                "candidates": [ ]
+              }
+            }
+          ],
+          "pages": [
+            {
+              "page": 1,
+              "blocks": [
+                {
+                  "index": 6,
+                  "text": "2e 1 NOME E SOBRENOME",
+                  "confidence": 0.95,
+                  "boundingBox": [
+                    154,
+                    154,
+                    361,
+                    154,
+                    361,
+                    172,
+                    154,
+                    172
+                  ]
+                }
+              ]
+            }
+          ]
+        }
       },
       "FieldEvidenceResponse": {
         "type": "object",

@@ -69,6 +69,11 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
             return BuildText();
         }
 
+        if (type == typeof(ExtractionDiagnosticsResponse))
+        {
+            return BuildExtractionDiagnostics();
+        }
+
         if (type == typeof(ClassificationDiagnosticsResponse))
         {
             return BuildClassificationDiagnostics();
@@ -235,6 +240,89 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
         {
             ["page"] = 1,
             ["text"] = "REPUBLICA FEDERATIVA DO BRASIL\nREGISTRO DE IDENTIDADE CIVIL\nDATA DE NASC / DATE OF BIRTH\nFILUACAO"
+        })
+    };
+
+    private static JsonObject BuildExtractionDiagnostics() => new()
+    {
+        ["id"] = SampleId,
+        ["protocol"] = SampleProtocol,
+        ["status"] = "COMPLETED",
+        ["extractedAt"] = SampleInstant,
+        ["recordedExtractorVersion"] = "br-cnh-1.0.0",
+        ["documentType"] = "BR_CNH",
+        ["documentTypeSource"] = "RECORDED",
+        ["extractorVersion"] = "br-cnh-1.1.0",
+        ["ocrInput"] = "BLOCKS",
+        ["note"] = null,
+        ["coverage"] = new JsonObject
+        {
+            ["expected"] = 8,
+            ["extracted"] = 7,
+            ["valid"] = 7,
+            ["extractedRatio"] = 0.875,
+            ["validRatio"] = 0.875
+        },
+        ["fields"] = new JsonArray(
+            new JsonObject
+            {
+                ["path"] = "name",
+                ["status"] = "VALID",
+                ["reason"] = "FOUND",
+                ["explanation"] = "The value was read.",
+                ["messages"] = new JsonArray(),
+                ["raw"] = "MARIA APARECIDA DA SILVA SOUZA",
+                ["normalized"] = "MARIA APARECIDA DA SILVA SOUZA",
+                ["confidence"] = 0.99,
+                ["page"] = 1,
+                ["boundingBox"] = new JsonArray(159, 174, 486, 174, 486, 198, 159, 198),
+                ["recordedStatus"] = "NOT_FOUND",
+                ["rule"] = new JsonObject
+                {
+                    ["labels"] = new JsonArray(
+                        new JsonObject { ["label"] = "NOME", ["foundOnLines"] = new JsonArray() },
+                        new JsonObject { ["label"] = "NOME E SOBRENOME", ["foundOnLines"] = new JsonArray(6) }),
+                    ["candidatesSeen"] = 1,
+                    ["candidates"] = new JsonArray(new JsonObject
+                    {
+                        ["lineIndex"] = 8,
+                        ["page"] = 1,
+                        ["text"] = "MARIA APARECIDA DA SILVA SOUZA",
+                        ["penalty"] = 0,
+                        ["accepted"] = true
+                    })
+                }
+            },
+            new JsonObject
+            {
+                ["path"] = "category",
+                ["status"] = "NOT_FOUND",
+                ["reason"] = "VALUE_EMPTY",
+                ["explanation"] = "The label was found on line 22, but no value was next to it, to its right or below it.",
+                ["messages"] = new JsonArray(),
+                ["raw"] = null,
+                ["normalized"] = null,
+                ["confidence"] = null,
+                ["page"] = null,
+                ["boundingBox"] = new JsonArray(),
+                ["recordedStatus"] = "NOT_FOUND",
+                ["rule"] = new JsonObject
+                {
+                    ["labels"] = new JsonArray(new JsonObject { ["label"] = "CAT HAB", ["foundOnLines"] = new JsonArray(22) }),
+                    ["candidatesSeen"] = 0,
+                    ["candidates"] = new JsonArray()
+                }
+            }),
+        ["pages"] = new JsonArray(new JsonObject
+        {
+            ["page"] = 1,
+            ["blocks"] = new JsonArray(new JsonObject
+            {
+                ["index"] = 6,
+                ["text"] = "2e 1 NOME E SOBRENOME",
+                ["confidence"] = 0.95,
+                ["boundingBox"] = new JsonArray(154, 154, 361, 154, 361, 172, 154, 172)
+            })
         })
     };
 

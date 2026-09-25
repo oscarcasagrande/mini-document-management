@@ -24,6 +24,9 @@ public sealed record OcrTextLine(
     /// <summary>Texto sem acento, em caixa alta e com espaços colapsados, para casar rótulos.</summary>
     public string Normalized { get; } = TextNormalization.ForMatching(Text);
 
+    /// <summary>Formas de comparar a linha com um rótulo: compacta, sem numerador e por lado bilíngue.</summary>
+    public IReadOnlyList<string> LabelKeys { get; } = Extraction.LabelKeys.From(TextNormalization.ForMatching(Text));
+
     /// <summary>Retângulo da linha, ou null quando o provedor não mandou coordenadas.</summary>
     public LineBox? Box { get; } = LineBox.From(BoundingBox);
 

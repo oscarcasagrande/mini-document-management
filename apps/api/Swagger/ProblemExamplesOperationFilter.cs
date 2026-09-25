@@ -42,6 +42,8 @@ public sealed class ProblemExamplesOperationFilter : IOperationFilter
     [
         ("/text", "409", ("Result not available", "conflict", "RESULT_NOT_READY",
             "The document is OCR_RUNNING and has no result yet. Poll the status endpoint and try again when it is COMPLETED.")),
+        ("/extraction-diagnostics", "409", ("Result not available", "conflict", "RESULT_NOT_READY",
+            "The document is OCR_RUNNING and has no result yet. Poll the status endpoint and try again when it is COMPLETED.")),
         ("/classification-diagnostics", "409", ("Result not available", "conflict", "RESULT_NOT_READY",
             "The document is OCR_RUNNING and has no result yet. Poll the status endpoint and try again when it is COMPLETED.")),
         ("/result", "409", ("Result not available", "conflict", "RESULT_NOT_READY",

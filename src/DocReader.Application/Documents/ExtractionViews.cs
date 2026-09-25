@@ -1,4 +1,5 @@
 using DocReader.Application.Classification;
+using DocReader.Application.Extraction;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Processing;
 
@@ -52,6 +53,11 @@ public sealed record ExtractionResultView(
 /// <param name="PageTextsJson">JSON array of <c>{ pageNumber, text }</c>.</param>
 public sealed record ExtractionTextView(ExtractionSummary Summary, string PageTextsJson);
 
+/// <param name="Summary">Identity and versions of the extraction.</param>
+/// <param name="RawOcrResultJson">Stored OCR payload: per page, the provider output and the normalized blocks.</param>
+/// <param name="PageTextsJson">JSON array of <c>{ pageNumber, text }</c>.</param>
+public sealed record ExtractionOcrView(ExtractionSummary Summary, string RawOcrResultJson, string PageTextsJson);
+
 /// <summary>Document with the latest state of its asynchronous work, for the status and detail views.</summary>
 public sealed record DocumentSnapshot(
     Document Document,
@@ -79,6 +85,15 @@ public sealed record DocumentTextPage(int PageNumber, string Text);
 /// The classifier run again, with today's rules, over the text of the latest extraction, next to what was
 /// recorded when the document was processed. They differ after the rules changed and before a reprocess.
 /// </summary>
+/// <summary>
+/// The extraction run again over the stored OCR of the latest extraction, with the rules in force now, and what it
+/// tried for each field. The recorded field statuses travel inside so a stale result is visible.
+/// </summary>
+public sealed record DocumentExtractionDiagnostics(
+    Document Document,
+    ExtractionSummary Extraction,
+    ExtractionDiagnostics Diagnostics);
+
 public sealed record DocumentClassificationDiagnostics(
     Document Document,
     ExtractionSummary Extraction,

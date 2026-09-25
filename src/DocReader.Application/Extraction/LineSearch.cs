@@ -23,14 +23,37 @@ internal sealed partial class LineSearch
     /// <summary>Rótulos mais curtos que isso só casam por igualdade: "NOME" não pode casar "NOME SOCIAL".</summary>
     private const int LongLabelLength = 12;
 
+    private const int FuzzyLabelLength = 8;
+    private const int MaximumLabelEdits = 3;
+
+    /// <summary>
+    /// Bloco bem mais alto que largo e mais alto que duas linhas do rótulo é texto girado (a numeração
+    /// vertical na borda de uma carteira) e nunca é o valor de um campo. Parágrafo de várias linhas é mais
+    /// largo que alto, então não cai aqui.
+    /// </summary>
+    private const decimal RotatedHeightOverWidth = 1.5m;
+
+    private const decimal RotatedHeightOverLabel = 2m;
+
     private readonly IReadOnlyList<OcrTextLine> _lines;
     private readonly string[] _knownLabels;
+    private readonly ExtractionTrace? _trace;
 
-    public LineSearch(IReadOnlyList<OcrTextLine> lines, IEnumerable<string> knownLabels)
+    public LineSearch(IReadOnlyList<OcrTextLine> lines, IEnumerable<string> knownLabels, ExtractionTrace? trace = null)
     {
         _lines = lines;
         _knownLabels = [.. knownLabels.Distinct(StringComparer.Ordinal)];
+        _trace = trace;
     }
+
+    /// <summary>
+    /// Roda a regra de um campo e, quando há rastro, registra nela os rótulos e candidatos que a busca viu.
+    /// Sem rastro é só a chamada.
+    /// </summary>
+    public T Field<T>(string field, Func<T> read) => _trace is null ? read() : _trace.Run([field], read);
+
+    /// <summary>Como <see cref="Field{T}(string, Func{T})"/>, para uma regra que produz vários campos de uma vez.</summary>
+    public T Fields<T>(string[] fields, Func<T> read) => _trace is null ? read() : _trace.Run(fields, read);
 
     public IReadOnlyList<OcrTextLine> Lines => _lines;
 
@@ -41,6 +64,7 @@ internal sealed partial class LineSearch
 
         foreach (var label in labels)
         {
+            var labelLines = new List<(OcrTextLine Line, LabelMatch Match)>();
             foreach (var line in _lines)
             {
                 var match = MatchLabel(line, label);
@@ -49,8 +73,16 @@ internal sealed partial class LineSearch
                     continue;
                 }
 
+                labelLines.Add((line, match));
+            }
+
+            _trace?.LabelSearched(label, [.. labelLines.Select(entry => entry.Line.Index)]);
+
+            foreach (var (line, match) in labelLines)
+            {
                 if (!string.IsNullOrWhiteSpace(match.InlineValue) && seen.Add((line.Index, match.InlineValue)))
                 {
+                    _trace?.CandidateSeen(line, match.InlineValue, 0m);
                     yield return new LabelledValue(line, match.InlineValue, 0m);
                 }
 
@@ -58,6 +90,7 @@ internal sealed partial class LineSearch
                 {
                     if (seen.Add((candidate.Line.Index, candidate.Text)))
                     {
+                        _trace?.CandidateSeen(candidate.Line, candidate.Text, candidate.Penalty);
                         yield return candidate;
                     }
                 }
@@ -66,8 +99,15 @@ internal sealed partial class LineSearch
     }
 
     /// <summary>As linhas de rótulo que casam algum dos rótulos, para regras que precisam da posição.</summary>
-    public IEnumerable<OcrTextLine> LabelLines(IReadOnlyList<string> labels) =>
-        _lines.Where(line => labels.Any(label => MatchLabel(line, label) is not null));
+    public IEnumerable<OcrTextLine> LabelLines(IReadOnlyList<string> labels)
+    {
+        foreach (var label in labels)
+        {
+            _trace?.LabelSearched(label, [.. _lines.Where(line => MatchLabel(line, label) is not null).Select(line => line.Index)]);
+        }
+
+        return _lines.Where(line => labels.Any(label => MatchLabel(line, label) is not null));
+    }
 
     /// <summary>
     /// Linhas logo abaixo de <paramref name="start"/>, alinhadas a ela, para valores de várias linhas
@@ -84,7 +124,7 @@ internal sealed partial class LineSearch
                 ? Below(current, 1).FirstOrDefault()
                 : ReadingOrder(current, 1).FirstOrDefault();
 
-            if (next is null || IsKnownLabel(next))
+            if (next is null || IsKnownLabel(next) || LabelBetween(current, next))
             {
                 break;
             }
@@ -94,6 +134,29 @@ internal sealed partial class LineSearch
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Há um rótulo conhecido entre as duas linhas, na mesma coluna: o valor de baixo é do campo desse rótulo, não
+    /// continuação. O <c>Below</c> descarta rótulos ao procurar valor, então sem esta checagem a busca os atravessa.
+    /// </summary>
+    private bool LabelBetween(OcrTextLine upper, OcrTextLine lower)
+    {
+        if (upper.Box is not { } top || lower.Box is not { } bottom)
+        {
+            return false;
+        }
+
+        var height = Math.Max(top.Height, 1m);
+
+        return _lines.Any(line => line.PageNumber == upper.PageNumber
+            && line.Index != upper.Index
+            && line.Index != lower.Index
+            && line.Box is { } box
+            && box.CenterY > top.CenterY
+            && box.CenterY < bottom.CenterY
+            && HorizontallyAligned(top, box, height)
+            && IsKnownLabel(line));
     }
 
     public bool IsKnownLabel(OcrTextLine line) => _knownLabels.Any(label => MatchLabel(line, label) is not null);
@@ -143,6 +206,7 @@ internal sealed partial class LineSearch
                 && !candidate.IsEmpty
                 && !IsKnownLabel(candidate)
                 && candidate.Box is { } other
+                && !IsRotated(other, height)
                 && Math.Abs(other.CenterY - box.CenterY) <= 0.6m * height
                 && other.Left >= box.Right - (0.3m * height))
             .OrderBy(candidate => candidate.Box!.Value.Left)
@@ -163,6 +227,7 @@ internal sealed partial class LineSearch
                 && !candidate.IsEmpty
                 && !IsKnownLabel(candidate)
                 && candidate.Box is { } other
+                && !IsRotated(other, height)
                 && other.Top >= box.Bottom - (0.35m * height)
                 && other.Top - box.Bottom <= 3.5m * height
                 && HorizontallyAligned(box, other, height))
@@ -248,6 +313,9 @@ internal sealed partial class LineSearch
             && other.StartsWith(label, StringComparison.Ordinal)
             && Keys(line.Normalized).Any(key => key.Trim() == other || key.Split(':')[0].Trim() == other));
 
+    private static bool IsRotated(LineBox box, decimal labelHeight) =>
+        box.Height > RotatedHeightOverWidth * box.Width && box.Height > RotatedHeightOverLabel * labelHeight;
+
     private static bool HorizontallyAligned(LineBox label, LineBox other, decimal height)
     {
         var overlap = Math.Min(label.Right, other.Right) - Math.Max(label.Left, other.Left);
@@ -289,7 +357,33 @@ internal sealed partial class LineSearch
             }
         }
 
-        return null;
+        return MatchTolerant(line, label) ? new LabelMatch(null) : null;
+    }
+
+    /// <summary>
+    /// O que o casamento exato perde em documento real: palavras coladas, sinal de "Nº" ou "1ª" trocado, numerador
+    /// duplo ("2e 1 NOME E SOBRENOME"), rótulo bilíngue ("NOME/NAME") e uma letra errada pelo OCR ("FILUACAO").
+    /// Rótulo curto só casa por igualdade; a partir de oito letras tolera uma troca a cada oito, até três.
+    /// </summary>
+    private static bool MatchTolerant(OcrTextLine line, string label)
+    {
+        var wanted = LabelKeys.Compact(label);
+        if (wanted.Length == 0)
+        {
+            return false;
+        }
+
+        var allowed = wanted.Length >= FuzzyLabelLength ? Math.Min(MaximumLabelEdits, wanted.Length / FuzzyLabelLength) : 0;
+
+        foreach (var key in line.LabelKeys)
+        {
+            if (key == wanted || (allowed > 0 && EditDistance.Within(key, wanted, allowed)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>A linha como veio e sem o numerador de campo de CNH ("4b VALIDADE").</summary>

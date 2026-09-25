@@ -161,6 +161,24 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
         return new ExtractionTextView(summary, pageTexts);
     }
 
+    public async Task<ExtractionOcrView?> FindLatestExtractionOcrAsync(Guid documentId, CancellationToken ct)
+    {
+        var summary = await SummariesOf(documentId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        if (summary is null)
+        {
+            return null;
+        }
+
+        var stored = await dbContext.Extractions
+            .AsNoTracking()
+            .Where(extraction => extraction.Id == summary.ExtractionId)
+            .Select(extraction => new { extraction.RawOcrResultJson, extraction.PageTextsJson })
+            .FirstAsync(ct)
+            .ConfigureAwait(false);
+
+        return new ExtractionOcrView(summary, stored.RawOcrResultJson, stored.PageTextsJson);
+    }
+
     public async Task<ReprocessOutcome> QueueReprocessingAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
     {
         var strategy = dbContext.Database.CreateExecutionStrategy();

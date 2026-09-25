@@ -1,0 +1,742 @@
+{
+ "source": "rg exemplo.jpg",
+ "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
+ "pages": [
+  {
+   "page": 1,
+   "imageWidth": 872,
+   "imageHeight": 1110,
+   "durationMs": 9449,
+   "blocks": [
+    {
+     "text": "REPÚBLICA FEDERATIVA DO BRASIL",
+     "confidence": 0.997031,
+     "boundingBox": [
+      301,
+      21,
+      639,
+      21,
+      639,
+      45,
+      301,
+      45
+     ]
+    },
+    {
+     "text": "MINISTÉRIO DA JUSTICA",
+     "confidence": 0.95173,
+     "boundingBox": [
+      380,
+      45,
+      561,
+      45,
+      561,
+      65,
+      380,
+      65
+     ]
+    },
+    {
+     "text": "UT",
+     "confidence": 0.999975,
+     "boundingBox": [
+      773,
+      50,
+      828,
+      50,
+      828,
+      85,
+      773,
+      85
+     ]
+    },
+    {
+     "text": "REGISTRO DE IDENTIDADE CIVIL",
+     "confidence": 0.985199,
+     "boundingBox": [
+      352,
+      61,
+      588,
+      62,
+      588,
+      86,
+      352,
+      85
+     ]
+    },
+    {
+     "text": "ESTADO DE UTOPIA",
+     "confidence": 0.998531,
+     "boundingBox": [
+      370,
+      84,
+      571,
+      84,
+      571,
+      108,
+      370,
+      108
+     ]
+    },
+    {
+     "text": "NOME/NAME",
+     "confidence": 0.99972,
+     "boundingBox": [
+      256,
+      117,
+      347,
+      117,
+      347,
+      135,
+      256,
+      135
+     ]
+    },
+    {
+     "text": "MARINA",
+     "confidence": 0.999984,
+     "boundingBox": [
+      255,
+      131,
+      366,
+      133,
+      365,
+      157,
+      254,
+      154
+     ]
+    },
+    {
+     "text": "DE SOUZA LIMA",
+     "confidence": 0.987695,
+     "boundingBox": [
+      255,
+      154,
+      482,
+      154,
+      482,
+      177,
+      255,
+      177
+     ]
+    },
+    {
+     "text": "SEXO/SEX",
+     "confidence": 0.995368,
+     "boundingBox": [
+      255,
+      178,
+      331,
+      178,
+      331,
+      196,
+      255,
+      196
+     ]
+    },
+    {
+     "text": "FEM",
+     "confidence": 0.99998,
+     "boundingBox": [
+      254,
+      196,
+      304,
+      196,
+      304,
+      219,
+      254,
+      219
+     ]
+    },
+    {
+     "text": "NACIONALIDADE/NATIONALITY",
+     "confidence": 0.999406,
+     "boundingBox": [
+      255,
+      227,
+      457,
+      227,
+      457,
+      247,
+      255,
+      247
+     ]
+    },
+    {
+     "text": "BRA",
+     "confidence": 0.999996,
+     "boundingBox": [
+      255,
+      247,
+      303,
+      247,
+      303,
+      270,
+      255,
+      270
+     ]
+    },
+    {
+     "text": "DATA DE NASC / DATE OF BIRTH",
+     "confidence": 0.94844,
+     "boundingBox": [
+      254,
+      277,
+      457,
+      279,
+      457,
+      299,
+      254,
+      298
+     ]
+    },
+    {
+     "text": "12 07 1975",
+     "confidence": 0.991117,
+     "boundingBox": [
+      255,
+      299,
+      362,
+      299,
+      362,
+      323,
+      255,
+      323
+     ]
+    },
+    {
+     "text": "NÚMERO RIC / ID N",
+     "confidence": 0.871957,
+     "boundingBox": [
+      66,
+      338,
+      194,
+      338,
+      194,
+      355,
+      66,
+      355
+     ]
+    },
+    {
+     "text": "DATA DE VALIDADE / EXPIRY",
+     "confidence": 0.950538,
+     "boundingBox": [
+      253,
+      335,
+      434,
+      334,
+      434,
+      355,
+      253,
+      356
+     ]
+    },
+    {
+     "text": "0000000002-7",
+     "confidence": 0.999974,
+     "boundingBox": [
+      56,
+      352,
+      222,
+      352,
+      222,
+      379,
+      56,
+      379
+     ]
+    },
+    {
+     "text": "21 10 2015",
+     "confidence": 0.975674,
+     "boundingBox": [
+      254,
+      355,
+      362,
+      355,
+      362,
+      379,
+      254,
+      379
+     ]
+    },
+    {
+     "text": "0000000002-7",
+     "confidence": 0.999604,
+     "boundingBox": [
+      136,
+      443,
+      257,
+      441,
+      258,
+      466,
+      137,
+      468
+     ]
+    },
+    {
+     "text": "00000000027",
+     "confidence": 0.996164,
+     "boundingBox": [
+      594,
+      463,
+      715,
+      461,
+      716,
+      485,
+      595,
+      488
+     ]
+    },
+    {
+     "text": "MarinaS.Lima",
+     "confidence": 0.96333,
+     "boundingBox": [
+      292,
+      491,
+      562,
+      491,
+      562,
+      534,
+      292,
+      534
+     ]
+    },
+    {
+     "text": "DOC ORIGEM",
+     "confidence": 0.984378,
+     "boundingBox": [
+      196,
+      573,
+      276,
+      573,
+      276,
+      591,
+      196,
+      591
+     ]
+    },
+    {
+     "text": "ORGÃO EMISSOR",
+     "confidence": 0.950721,
+     "boundingBox": [
+      547,
+      574,
+      640,
+      574,
+      640,
+      588,
+      547,
+      588
+     ]
+    },
+    {
+     "text": "UTOPIA-UT CNLVA187/FLS.12/N.01245",
+     "confidence": 0.975296,
+     "boundingBox": [
+      193,
+      589,
+      466,
+      590,
+      466,
+      610,
+      193,
+      608
+     ]
+    },
+    {
+     "text": "ORGÃO IDENT DO ESTADO DE",
+     "confidence": 0.998137,
+     "boundingBox": [
+      545,
+      590,
+      743,
+      590,
+      743,
+      610,
+      545,
+      610
+     ]
+    },
+    {
+     "text": "RG/UF",
+     "confidence": 0.873697,
+     "boundingBox": [
+      193,
+      615,
+      239,
+      612,
+      241,
+      631,
+      195,
+      634
+     ]
+    },
+    {
+     "text": "CPF",
+     "confidence": 0.987595,
+     "boundingBox": [
+      373,
+      616,
+      397,
+      613,
+      399,
+      629,
+      375,
+      632
+     ]
+    },
+    {
+     "text": "UTOPIA",
+     "confidence": 0.999958,
+     "boundingBox": [
+      546,
+      607,
+      597,
+      607,
+      597,
+      624,
+      546,
+      624
+     ]
+    },
+    {
+     "text": "30.123.456-7 /UT",
+     "confidence": 0.994291,
+     "boundingBox": [
+      196,
+      632,
+      309,
+      632,
+      309,
+      652,
+      196,
+      652
+     ]
+    },
+    {
+     "text": "123.456.789-39",
+     "confidence": 0.998603,
+     "boundingBox": [
+      375,
+      631,
+      471,
+      633,
+      471,
+      654,
+      374,
+      652
+     ]
+    },
+    {
+     "text": "LOCAL",
+     "confidence": 0.999564,
+     "boundingBox": [
+      544,
+      628,
+      581,
+      625,
+      583,
+      643,
+      545,
+      646
+     ]
+    },
+    {
+     "text": "UTOPIA/UT",
+     "confidence": 0.999885,
+     "boundingBox": [
+      543,
+      643,
+      626,
+      641,
+      627,
+      662,
+      543,
+      664
+     ]
+    },
+    {
+     "text": "TITULO DE ELEITOR",
+     "confidence": 0.981007,
+     "boundingBox": [
+      197,
+      659,
+      307,
+      659,
+      307,
+      676,
+      197,
+      676
+     ]
+    },
+    {
+     "text": "12345678901234",
+     "confidence": 0.999934,
+     "boundingBox": [
+      197,
+      674,
+      304,
+      674,
+      304,
+      695,
+      197,
+      695
+     ]
+    },
+    {
+     "text": "54654659-92",
+     "confidence": 0.998235,
+     "boundingBox": [
+      373,
+      672,
+      457,
+      674,
+      457,
+      696,
+      372,
+      694
+     ]
+    },
+    {
+     "text": "NIE",
+     "confidence": 0.652943,
+     "boundingBox": [
+      376,
+      665,
+      393,
+      665,
+      393,
+      673,
+      376,
+      673
+     ]
+    },
+    {
+     "text": "DATA DA EXPEDIÇÃO",
+     "confidence": 0.982143,
+     "boundingBox": [
+      545,
+      669,
+      660,
+      669,
+      660,
+      686,
+      545,
+      686
+     ]
+    },
+    {
+     "text": "20 08 2010",
+     "confidence": 0.990931,
+     "boundingBox": [
+      544,
+      684,
+      617,
+      684,
+      617,
+      705,
+      544,
+      705
+     ]
+    },
+    {
+     "text": "FILUAÇÃO",
+     "confidence": 0.912735,
+     "boundingBox": [
+      196,
+      702,
+      250,
+      702,
+      250,
+      720,
+      196,
+      720
+     ]
+    },
+    {
+     "text": "B17890",
+     "confidence": 0.725976,
+     "boundingBox": [
+      831,
+      699,
+      852,
+      699,
+      852,
+      831,
+      831,
+      831
+     ]
+    },
+    {
+     "text": "LUIS SOUZA LIMA",
+     "confidence": 0.99374,
+     "boundingBox": [
+      196,
+      719,
+      365,
+      719,
+      365,
+      738,
+      196,
+      738
+     ]
+    },
+    {
+     "text": "ANA MARIA PAULA SOUZA LIMA",
+     "confidence": 0.996893,
+     "boundingBox": [
+      196,
+      734,
+      466,
+      733,
+      466,
+      753,
+      196,
+      754
+     ]
+    },
+    {
+     "text": "NATURALIDADE",
+     "confidence": 0.999531,
+     "boundingBox": [
+      195,
+      757,
+      282,
+      757,
+      282,
+      775,
+      195,
+      775
+     ]
+    },
+    {
+     "text": "UTOPIA/UT",
+     "confidence": 0.999933,
+     "boundingBox": [
+      197,
+      776,
+      278,
+      776,
+      278,
+      794,
+      197,
+      794
+     ]
+    },
+    {
+     "text": "OBSERVAÇÕES",
+     "confidence": 0.992266,
+     "boundingBox": [
+      39,
+      800,
+      125,
+      800,
+      125,
+      818,
+      39,
+      818
+     ]
+    },
+    {
+     "text": "xxxxxxxxxxxxxxxxx",
+     "confidence": 0.974903,
+     "boundingBox": [
+      37,
+      817,
+      193,
+      815,
+      193,
+      835,
+      38,
+      838
+     ]
+    },
+    {
+     "text": "TEM FÉ PÚBLICA E VALIDADE EM TODO TERRITÓRIO NACIONAL - DECRETO N° 7.166 DE 05/05/2010",
+     "confidence": 0.985404,
+     "boundingBox": [
+      70,
+      852,
+      803,
+      853,
+      803,
+      876,
+      70,
+      875
+     ]
+    },
+    {
+     "text": "IDUT0000000000272<<<<<<",
+     "confidence": 0.973982,
+     "boundingBox": [
+      51,
+      920,
+      653,
+      918,
+      653,
+      954,
+      52,
+      956
+     ]
+    },
+    {
+     "text": "<",
+     "confidence": 0.784426,
+     "boundingBox": [
+      668,
+      928,
+      698,
+      928,
+      698,
+      946,
+      668,
+      946
+     ]
+    },
+    {
+     "text": "<<<<<",
+     "confidence": 0.996603,
+     "boundingBox": [
+      691,
+      924,
+      817,
+      924,
+      817,
+      949,
+      691,
+      949
+     ]
+    },
+    {
+     "text": "7507123F1510212UT0<<<<<<<<<<<2",
+     "confidence": 0.998387,
+     "boundingBox": [
+      53,
+      970,
+      823,
+      970,
+      823,
+      1007,
+      53,
+      1007
+     ]
+    },
+    {
+     "text": "LIMA<<SOUZA<MARINA<<<<<<<<<<<<",
+     "confidence": 0.994971,
+     "boundingBox": [
+      51,
+      1023,
+      821,
+      1020,
+      822,
+      1056,
+      52,
+      1060
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -60,22 +60,22 @@ internal static class FieldReaders
                 continue;
             }
 
-            foreach (Match match in ExtractionPatterns.Date().Matches(candidate.Text))
+            foreach (var text in DateTexts(candidate.Text))
             {
-                if (BrazilianDate.TryParse(match.Value, out var parsed))
+                if (BrazilianDate.TryParse(text, out var parsed))
                 {
                     if (IsPlausible(parsed, kind, today))
                     {
                         var expired = kind == DateKind.Expiration && parsed < today;
 
                         return FieldFactory.Found(
-                            match.Value, BrazilianDate.ToIso(parsed), candidate.Line, candidate.Penalty,
+                            text, BrazilianDate.ToIso(parsed), candidate.Line, candidate.Penalty,
                             FieldValidationStatus.Valid, expired ? new[] { DateValid, DocumentExpired } : new[] { DateValid });
                     }
                 }
 
                 invalid ??= candidate;
-                invalidRaw ??= match.Value;
+                invalidRaw ??= text;
             }
         }
 
@@ -85,6 +85,11 @@ internal static class FieldReaders
                 invalidRaw!, null, invalid.Line, invalid.Penalty + Fallback, FieldValidationStatus.Invalid, [DateInvalid]);
     }
 
+    /// <summary>
+    /// Nome de pessoa. Uma linha com uma palavra só ("MARINA") não é nome, mas é o começo de um quando o documento
+    /// parte o nome em duas linhas: as linhas de baixo, enquanto forem só letras e não forem outro rótulo,
+    /// completam o valor.
+    /// </summary>
     public static ExtractedFieldValue Name(LineSearch search, IReadOnlyList<string> labels)
     {
         foreach (var candidate in search.After(labels))
@@ -94,9 +99,59 @@ internal static class FieldReaders
             {
                 return FieldFactory.Found(candidate.Text.Trim(), cleaned, candidate.Line, candidate.Penalty, FieldValidationStatus.Valid);
             }
+
+            var joined = JoinNameLines(search, candidate);
+            if (joined is not null)
+            {
+                return FieldFactory.Found(joined.Value.Raw, joined.Value.Cleaned, candidate.Line, candidate.Penalty, FieldValidationStatus.Valid);
+            }
         }
 
         return FieldFactory.NotFound();
+    }
+
+    private const int NameContinuationLines = 2;
+
+    private static (string Raw, string Cleaned)? JoinNameLines(LineSearch search, LabelledValue candidate)
+    {
+        var first = TextNormalization.ForMatching(candidate.Text).Trim(' ', ',', '.');
+        if (first.Length < 3 || !first.All(char.IsAsciiLetter))
+        {
+            return null;
+        }
+
+        var raw = candidate.Text.Trim();
+        var text = first;
+
+        foreach (var next in search.Following(candidate.Line, NameContinuationLines))
+        {
+            var continuation = TextNormalization.ForMatching(next.Text).Trim(' ', ',', '.');
+            if (continuation.Length == 0 || !continuation.All(character => char.IsAsciiLetter(character) || character == ' '))
+            {
+                break;
+            }
+
+            raw = $"{raw} {next.Text.Trim()}";
+            text = $"{text} {continuation}";
+        }
+
+        var cleaned = TextNormalization.CleanPersonName(text);
+
+        return cleaned is null ? null : (raw, cleaned);
+    }
+
+    /// <summary>As datas de um trecho: com separador de data primeiro e, como reserva, com espaço.</summary>
+    private static IEnumerable<string> DateTexts(string text)
+    {
+        foreach (Match match in ExtractionPatterns.Date().Matches(text))
+        {
+            yield return match.Value;
+        }
+
+        foreach (Match match in ExtractionPatterns.DateSpaced().Matches(text))
+        {
+            yield return match.Value;
+        }
     }
 
     /// <summary>Texto livre em caixa alta e sem acento, para rótulos como cidade, bairro e logradouro.</summary>

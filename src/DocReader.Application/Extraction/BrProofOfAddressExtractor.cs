@@ -16,7 +16,7 @@ public sealed class BrProofOfAddressExtractor(TimeProvider timeProvider) : IDocu
 {
     public const string TypeName = "BR_PROOF_OF_ADDRESS";
 
-    public const string ExtractorVersion = "br-proof-of-address-1.0.0";
+    public const string ExtractorVersion = "br-proof-of-address-1.1.0";
 
     public const string ServiceTypeKeyword = "SERVICE_TYPE_KEYWORD";
     public const string ServiceTypeAmbiguous = "SERVICE_TYPE_AMBIGUOUS";
@@ -57,29 +57,31 @@ public sealed class BrProofOfAddressExtractor(TimeProvider timeProvider) : IDocu
 
     public string Version => ExtractorVersion;
 
-    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct) => ExtractAsync(result, null, ct);
+
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, ExtractionTrace? trace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(result);
 
         var lines = OcrTextLine.From(result);
-        var search = new LineSearch(lines, KnownLabels);
+        var search = new LineSearch(lines, KnownLabels, trace);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
 
-        var postalCode = ExtractPostalCode(search);
-        var address = ExtractAddress(search, lines);
-        var (city, state) = ExtractCityAndState(search, lines);
+        var postalCode = search.Field("postalCode", () => ExtractPostalCode(search));
+        var address = search.Field("addressLine", () => ExtractAddress(search, lines));
+        var (city, state) = search.Fields(["city", "state"], () => ExtractCityAndState(search, lines));
 
         var fields = new Dictionary<string, ExtractedFieldValue>(StringComparer.Ordinal)
         {
-            ["holderName"] = FieldReaders.Name(search, HolderLabels),
-            ["holderDocument"] = FieldReaders.CpfOrCnpj(search, DocumentLabels),
+            ["holderName"] = search.Field("holderName", () => FieldReaders.Name(search, HolderLabels)),
+            ["holderDocument"] = search.Field("holderDocument", () => FieldReaders.CpfOrCnpj(search, DocumentLabels)),
             ["addressLine"] = address,
-            ["neighborhood"] = FieldReaders.Text(search, NeighborhoodLabels),
+            ["neighborhood"] = search.Field("neighborhood", () => FieldReaders.Text(search, NeighborhoodLabels)),
             ["city"] = city,
             ["state"] = state,
             ["postalCode"] = postalCode,
-            ["referenceMonth"] = ExtractReferenceMonth(search),
-            ["dueDate"] = FieldReaders.Date(search, DueLabels, DateKind.Any, today),
+            ["referenceMonth"] = search.Field("referenceMonth", () => ExtractReferenceMonth(search)),
+            ["dueDate"] = search.Field("dueDate", () => FieldReaders.Date(search, DueLabels, DateKind.Any, today)),
             ["serviceType"] = ExtractServiceType(lines)
         };
 

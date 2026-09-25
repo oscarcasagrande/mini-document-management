@@ -83,6 +83,14 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
     public Task<ExtractionTextView?> FindLatestExtractionTextAsync(Guid documentId, CancellationToken ct) =>
         Task.FromResult(Extractions.TryGetValue(documentId, out var entry) ? entry.Text : null);
 
+    /// <summary>Payload OCR gravado por documento; sem entrada, a extração só tem o texto das páginas.</summary>
+    public Dictionary<Guid, string> RawOcr { get; } = [];
+
+    public Task<ExtractionOcrView?> FindLatestExtractionOcrAsync(Guid documentId, CancellationToken ct) =>
+        Task.FromResult<ExtractionOcrView?>(Extractions.TryGetValue(documentId, out var entry)
+            ? new ExtractionOcrView(entry.Text.Summary, RawOcr.GetValueOrDefault(documentId, "{}"), entry.Text.PageTextsJson)
+            : null);
+
     public Task<ReprocessOutcome> QueueReprocessingAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
     {
         if (!_documents.TryGetValue(documentId, out var document))

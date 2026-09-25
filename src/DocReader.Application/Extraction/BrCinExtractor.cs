@@ -16,7 +16,7 @@ public sealed partial class BrCinExtractor(TimeProvider timeProvider) : IDocumen
 {
     public const string TypeName = "BR_CIN";
 
-    public const string ExtractorVersion = "br-cin-1.0.0";
+    public const string ExtractorVersion = "br-cin-1.1.0";
 
     public const string MrzCheckValid = "MRZ_CHECK_VALID";
     public const string MrzCheckInvalid = "MRZ_CHECK_INVALID";
@@ -28,8 +28,8 @@ public sealed partial class BrCinExtractor(TimeProvider timeProvider) : IDocumen
     private static readonly string[] NameLabels = ["NOME", "NOME COMPLETO"];
     private static readonly string[] CpfLabels = ["CPF", "N DO CPF", "NUMERO DO CPF", "NUMERO CPF"];
     private static readonly string[] RgLabels = ["REGISTRO GERAL", "REGISTRO GERAL (RG)", "N DO REGISTRO GERAL", "RG"];
-    private static readonly string[] BirthLabels = ["DATA DE NASCIMENTO", "DATA NASCIMENTO", "DATA NASC", "NASCIMENTO"];
-    private static readonly string[] IssueLabels = ["DATA DE EXPEDICAO", "DATA EXPEDICAO", "EXPEDICAO", "DATA DE EMISSAO", "DATA EMISSAO"];
+    private static readonly string[] BirthLabels = ["DATA DE NASCIMENTO", "DATA NASCIMENTO", "DATA DE NASC", "DATA NASC", "NASCIMENTO"];
+    private static readonly string[] IssueLabels = ["DATA DE EXPEDICAO", "DATA DA EXPEDICAO", "DATA EXPEDICAO", "EXPEDICAO", "DATA DE EMISSAO", "DATA DA EMISSAO", "DATA EMISSAO"];
     private static readonly string[] ExpirationLabels = ["DATA DE VALIDADE", "VALIDADE"];
     private static readonly string[] BirthPlaceLabels = ["NATURALIDADE"];
     private static readonly string[] FatherLabels = ["NOME DO PAI", "PAI"];
@@ -42,6 +42,7 @@ public sealed partial class BrCinExtractor(TimeProvider timeProvider) : IDocumen
         .. NameLabels, .. CpfLabels, .. RgLabels, .. BirthLabels, .. IssueLabels, .. ExpirationLabels,
         .. BirthPlaceLabels, .. FatherLabels, .. MotherLabels, .. FiliationLabels,
         "NOME SOCIAL", "SEXO", "NACIONALIDADE", "ORGAO EMISSOR", "DOC ORIGEM", "DOC. ORIGEM", "ASSINATURA DO TITULAR",
+        "NUMERO RIC", "TITULO DE ELEITOR", "NIS", "NIE", "PIS PASEP", "LOCAL", "OBSERVACOES", "UF",
         "ASSINATURA", "IMPRESSAO DIGITAL", "REPUBLICA FEDERATIVA DO BRASIL", "CARTEIRA DE IDENTIDADE",
         "CARTEIRA DE IDENTIDADE NACIONAL", "MINISTERIO DA JUSTICA E SEGURANCA PUBLICA",
         "AMOSTRA SINTETICA - SEM VALOR LEGAL", "AMOSTRA SINTETICA SEM VALOR LEGAL", "FRENTE", "VERSO"
@@ -53,26 +54,28 @@ public sealed partial class BrCinExtractor(TimeProvider timeProvider) : IDocumen
 
     public string Version => ExtractorVersion;
 
-    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct) => ExtractAsync(result, null, ct);
+
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, ExtractionTrace? trace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(result);
 
         var lines = OcrTextLine.From(result);
-        var search = new LineSearch(lines, KnownLabels);
+        var search = new LineSearch(lines, KnownLabels, trace);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
 
-        var birthDate = FieldReaders.Date(search, BirthLabels, DateKind.Birth, today);
-        var (father, mother) = ExtractParents(search);
+        var birthDate = search.Field("birthDate", () => FieldReaders.Date(search, BirthLabels, DateKind.Birth, today));
+        var (father, mother) = search.Fields(["fatherName", "motherName"], () => ExtractParents(search));
 
         var fields = new Dictionary<string, ExtractedFieldValue>(StringComparer.Ordinal)
         {
-            ["name"] = FieldReaders.Name(search, NameLabels),
-            ["cpf"] = FieldReaders.Cpf(search, CpfLabels),
-            ["rg"] = ExtractRg(search),
+            ["name"] = search.Field("name", () => FieldReaders.Name(search, NameLabels)),
+            ["cpf"] = search.Field("cpf", () => FieldReaders.Cpf(search, CpfLabels)),
+            ["rg"] = search.Field("rg", () => ExtractRg(search)),
             ["birthDate"] = birthDate,
-            ["issueDate"] = FieldReaders.Date(search, IssueLabels, DateKind.Issue, today),
-            ["expirationDate"] = FieldReaders.Date(search, ExpirationLabels, DateKind.Expiration, today),
-            ["birthPlace"] = FieldReaders.Text(search, BirthPlaceLabels, minimumLength: 3),
+            ["issueDate"] = search.Field("issueDate", () => FieldReaders.Date(search, IssueLabels, DateKind.Issue, today)),
+            ["expirationDate"] = search.Field("expirationDate", () => FieldReaders.Date(search, ExpirationLabels, DateKind.Expiration, today)),
+            ["birthPlace"] = search.Field("birthPlace", () => FieldReaders.Text(search, BirthPlaceLabels, minimumLength: 3)),
             ["fatherName"] = father,
             ["motherName"] = mother,
             ["mrz"] = ExtractMrz(lines, birthDate, today)
@@ -167,13 +170,13 @@ public sealed partial class BrCinExtractor(TimeProvider timeProvider) : IDocumen
 
     private static ExtractedFieldValue ExtractMrz(IReadOnlyList<OcrTextLine> lines, ExtractedFieldValue birthDate, DateOnly today)
     {
-        var block = FindMrzBlock(lines);
+        var block = FindMrzBlock(RowMerger.Merge(lines));
         if (block is null)
         {
             return FieldFactory.NotFound();
         }
 
-        var cleaned = block.Select(line => CleanMrz(line.Text)).ToArray();
+        var cleaned = block.Select(line => RestoreDroppedFillers(CleanMrz(line.Text))).ToArray();
         var raw = string.Join('\n', block.Select(line => line.Text.Trim()));
         var weakest = block.OrderBy(line => line.Confidence ?? 1m).First();
 
@@ -222,6 +225,14 @@ public sealed partial class BrCinExtractor(TimeProvider timeProvider) : IDocumen
             && cleaned.Count(character => character == '<') >= 3
             && cleaned.All(character => char.IsAsciiDigit(character) || char.IsAsciiLetterUpper(character) || character == '<');
     }
+
+    /// <summary>
+    /// O OCR costuma perder alguns "&lt;" do fim de uma linha de preenchimento. Uma linha com um a três caracteres a
+    /// menos que os 30 do TD1 e terminada em "&lt;" ganha os que faltam. Só o fim é reposto: os campos de posição vêm
+    /// antes dele e os dígitos verificadores continuam decidindo se a leitura vale.
+    /// </summary>
+    private static string RestoreDroppedFillers(string line) =>
+        line.Length is >= 27 and < 30 && line.EndsWith('<') ? line.PadRight(30, '<') : line;
 
     /// <summary>O OCR devolve o preenchimento como «, ‹ ou espaço; a MRZ só admite "&lt;".</summary>
     private static string CleanMrz(string text) =>

@@ -13,7 +13,7 @@ public sealed class BrCnpjCardExtractor(TimeProvider timeProvider) : IDocumentEx
 {
     public const string TypeName = "BR_CNPJ_CARD";
 
-    public const string ExtractorVersion = "br-cnpj-card-1.0.0";
+    public const string ExtractorVersion = "br-cnpj-card-1.1.0";
 
     private static readonly string[] CnpjLabels = ["NUMERO DE INSCRICAO", "CNPJ"];
     private static readonly string[] OpeningLabels = ["DATA DE ABERTURA"];
@@ -50,32 +50,35 @@ public sealed class BrCnpjCardExtractor(TimeProvider timeProvider) : IDocumentEx
 
     public string Version => ExtractorVersion;
 
-    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct) => ExtractAsync(result, null, ct);
+
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, ExtractionTrace? trace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        var search = new LineSearch(OcrTextLine.From(result), KnownLabels);
+        var search = new LineSearch(OcrTextLine.From(result), KnownLabels, trace);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
-        var (activityCode, activityDescription) = FieldReaders.Activity(search, ActivityLabels);
+        var (activityCode, activityDescription) = search.Fields(
+            ["mainActivityCode", "mainActivityDescription"], () => FieldReaders.Activity(search, ActivityLabels));
 
         var fields = new Dictionary<string, ExtractedFieldValue>(StringComparer.Ordinal)
         {
-            ["cnpj"] = FieldReaders.Cnpj(search, CnpjLabels),
-            ["openingDate"] = FieldReaders.Date(search, OpeningLabels, DateKind.Issue, today),
-            ["legalName"] = FieldReaders.Text(search, LegalNameLabels, minimumLength: 3),
-            ["tradeName"] = FieldReaders.Text(search, TradeNameLabels, minimumLength: 2),
+            ["cnpj"] = search.Field("cnpj", () => FieldReaders.Cnpj(search, CnpjLabels)),
+            ["openingDate"] = search.Field("openingDate", () => FieldReaders.Date(search, OpeningLabels, DateKind.Issue, today)),
+            ["legalName"] = search.Field("legalName", () => FieldReaders.Text(search, LegalNameLabels, minimumLength: 3)),
+            ["tradeName"] = search.Field("tradeName", () => FieldReaders.Text(search, TradeNameLabels, minimumLength: 2)),
             ["mainActivityCode"] = activityCode,
             ["mainActivityDescription"] = activityDescription,
-            ["legalNature"] = FieldReaders.Text(search, LegalNatureLabels, minimumLength: 3),
-            ["street"] = FieldReaders.Text(search, StreetLabels, minimumLength: 3),
-            ["number"] = FieldReaders.Text(search, NumberLabels, minimumLength: 1),
-            ["complement"] = FieldReaders.Text(search, ComplementLabels, minimumLength: 1),
-            ["postalCode"] = FieldReaders.PostalCode(search, PostalCodeLabels),
-            ["neighborhood"] = FieldReaders.Text(search, NeighborhoodLabels, minimumLength: 2),
-            ["city"] = FieldReaders.Text(search, CityLabels, minimumLength: 2),
-            ["state"] = FieldReaders.State(search, StateLabels),
-            ["registrationStatus"] = FieldReaders.Text(search, StatusLabels, minimumLength: 3),
-            ["registrationStatusDate"] = FieldReaders.Date(search, StatusDateLabels, DateKind.Issue, today)
+            ["legalNature"] = search.Field("legalNature", () => FieldReaders.Text(search, LegalNatureLabels, minimumLength: 3)),
+            ["street"] = search.Field("street", () => FieldReaders.Text(search, StreetLabels, minimumLength: 3)),
+            ["number"] = search.Field("number", () => FieldReaders.Text(search, NumberLabels, minimumLength: 1)),
+            ["complement"] = search.Field("complement", () => FieldReaders.Text(search, ComplementLabels, minimumLength: 1)),
+            ["postalCode"] = search.Field("postalCode", () => FieldReaders.PostalCode(search, PostalCodeLabels)),
+            ["neighborhood"] = search.Field("neighborhood", () => FieldReaders.Text(search, NeighborhoodLabels, minimumLength: 2)),
+            ["city"] = search.Field("city", () => FieldReaders.Text(search, CityLabels, minimumLength: 2)),
+            ["state"] = search.Field("state", () => FieldReaders.State(search, StateLabels)),
+            ["registrationStatus"] = search.Field("registrationStatus", () => FieldReaders.Text(search, StatusLabels, minimumLength: 3)),
+            ["registrationStatusDate"] = search.Field("registrationStatusDate", () => FieldReaders.Date(search, StatusDateLabels, DateKind.Issue, today))
         };
 
         return Task.FromResult(new StructuredExtraction(
