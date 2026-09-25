@@ -217,14 +217,18 @@ def mkldnn_enabled() -> bool:
     return os.environ.get("FLAGS_use_mkldnn", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def build_ppocr(version: str, detection_model: str | None = None) -> Callable[[], Callable[[Path], Any]]:
+def build_ppocr(
+    version: str,
+    detection_model: str | None = None,
+    recognition_model: str | None = None,
+) -> Callable[[], Callable[[Any], Any]]:
     """
     Pipeline de detecção + reconhecimento. `enable_mkldnn` segue `FLAGS_use_mkldnn`, que tem
     precedência sobre o parâmetro: com o valor padrão (desligado) tudo se comporta como na
     medição original, e o experimento de oneDNN liga a variável.
     """
 
-    def factory() -> Callable[[Path], Any]:
+    def factory() -> Callable[[Any], Any]:
         from paddleocr import PaddleOCR
 
         options: dict[str, Any] = {
@@ -237,14 +241,16 @@ def build_ppocr(version: str, detection_model: str | None = None) -> Callable[[]
         }
         if detection_model:
             options["text_detection_model_name"] = detection_model
+        if recognition_model:
+            options["text_recognition_model_name"] = recognition_model
 
         engine = PaddleOCR(**options)
-        return lambda path: engine.predict(input=str(path))
+        return lambda frame: engine.predict(input=frame)
 
     return factory
 
 
-def build_structure() -> Callable[[Path], Any]:
+def build_structure() -> Callable[[Any], Any]:
     from paddleocr import PPStructureV3
 
     engine = PPStructureV3(
@@ -255,7 +261,7 @@ def build_structure() -> Callable[[Path], Any]:
         use_chart_recognition=False,
         enable_mkldnn=False,
     )
-    return lambda path: engine.predict(input=str(path))
+    return lambda frame: engine.predict(input=frame)
 
 
 # Quatro configurações, não duas. O pedido citou "PP-OCRv5 puro", mas o paddleocr 3.7 já entrega o
@@ -263,15 +269,38 @@ def build_structure() -> Callable[[Path], Any]:
 # variante mobile é a candidata realista. Medir as quatro deixa a escolha baseada em dado.
 # Ordenado do mais barato ao mais caro: se a execução for interrompida, os dados que sobram ainda
 # respondem a pergunta principal.
-PIPELINES: dict[str, Callable[[], Callable[[Path], Any]]] = {
+PIPELINES: dict[str, Callable[[], Callable[[Any], Any]]] = {
     "PP-OCRv5 (det mobile)": build_ppocr("PP-OCRv5", "PP-OCRv5_mobile_det"),
     "PP-OCRv6 (padrao 3.7)": build_ppocr("PP-OCRv6"),
+    # O PP-OCRv6 tem três tamanhos; o padrão do paddleocr 3.7 é o medium. As variantes menores entram
+    # como hipótese para a meta de latência da Etapa 2 (docs/adr/0002).
+    "PP-OCRv6 medium": build_ppocr("PP-OCRv6", "PP-OCRv6_medium_det", "PP-OCRv6_medium_rec"),
+    "PP-OCRv6 small": build_ppocr("PP-OCRv6", "PP-OCRv6_small_det", "PP-OCRv6_small_rec"),
+    "PP-OCRv6 tiny": build_ppocr("PP-OCRv6", "PP-OCRv6_tiny_det", "PP-OCRv6_tiny_rec"),
     "PP-OCRv5 (det server)": build_ppocr("PP-OCRv5"),
     "PP-StructureV3": build_structure,
 }
 
 
-def run_pipeline(name: str, samples: list[Path], repeat: int) -> dict[str, Any]:
+def load_frame(path: Path, max_side: int) -> Any:
+    """
+    O que o ocr-service entrega ao motor: imagem RGB, reduzida por `app.pages._limit_side` (o mesmo
+    código da produção) quando passa de `max_side`, em BGR como o PaddleOCR espera. Decodificação e
+    redução entram no tempo medido, porque na produção elas também estão no caminho da página.
+    """
+    import numpy as np
+    from PIL import Image
+
+    sys.path.insert(0, "/app")
+    from app.pages import _limit_side  # noqa: PLC0415 - só existe dentro da imagem do ocr-service
+
+    with Image.open(path) as source:
+        image = _limit_side(source.convert("RGB"), max_side)
+
+    return np.asarray(image)[:, :, ::-1].copy()
+
+
+def run_pipeline(name: str, samples: list[Path], repeat: int, max_side: int = 0) -> dict[str, Any]:
     print(f"\n=== {name}: carregando modelos ===", flush=True)
 
     load_started = time.perf_counter()
@@ -298,7 +327,7 @@ def run_pipeline(name: str, samples: list[Path], repeat: int) -> dict[str, Any]:
 
         # Primeira passada é descartada: ela paga caches internos e alocação de buffers.
         try:
-            predict(path)
+            predict(load_frame(path, max_side))
         except Exception as exception:  # noqa: BLE001
             measurement.error = str(exception)
             measurements.append(measurement)
@@ -307,7 +336,7 @@ def run_pipeline(name: str, samples: list[Path], repeat: int) -> dict[str, Any]:
 
         for _ in range(repeat):
             started = time.perf_counter()
-            result = predict(path)
+            result = predict(load_frame(path, max_side))
             elapsed_ms = (time.perf_counter() - started) * 1000
             measurement.durations_ms.append(elapsed_ms)
 
@@ -332,6 +361,7 @@ def run_pipeline(name: str, samples: list[Path], repeat: int) -> dict[str, Any]:
     return {
         "pipeline": name,
         "load_ms": round(load_ms, 1),
+        "max_side": max_side,
         "peak_rss_mb": round(peak_rss_mb(), 1),
         "measurements": [asdict(m) | {"median_ms": round(m.median_ms, 1), "p95_ms": round(m.p95_ms, 1)} for m in measurements],
     }
@@ -343,6 +373,12 @@ def main() -> int:
     parser.add_argument("--repeat", type=int, default=3, help="Repetições por amostra em regime")
     parser.add_argument("--output", default="/out/ocr-benchmark.json", help="Arquivo JSON de saída")
     parser.add_argument("--only", help="Roda apenas uma pipeline")
+    parser.add_argument(
+        "--max-side",
+        type=int,
+        default=0,
+        help="Reduz o lado maior para no máximo N pixels antes do OCR (0 = sem redução)",
+    )
     parser.add_argument("--samples-only", help="Lista de nomes de amostra separados por vírgula")
     args = parser.parse_args()
 
@@ -361,9 +397,10 @@ def main() -> int:
     report = {
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "repeat": args.repeat,
+        "maxSide": args.max_side,
         "sampleCount": len(samples),
         "environment": environment_info(),
-        "pipelines": [run_pipeline(name, samples, args.repeat) for name in names],
+        "pipelines": [run_pipeline(name, samples, args.repeat, args.max_side) for name in names],
     }
 
     output = Path(args.output)

@@ -23,10 +23,10 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
     public const string CheckDigitValid = "CHECK_DIGIT_VALID";
     public const string CheckDigitInvalid = "CHECK_DIGIT_INVALID";
     public const string DateValid = "DATE_VALID";
-    public const string NoLabelNearby = "NO_LABEL_NEARBY";
+    public const string NoLabelNearby = FieldFactory.NoLabelNearby;
 
     /// <summary>Quanto a confiança cai quando o valor foi achado sem o rótulo ao lado.</summary>
-    private const decimal FallbackConfidencePenalty = 0.30m;
+    private const decimal FallbackConfidencePenalty = FieldFactory.FallbackConfidencePenalty;
 
     /// <summary>Linhas adiante do rótulo em que ainda se aceita encontrar o valor.</summary>
     private const int LabelLookahead = 2;
@@ -266,13 +266,8 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
         OcrTextLine line,
         decimal penalty,
         FieldValidationStatus status,
-        params string[] messages)
-    {
-        // Uma penalidade de fallback significa que o valor foi achado sem o rótulo ao lado.
-        string[] reasons = penalty >= FallbackConfidencePenalty ? [.. messages, NoLabelNearby] : messages;
-
-        return Build(raw, normalized, line, penalty, status, reasons);
-    }
+        params string[] messages) =>
+        FieldFactory.Found(raw, normalized, line, penalty, status, messages);
 
     private static ExtractedFieldValue Build(
         string raw,
@@ -280,23 +275,10 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
         OcrTextLine line,
         decimal penalty,
         FieldValidationStatus status,
-        string[] reasons)
-    {
-        var baseConfidence = line.Confidence ?? 0.80m;
-        var confidence = Math.Clamp(baseConfidence - penalty, 0.01m, 1.00m);
+        string[] reasons) =>
+        FieldFactory.Build(raw, normalized, line, penalty, status, reasons);
 
-        return new ExtractedFieldValue(
-            raw,
-            normalized,
-            Math.Round(confidence, 4),
-            EnumNaming.ToUpperSnakeCase(status),
-            line.PageNumber,
-            line.BoundingBox,
-            reasons);
-    }
-
-    private static ExtractedFieldValue NotFound() =>
-        new(null, null, null, EnumNaming.ToUpperSnakeCase(FieldValidationStatus.NotFound), null, []);
+    private static ExtractedFieldValue NotFound() => FieldFactory.NotFound();
 
     /// <summary>CPF com ou sem máscara, exigindo fronteira para não casar pedaço de número maior.</summary>
     [GeneratedRegex(@"(?<!\d)\d{3}\.?\s?\d{3}\.?\s?\d{3}\s?-?\s?\d{2}(?!\d)", RegexOptions.CultureInvariant)]

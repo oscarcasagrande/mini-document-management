@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_CCMEI.v1",
+  "title": "Certificado da Condição de Microempreendedor Individual (CCMEI)",
+  "description": "O CNPJ e o CPF do empresário passam pelo dígito verificador. O endereço comercial ocupa várias linhas; CEP, município e UF saem do texto juntado. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": [
+    "cnpj",
+    "legalName",
+    "holderName"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "cnpj": {
+      "description": "CNPJ normalizado para 14 posições sem máscara; as 12 primeiras aceitam letras (CNPJ alfanumérico) e as 2 últimas são dígitos verificadores.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9A-Z]{12}[0-9]{2}$",
+      "examples": [
+        "12ABC34501DE35"
+      ]
+    },
+    "legalName": {
+      "description": "Nome empresarial, em caixa alta e sem acento.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA APARECIDA DA SILVA SOUZA 11144477735"
+      ]
+    },
+    "tradeName": {
+      "description": "Nome fantasia.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA DOCES"
+      ]
+    },
+    "openingDate": {
+      "description": "Data de abertura, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2020-02-10"
+      ]
+    },
+    "shareCapital": {
+      "description": "Capital social em reais, ponto decimal e duas casas.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]+\\.[0-9]{2}$",
+      "examples": [
+        "5000.00"
+      ]
+    },
+    "mainActivityCode": {
+      "description": "Código da CNAE da ocupação principal, só dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{7}$",
+      "examples": [
+        "1091102"
+      ]
+    },
+    "mainActivityDescription": {
+      "description": "Descrição da ocupação principal.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 300,
+      "examples": [
+        "FABRICACAO DE PRODUTOS DE PADARIA"
+      ]
+    },
+    "address": {
+      "description": "Endereço comercial juntado, em caixa alta e sem acento.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 400,
+      "examples": [
+        "RUA DAS AMOSTRAS, 100, CENTRO, SAO PAULO/SP, CEP 01000-000"
+      ]
+    },
+    "postalCode": {
+      "description": "CEP normalizado para 8 dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{8}$",
+      "examples": [
+        "01000000"
+      ]
+    },
+    "city": {
+      "description": "Município.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "SAO PAULO"
+      ]
+    },
+    "state": {
+      "description": "Sigla da unidade federativa.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Z]{2}$",
+      "examples": [
+        "SP"
+      ]
+    },
+    "holderName": {
+      "description": "Nome do empresário.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA APARECIDA DA SILVA SOUZA"
+      ]
+    },
+    "holderCpf": {
+      "description": "Número do CPF, normalizado para 11 dígitos sem máscara.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "11144477735"
+      ]
+    },
+    "holderBirthDate": {
+      "description": "Data de nascimento do empresário, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "1985-03-14"
+      ]
+    },
+    "certificateDate": {
+      "description": "Data de emissão do certificado, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2026-09-01"
+      ]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "requiredSignals": [
+        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+      ],
+      "optionalSignals": [
+        "CCMEI",
+        "PORTAL DO EMPREENDEDOR",
+        "NOME EMPRESARIAL",
+        "NOME FANTASIA",
+        "CAPITAL SOCIAL",
+        "OCUPACAO PRINCIPAL",
+        "ENDERECO COMERCIAL"
+      ],
+      "negativeSignals": [
+        "CLAUSULA"
+      ],
+      "threshold": 0.7
+    },
+    "validation": {
+      "cnpj": "Dígitos verificadores por módulo 11 sobre valores derivados do ASCII (RF-012).",
+      "holderCpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",
+      "shareCapital": "Valor em reais com vírgula decimal e duas casas.",
+      "postalCode": "Oito dígitos, não todos zero."
+    }
+  }
+}

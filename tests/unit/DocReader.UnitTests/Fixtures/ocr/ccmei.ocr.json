@@ -1,0 +1,462 @@
+{
+ "source": "ccmei.png",
+ "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
+ "pages": [
+  {
+   "page": 1,
+   "imageWidth": 1240,
+   "imageHeight": 1754,
+   "durationMs": 6276,
+   "blocks": [
+    {
+     "text": "CCMEI",
+     "confidence": 0.9998,
+     "boundingBox": [
+      547.0,
+      71.0,
+      691.0,
+      71.0,
+      691.0,
+      109.0,
+      547.0,
+      109.0
+     ]
+    },
+    {
+     "text": "CERTIFICADO DA CONDIÇÃO DE MICROEMPREENDEDOR INDIVIDUAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      121.0,
+      124.0,
+      1119.0,
+      125.0,
+      1119.0,
+      158.0,
+      121.0,
+      157.0
+     ]
+    },
+    {
+     "text": "Portal do Empreendedor",
+     "confidence": 1.0,
+     "boundingBox": [
+      486.0,
+      169.0,
+      753.0,
+      169.0,
+      753.0,
+      196.0,
+      486.0,
+      196.0
+     ]
+    },
+    {
+     "text": "NOME EMPRESARIAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      79.0,
+      240.0,
+      289.0,
+      240.0,
+      289.0,
+      264.0,
+      79.0,
+      264.0
+     ]
+    },
+    {
+     "text": "MARIA APARECIDA DA SILVA SOUZA 11144477735",
+     "confidence": 0.9995,
+     "boundingBox": [
+      78.0,
+      277.0,
+      984.0,
+      277.0,
+      984.0,
+      307.0,
+      78.0,
+      307.0
+     ]
+    },
+    {
+     "text": "NOME FANTASIA",
+     "confidence": 0.9998,
+     "boundingBox": [
+      78.0,
+      350.0,
+      247.0,
+      350.0,
+      247.0,
+      374.0,
+      78.0,
+      374.0
+     ]
+    },
+    {
+     "text": "MARIA DOCES",
+     "confidence": 0.9896,
+     "boundingBox": [
+      78.0,
+      388.0,
+      344.0,
+      388.0,
+      344.0,
+      418.0,
+      78.0,
+      418.0
+     ]
+    },
+    {
+     "text": "CNPJ",
+     "confidence": 1.0,
+     "boundingBox": [
+      78.0,
+      456.0,
+      130.0,
+      459.0,
+      128.0,
+      490.0,
+      76.0,
+      487.0
+     ]
+    },
+    {
+     "text": "DATA DE ABERTURA",
+     "confidence": 0.9999,
+     "boundingBox": [
+      660.0,
+      459.0,
+      865.0,
+      459.0,
+      865.0,
+      483.0,
+      660.0,
+      483.0
+     ]
+    },
+    {
+     "text": "04.252.011/0001-10",
+     "confidence": 1.0,
+     "boundingBox": [
+      80.0,
+      498.0,
+      438.0,
+      498.0,
+      438.0,
+      528.0,
+      80.0,
+      528.0
+     ]
+    },
+    {
+     "text": "10/02/2020",
+     "confidence": 1.0,
+     "boundingBox": [
+      660.0,
+      497.0,
+      875.0,
+      496.0,
+      875.0,
+      528.0,
+      660.0,
+      529.0
+     ]
+    },
+    {
+     "text": "CAPITAL SOCIAL",
+     "confidence": 0.9901,
+     "boundingBox": [
+      78.0,
+      567.0,
+      245.0,
+      569.0,
+      244.0,
+      596.0,
+      77.0,
+      594.0
+     ]
+    },
+    {
+     "text": "R$ 5.000,00",
+     "confidence": 0.9901,
+     "boundingBox": [
+      78.0,
+      605.0,
+      311.0,
+      607.0,
+      311.0,
+      642.0,
+      77.0,
+      640.0
+     ]
+    },
+    {
+     "text": "OCUPAÇÃO PRINCIPAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      78.0,
+      678.0,
+      306.0,
+      678.0,
+      306.0,
+      708.0,
+      78.0,
+      708.0
+     ]
+    },
+    {
+     "text": "10.91-1-02 - Fabricação de produtos de padaria e confeitaria",
+     "confidence": 0.9888,
+     "boundingBox": [
+      78.0,
+      715.0,
+      1044.0,
+      715.0,
+      1044.0,
+      747.0,
+      78.0,
+      747.0
+     ]
+    },
+    {
+     "text": "ENDEREÇO COMERCIAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      78.0,
+      800.0,
+      319.0,
+      800.0,
+      319.0,
+      827.0,
+      78.0,
+      827.0
+     ]
+    },
+    {
+     "text": "RUA DAS AMOSTRAS, 100 - CENTRO",
+     "confidence": 0.968,
+     "boundingBox": [
+      78.0,
+      840.0,
+      723.0,
+      840.0,
+      723.0,
+      873.0,
+      78.0,
+      873.0
+     ]
+    },
+    {
+     "text": "SAO",
+     "confidence": 0.9998,
+     "boundingBox": [
+      79.0,
+      890.0,
+      161.0,
+      890.0,
+      161.0,
+      919.0,
+      79.0,
+      919.0
+     ]
+    },
+    {
+     "text": "PAULO/SP",
+     "confidence": 0.9995,
+     "boundingBox": [
+      159.0,
+      890.0,
+      346.0,
+      890.0,
+      346.0,
+      921.0,
+      159.0,
+      921.0
+     ]
+    },
+    {
+     "text": "CEP 01000-000",
+     "confidence": 0.9987,
+     "boundingBox": [
+      79.0,
+      937.0,
+      348.0,
+      937.0,
+      348.0,
+      968.0,
+      79.0,
+      968.0
+     ]
+    },
+    {
+     "text": "DADOS DO EMPRESÁRIO",
+     "confidence": 0.9998,
+     "boundingBox": [
+      78.0,
+      1040.0,
+      437.0,
+      1039.0,
+      437.0,
+      1069.0,
+      79.0,
+      1070.0
+     ]
+    },
+    {
+     "text": "NOME",
+     "confidence": 1.0,
+     "boundingBox": [
+      78.0,
+      1089.0,
+      142.0,
+      1089.0,
+      142.0,
+      1115.0,
+      78.0,
+      1115.0
+     ]
+    },
+    {
+     "text": "MARIA APARECIDA DA SILVA SOUZA",
+     "confidence": 0.9736,
+     "boundingBox": [
+      79.0,
+      1126.0,
+      769.0,
+      1126.0,
+      769.0,
+      1159.0,
+      79.0,
+      1159.0
+     ]
+    },
+    {
+     "text": "CPF",
+     "confidence": 1.0,
+     "boundingBox": [
+      77.0,
+      1198.0,
+      119.0,
+      1198.0,
+      119.0,
+      1225.0,
+      77.0,
+      1225.0
+     ]
+    },
+    {
+     "text": "DATA DE NASCIMENTO",
+     "confidence": 0.9999,
+     "boundingBox": [
+      659.0,
+      1200.0,
+      888.0,
+      1200.0,
+      888.0,
+      1224.0,
+      659.0,
+      1224.0
+     ]
+    },
+    {
+     "text": "111.444.777-35",
+     "confidence": 1.0,
+     "boundingBox": [
+      78.0,
+      1236.0,
+      360.0,
+      1234.0,
+      360.0,
+      1268.0,
+      79.0,
+      1270.0
+     ]
+    },
+    {
+     "text": "14/03/1985",
+     "confidence": 1.0,
+     "boundingBox": [
+      659.0,
+      1236.0,
+      875.0,
+      1236.0,
+      875.0,
+      1270.0,
+      659.0,
+      1270.0
+     ]
+    },
+    {
+     "text": "DATA DE EMISSÃO",
+     "confidence": 0.975,
+     "boundingBox": [
+      78.0,
+      1328.0,
+      266.0,
+      1328.0,
+      266.0,
+      1355.0,
+      78.0,
+      1355.0
+     ]
+    },
+    {
+     "text": "01/09/2026",
+     "confidence": 1.0,
+     "boundingBox": [
+      78.0,
+      1366.0,
+      297.0,
+      1366.0,
+      297.0,
+      1400.0,
+      78.0,
+      1400.0
+     ]
+    },
+    {
+     "text": "",
+     "confidence": 0.0,
+     "boundingBox": [
+      24.0,
+      1695.0,
+      97.0,
+      1697.0,
+      96.0,
+      1723.0,
+      24.0,
+      1721.0
+     ]
+    },
+    {
+     "text": "AMOSTRA SINTETICA - SEM VALOR LEGAL",
+     "confidence": 0.9988,
+     "boundingBox": [
+      384.0,
+      1697.0,
+      852.0,
+      1695.0,
+      853.0,
+      1722.0,
+      385.0,
+      1724.0
+     ]
+    },
+    {
+     "text": "",
+     "confidence": 0.0,
+     "boundingBox": [
+      1142.0,
+      1698.0,
+      1214.0,
+      1698.0,
+      1214.0,
+      1723.0,
+      1142.0,
+      1723.0
+     ]
+    }
+   ]
+  }
+ ]
+}

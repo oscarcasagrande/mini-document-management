@@ -5,23 +5,33 @@ extração estruturada e consulta — tudo em contêineres, sem nuvem e sem API 
 
 PRD e SDD completos em [`docs/PRD.md`](docs/PRD.md). Decisões de arquitetura em [`docs/adr`](docs/adr).
 
-## Etapa atual: 2 — OCR ponta a ponta
+## Etapa atual: 3 — extração estruturada
 
-O plano de execução (PRD §26) tem quatro etapas. A Etapa 1 (walking skeleton) foi aprovada; **a
-Etapa 2 acrescenta o processamento** e cobre:
+O plano de execução (PRD §26) tem quatro etapas. A Etapa 1 (walking skeleton) foi aprovada, a Etapa 2 ligou
+o OCR ponta a ponta e **a Etapa 3 acrescenta os extratores estruturados**:
 
-| Entregue | Ainda não |
-|---|---|
-| `ocr-service` com PaddleOCR PP-OCRv5 (CPU), uma página por chamada, 3 GiB de memória | PDF com camada de texto nativa (RF-009) |
-| Worker consumindo a fila: `QUEUED` → `PREPROCESSING` → `OCR_RUNNING` → `CLASSIFYING` → `EXTRACTING` → `COMPLETED` | Orientação e deskew |
-| Retry com backoff (3 tentativas), recuperação de job preso, erro visível (`OCR_UNAVAILABLE`) | PP-StructureV3 e tabelas |
-| Classificador por regras e extrator de cartão de CPF (número, nome, nascimento) com validação de dígito verificador e data | Demais tipos documentais (Etapa 3) e `/document-types` |
-| `GET /documents/{id}/text`, `GET /documents/{id}/result`, `POST /documents/{id}/reprocess` | Latência de página A4 dentro do requisito (ver abaixo) |
-| Tela de detalhe com campos, confiança, validação, texto bruto e progresso | |
+| Tipo | `documentType` | Campos principais | Validação determinística |
+|---|---|---|---|
+| Cartão de CPF | `BR_CPF_CARD` | cpf, nome, nascimento | DV do CPF, data |
+| CIN e RG | `BR_CIN` | nome, cpf, rg, datas, naturalidade, filiação, MRZ | DV do CPF, datas, MRZ (ICAO 9303) |
+| CNH | `BR_CNH` | nome, cpf, registro, categoria, datas | DV do CPF, datas, categoria |
+| Comprovante de residência | `BR_PROOF_OF_ADDRESS` | titular, endereço, CEP, cidade, UF, referência, vencimento | DV de CPF/CNPJ, CEP, UF |
+| Cartão CNPJ | `BR_CNPJ_CARD` | cnpj, nome empresarial, atividade, endereço, situação | DV do **CNPJ alfanumérico**, datas |
+| CCMEI | `BR_CCMEI` | cnpj, nome, capital, atividade, endereço, empresário | DV do CNPJ e do CPF, valor |
+| Contrato social | `BR_SOCIAL_CONTRACT` | denominação, cnpj, capital, sede, objeto, data, sócios | DV do CNPJ e dos CPFs dos sócios |
 
-A escolha de engine e os números medidos estão em [`docs/adr/0002-*.md`](docs/adr) e
-[`docs/bench`](docs/bench). **Pendência conhecida:** uma página A4 leva 23–47 s de OCR em CPU, e o
-requisito é 5 páginas em 90 s. Cartões levam 5–9 s.
+Qualquer outro tipo é aceito, lido pelo OCR e devolvido como `UNKNOWN`, com o texto bruto e sem campos. Os
+campos, as regras e o que **não** é validado estão em [`schemas/documents`](schemas/documents).
+
+**O que não foi medido.** Os extratores foram escritos e testados sobre amostras sintéticas
+([`samples/synthetic/documents`](samples/synthetic/documents)) com a estrutura de rótulo e valor dos
+documentos reais, não sobre documentos reais. Layouts de outros estados, concessionárias e juntas vão errar
+de formas que a suíte atual não vê; a Etapa 4 (avaliação) mede isso.
+
+**Latência.** A medição de seguimento do [ADR 0002](docs/adr) fechou a pendência de páginas A4: o alvo de
+≤ 18 s por página é atingido sem limite de CPU no contêiner (pior caso 15,8 s) e não é atingido limitando-o
+a 4 CPUs (28 s). `OCR_MODEL_PROFILE` troca o modelo (`ppocrv6-small` e `ppocrv6-tiny` são mais rápidos e
+menos exatos); o padrão não mudou.
 
 Para ver o resultado de um documento:
 
@@ -31,8 +41,20 @@ curl -s "http://localhost:8080/api/v1/documents/$ID/result"   # tipo, campos, co
 curl -s -X POST "http://localhost:8080/api/v1/documents/$ID/reprocess"   # 202; 409 se já há job em andamento
 ```
 
-Um documento com CPF de dígito verificador errado sai como `validationStatus: "INVALID"` com o valor
-lido preservado; nada é corrigido nem descartado.
+Um campo reprovado nas regras sai como `validationStatus: "INVALID"` com o valor lido preservado; um que o
+documento não traz, como `NOT_FOUND`; nada é corrigido, descartado nem inventado.
+
+### Roteiro de aceite da Etapa 3
+
+```bash
+docker compose up -d --build
+# Swagger em http://localhost:8080/swagger: POST /api/v1/documents com cada arquivo de
+# samples/synthetic/documents, depois a tela de detalhe em http://localhost:3000/documents/{id}
+
+# ou, automatizado, os seis tipos de uma vez (confere campo a campo contra o expected.json de cada amostra)
+docker run --rm -v "$PWD:/w" -w /w python:3.12-slim python tests/e2e/stage3_acceptance.py \
+  --api http://host.docker.internal:8080 --web http://host.docker.internal:3000
+```
 
 ## Subir
 

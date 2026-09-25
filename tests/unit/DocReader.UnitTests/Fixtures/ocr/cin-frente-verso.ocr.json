@@ -1,0 +1,378 @@
+{
+ "source": "cin-frente-verso.png",
+ "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
+ "pages": [
+  {
+   "page": 1,
+   "imageWidth": 1200,
+   "imageHeight": 1600,
+   "durationMs": 5333,
+   "blocks": [
+    {
+     "text": "REPÚBLICA FEDERATIVA DO",
+     "confidence": 0.9998,
+     "boundingBox": [
+      278.0,
+      61.0,
+      795.0,
+      61.0,
+      795.0,
+      94.0,
+      278.0,
+      94.0
+     ]
+    },
+    {
+     "text": "BRASIL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      788.0,
+      63.0,
+      925.0,
+      63.0,
+      925.0,
+      94.0,
+      788.0,
+      94.0
+     ]
+    },
+    {
+     "text": "CARTEIRA DE IDENTIDADE NACIONAL",
+     "confidence": 0.9996,
+     "boundingBox": [
+      288.0,
+      107.0,
+      913.0,
+      107.0,
+      913.0,
+      137.0,
+      288.0,
+      137.0
+     ]
+    },
+    {
+     "text": "NOME",
+     "confidence": 1.0,
+     "boundingBox": [
+      76.0,
+      197.0,
+      144.0,
+      197.0,
+      144.0,
+      223.0,
+      76.0,
+      223.0
+     ]
+    },
+    {
+     "text": "MARIA APARECIDA DA SILVA SOUZA",
+     "confidence": 0.9988,
+     "boundingBox": [
+      79.0,
+      234.0,
+      768.0,
+      235.0,
+      768.0,
+      266.0,
+      79.0,
+      265.0
+     ]
+    },
+    {
+     "text": "DATA DE NASCIMENTO",
+     "confidence": 0.9721,
+     "boundingBox": [
+      79.0,
+      330.0,
+      309.0,
+      330.0,
+      309.0,
+      351.0,
+      79.0,
+      351.0
+     ]
+    },
+    {
+     "text": "CPF",
+     "confidence": 1.0,
+     "boundingBox": [
+      635.0,
+      328.0,
+      680.0,
+      326.0,
+      681.0,
+      352.0,
+      637.0,
+      354.0
+     ]
+    },
+    {
+     "text": "14/03/1985",
+     "confidence": 1.0,
+     "boundingBox": [
+      80.0,
+      366.0,
+      295.0,
+      366.0,
+      295.0,
+      397.0,
+      80.0,
+      397.0
+     ]
+    },
+    {
+     "text": "111.444.777-35",
+     "confidence": 1.0,
+     "boundingBox": [
+      641.0,
+      366.0,
+      920.0,
+      366.0,
+      920.0,
+      396.0,
+      641.0,
+      396.0
+     ]
+    },
+    {
+     "text": "REGISTRO GERAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      78.0,
+      458.0,
+      259.0,
+      458.0,
+      259.0,
+      482.0,
+      78.0,
+      482.0
+     ]
+    },
+    {
+     "text": "NATURALIDADE",
+     "confidence": 1.0,
+     "boundingBox": [
+      638.0,
+      458.0,
+      798.0,
+      458.0,
+      798.0,
+      482.0,
+      638.0,
+      482.0
+     ]
+    },
+    {
+     "text": "12.345.678-9",
+     "confidence": 1.0,
+     "boundingBox": [
+      78.0,
+      494.0,
+      336.0,
+      496.0,
+      335.0,
+      527.0,
+      78.0,
+      525.0
+     ]
+    },
+    {
+     "text": "São Paulo - SP",
+     "confidence": 0.9963,
+     "boundingBox": [
+      638.0,
+      494.0,
+      916.0,
+      494.0,
+      916.0,
+      528.0,
+      638.0,
+      528.0
+     ]
+    },
+    {
+     "text": "DATA DE EXPEDIÇÃO",
+     "confidence": 0.9999,
+     "boundingBox": [
+      78.0,
+      588.0,
+      292.0,
+      588.0,
+      292.0,
+      612.0,
+      78.0,
+      612.0
+     ]
+    },
+    {
+     "text": "DATA DE VALIDADE",
+     "confidence": 0.9688,
+     "boundingBox": [
+      637.0,
+      588.0,
+      838.0,
+      586.0,
+      838.0,
+      611.0,
+      638.0,
+      613.0
+     ]
+    },
+    {
+     "text": "20/05/2024",
+     "confidence": 1.0,
+     "boundingBox": [
+      79.0,
+      626.0,
+      296.0,
+      626.0,
+      296.0,
+      657.0,
+      79.0,
+      657.0
+     ]
+    },
+    {
+     "text": "20/05/2034",
+     "confidence": 1.0,
+     "boundingBox": [
+      639.0,
+      626.0,
+      857.0,
+      626.0,
+      857.0,
+      657.0,
+      639.0,
+      657.0
+     ]
+    },
+    {
+     "text": "AMOSTRA SINTETICA - SEM VALOR LEGAL",
+     "confidence": 0.9993,
+     "boundingBox": [
+      367.0,
+      780.0,
+      830.0,
+      780.0,
+      830.0,
+      800.0,
+      367.0,
+      800.0
+     ]
+    },
+    {
+     "text": "VERSO",
+     "confidence": 1.0,
+     "boundingBox": [
+      547.0,
+      866.0,
+      648.0,
+      866.0,
+      648.0,
+      891.0,
+      547.0,
+      891.0
+     ]
+    },
+    {
+     "text": "FILIAÇÃO",
+     "confidence": 0.9999,
+     "boundingBox": [
+      76.0,
+      935.0,
+      175.0,
+      935.0,
+      175.0,
+      964.0,
+      76.0,
+      964.0
+     ]
+    },
+    {
+     "text": "JOSE DA SILVA SOUZA",
+     "confidence": 0.9997,
+     "boundingBox": [
+      71.0,
+      976.0,
+      505.0,
+      971.0,
+      505.0,
+      1012.0,
+      71.0,
+      1017.0
+     ]
+    },
+    {
+     "text": "ANA MARIA APARECIDA",
+     "confidence": 0.9828,
+     "boundingBox": [
+      77.0,
+      1034.0,
+      526.0,
+      1034.0,
+      526.0,
+      1064.0,
+      77.0,
+      1064.0
+     ]
+    },
+    {
+     "text": "IDBRA1234567897<<<<<<<<<<<<<<<",
+     "confidence": 0.9967,
+     "boundingBox": [
+      80.0,
+      1294.0,
+      772.0,
+      1295.0,
+      772.0,
+      1329.0,
+      80.0,
+      1328.0
+     ]
+    },
+    {
+     "text": "8503149F3405204BRA<<<<<<<<<<<4",
+     "confidence": 0.9988,
+     "boundingBox": [
+      79.0,
+      1349.0,
+      771.0,
+      1350.0,
+      771.0,
+      1384.0,
+      79.0,
+      1383.0
+     ]
+    },
+    {
+     "text": "SOUZA<<MARIA<APARECIDA<DA<SILV",
+     "confidence": 0.9983,
+     "boundingBox": [
+      80.0,
+      1406.0,
+      771.0,
+      1406.0,
+      771.0,
+      1440.0,
+      80.0,
+      1440.0
+     ]
+    },
+    {
+     "text": "AMOSTRA SINTETICA - SEM VALOR LEGAL",
+     "confidence": 0.9995,
+     "boundingBox": [
+      367.0,
+      1539.0,
+      830.0,
+      1538.0,
+      830.0,
+      1559.0,
+      367.0,
+      1560.0
+     ]
+    }
+   ]
+  }
+ ]
+}

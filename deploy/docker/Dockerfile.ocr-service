@@ -12,6 +12,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     OCR_MODEL_CACHE_DIR=/var/lib/docreader/ocr-models \
+    OCR_MODEL_PROFILE=ppocrv5-mobile \
     PADDLE_PDX_CACHE_HOME=/var/lib/docreader/ocr-models \
     PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True \
     OMP_NUM_THREADS=4
@@ -37,7 +38,9 @@ USER ocr
 
 # Downloads the detector and the recognizer into the image and runs one warm-up inference with oneDNN
 # on, so a broken model, library or oneDNN build fails the build instead of the first document.
-RUN python -c "from app.engine import PaddleOcrEngine; import os; PaddleOcrEngine(enable_mkldnn=True, model_cache_dir=os.environ['OCR_MODEL_CACHE_DIR']).load()"
+# The profile comes from OCR_MODEL_PROFILE, so building with --build-arg or a changed ENV bakes the models the
+# service will actually run.
+RUN python -c "from app.settings import Settings; from app.engine import PaddleOcrEngine; s = Settings.from_environment(); PaddleOcrEngine(enable_mkldnn=True, model_cache_dir=s.model_cache_dir, profile=s.model_profile).load()"
 
 EXPOSE 8000
 

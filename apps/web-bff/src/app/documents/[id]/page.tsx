@@ -185,8 +185,9 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
 
             {result && Object.keys(result.extraction.fields).length === 0 && (
               <p className="stage-note">
-                Este tipo de documento ainda não tem extrator: o texto bruto foi lido e está abaixo, mas
-                não há campos estruturados. Os demais tipos entram na Etapa 3.
+                Este tipo de documento não tem extrator estruturado: o texto bruto foi lido e está abaixo,
+                mas não há campos. Os tipos com extrator são CPF, CIN/RG, CNH, comprovante de residência,
+                cartão CNPJ, CCMEI e contrato social; os demais são aceitos como texto bruto.
               </p>
             )}
 

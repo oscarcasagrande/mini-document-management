@@ -1,0 +1,65 @@
+{
+  "documentType": "BR_CCMEI",
+  "fields": {
+    "cnpj": {
+      "normalized": "04252011000110",
+      "status": "VALID"
+    },
+    "legalName": {
+      "normalized": "MARIA APARECIDA DA SILVA SOUZA 11144477735",
+      "status": "VALID"
+    },
+    "tradeName": {
+      "normalized": "MARIA DOCES",
+      "status": "VALID"
+    },
+    "openingDate": {
+      "normalized": "2020-02-10",
+      "status": "VALID"
+    },
+    "shareCapital": {
+      "normalized": "5000.00",
+      "status": "VALID"
+    },
+    "mainActivityCode": {
+      "normalized": "1091102",
+      "status": "VALID"
+    },
+    "mainActivityDescription": {
+      "normalized": "FABRICACAO DE PRODUTOS DE PADARIA E CONFEITARIA",
+      "status": "VALID"
+    },
+    "address": {
+      "normalized": "RUA DAS AMOSTRAS, 100 - CENTRO SAO PAULO/SP CEP 01000-000",
+      "status": "VALID"
+    },
+    "postalCode": {
+      "normalized": "01000000",
+      "status": "VALID"
+    },
+    "city": {
+      "normalized": "SAO PAULO",
+      "status": "VALID"
+    },
+    "state": {
+      "normalized": "SP",
+      "status": "VALID"
+    },
+    "holderName": {
+      "normalized": "MARIA APARECIDA DA SILVA SOUZA",
+      "status": "VALID"
+    },
+    "holderCpf": {
+      "normalized": "11144477735",
+      "status": "VALID"
+    },
+    "holderBirthDate": {
+      "normalized": "1985-03-14",
+      "status": "VALID"
+    },
+    "certificateDate": {
+      "normalized": "2026-09-01",
+      "status": "VALID"
+    }
+  }
+}

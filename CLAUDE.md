@@ -13,23 +13,29 @@ Plano de execução em etapas (PRD §26).
 **Etapa 1 — concluída e aprovada.** Compose completo, upload pela API, persistência, lista,
 visualização/download e Swagger.
 
-**Etapa 2 — OCR ponta a ponta: implementada, com aceite via `docker compose` executado.** Aguarda
-aprovação. Decisão de engine e números em `docs/adr/0002-*.md`; evidência em `docs/bench/`.
+**Etapa 2 — concluída.** OCR ponta a ponta (PaddleOCR PP-OCRv5 mobile em CPU), fila com heartbeat,
+retry e fencing, `/text`, `/result`, `/reprocess`. Decisão de engine e números em `docs/adr/0002-*.md`.
 
-- `ocr-service` real (FastAPI + PaddleOCR PP-OCRv5 mobile, `paddlepaddle` 3.2.2 com oneDNN),
-  `POST /v1/ocr/page` uma página por chamada, concorrência 1, limite de 3 GiB;
-- `IDocumentOcrProvider` (`PaddleOcrServiceProvider`) e laço de consumo no worker;
-- fila em `PostgresProcessingQueue` (`FOR UPDATE SKIP LOCKED`, ADR 0001) com heartbeat por página
-  (`locked_at`), fencing por tentativa, retry com backoff (3 tentativas) e um job vivo por documento;
-- classificador por regras (`rules-1.0.0`) e extrator `BR_CPF_CARD` (cpf, name, birthDate) com
-  `validationStatus` e códigos (`CHECK_DIGIT_VALID`, `CHECK_DIGIT_INVALID`, `DATE_VALID`,
-  `NO_LABEL_NEARBY`);
-- `extractions` e `extracted_fields` (migration `AddOcrResults`), endpoints `/text`, `/result` e
-  `/reprocess`, UI com campos, texto bruto e progresso.
+**Etapa 3 — extração estruturada: implementada, com aceite via `docker compose` executado.** Aguarda
+aprovação.
 
-**Pendência obrigatória antes da Etapa 3:** página A4 leva 23–47 s no OCR e o requisito é 5 páginas
-em 90 s (~18 s/página). As hipóteses a medir estão no ADR 0002. Também fora da Etapa 2: PDF com
-camada de texto nativa (RF-009), orientação/deskew, PP-StructureV3 e `/document-types`.
+- Sete tipos com extrator, schema e perfil de classificação: `BR_CPF_CARD`, `BR_CIN` (CIN e RG, com MRZ
+  TD1), `BR_CNH`, `BR_PROOF_OF_ADDRESS`, `BR_CNPJ_CARD`, `BR_CCMEI` e `BR_SOCIAL_CONTRACT`. Schemas em
+  `schemas/documents/` (o README de lá lista campos e validações e o que **não** é validado).
+- Validadores de domínio: CNPJ alfanumérico (RF-012), CEP, UF, valor em reais, data por extenso, MRZ.
+- Extração por rótulo e geometria (`LineSearch`, `FieldReaders` em `src/DocReader.Application/Extraction`);
+  contrato social por expressões sobre o texto juntado (`ProseIndex`). Sócios saem como `partners[N].*`.
+- Testes: 446 unitários (inclusive as seis amostras sobre **OCR real** capturado em
+  `tests/unit/DocReader.UnitTests/Fixtures/ocr`), 21 de integração, 29 do `pytest`. Ponta a ponta:
+  `tests/e2e/stage3_acceptance.py`.
+- Latência de A4 medida e fechada no ADR 0002: o alvo (≤ 18 s/página) é atingido **sem limite de CPU**
+  (pior caso 15,8 s) e não com 4 CPUs (28 s). `OCR_MODEL_PROFILE` troca o modelo; os menores são mais
+  rápidos e menos exatos, e não foram adotados.
+
+**Limite do que foi medido:** as amostras são sintéticas, desenhadas com a estrutura de rótulo e valor dos
+documentos reais. Desempenho em documento real, de outros estados, concessionárias e juntas, é assunto da
+Etapa 4. Fora do escopo até lá: PDF com camada de texto nativa (RF-009), orientação/deskew,
+PP-StructureV3 e `/document-types`.
 
 ## Estrutura do repositório
 

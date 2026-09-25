@@ -1,0 +1,106 @@
+using System.Text.RegularExpressions;
+using DocReader.Application.Abstractions;
+using DocReader.Domain.Validation;
+
+namespace DocReader.Application.Extraction;
+
+/// <summary>
+/// Extrator da Carteira Nacional de Habilitação, conforme <c>schemas/documents/BR_CNH.v1.json</c>.
+///
+/// O CPF passa pelo dígito verificador. O número de registro tem 11 dígitos, mas a PoC valida só o
+/// formato dele: o algoritmo dos dígitos do registro não está no escopo do PRD.
+/// </summary>
+public sealed partial class BrCnhExtractor(TimeProvider timeProvider) : IDocumentExtractor
+{
+    public const string TypeName = "BR_CNH";
+
+    public const string ExtractorVersion = "br-cnh-1.0.0";
+
+    public const string CategoryValid = "CATEGORY_VALID";
+
+    private static readonly string[] NameLabels = ["NOME", "NOME E SOBRENOME"];
+    private static readonly string[] CpfLabels = ["CPF"];
+    private static readonly string[] BirthLabels = ["DATA DE NASCIMENTO", "DATA NASCIMENTO", "DATA NASC", "NASCIMENTO", "DATA, LOCAL E UF DE NASCIMENTO"];
+    private static readonly string[] RegistrationLabels = ["N REGISTRO", "Nº REGISTRO", "N° REGISTRO", "NO REGISTRO", "NUMERO DE REGISTRO", "N DE REGISTRO", "REGISTRO"];
+    private static readonly string[] CategoryLabels = ["CAT. HAB.", "CAT. HAB", "CAT HAB", "CATEGORIA", "CATEGORIA DE HABILITACAO"];
+    private static readonly string[] FirstLicenseLabels = ["1A HABILITACAO", "1ª HABILITACAO", "PRIMEIRA HABILITACAO", "1 HABILITACAO", "1A HAB"];
+    private static readonly string[] IssueLabels = ["DATA EMISSAO", "DATA DE EMISSAO", "EMISSAO"];
+    private static readonly string[] ExpirationLabels = ["VALIDADE", "DATA DE VALIDADE"];
+
+    private static readonly string[] KnownLabels =
+    [
+        .. NameLabels, .. CpfLabels, .. BirthLabels, .. RegistrationLabels, .. CategoryLabels,
+        .. FirstLicenseLabels, .. IssueLabels, .. ExpirationLabels,
+        "FILIACAO", "DOC. IDENTIDADE / ORG. EMISSOR / UF", "DOC IDENTIDADE", "ORGAO EMISSOR", "PERMISSAO",
+        "OBSERVACOES", "LOCAL", "ASSINATURA DO PORTADOR", "REPUBLICA FEDERATIVA DO BRASIL",
+        "MINISTERIO DOS TRANSPORTES", "SECRETARIA NACIONAL DE TRANSITO", "CARTEIRA NACIONAL DE HABILITACAO",
+        "AMOSTRA SINTETICA - SEM VALOR LEGAL", "AMOSTRA SINTETICA SEM VALOR LEGAL"
+    ];
+
+    /// <summary>Categorias que a CNH pode trazer, sozinhas ou combinadas.</summary>
+    private static readonly HashSet<string> Categories = new(StringComparer.Ordinal)
+    {
+        "A", "B", "C", "D", "E", "AB", "AC", "AD", "AE", "ACC"
+    };
+
+    public string DocumentType => TypeName;
+
+    public int SchemaVersion => 1;
+
+    public string Version => ExtractorVersion;
+
+    public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        var search = new LineSearch(OcrTextLine.From(result), KnownLabels);
+        var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+
+        var fields = new Dictionary<string, ExtractedFieldValue>(StringComparer.Ordinal)
+        {
+            ["name"] = FieldReaders.Name(search, NameLabels),
+            ["cpf"] = FieldReaders.Cpf(search, CpfLabels),
+            ["birthDate"] = FieldReaders.Date(search, BirthLabels, DateKind.Birth, today),
+            ["registrationNumber"] = ExtractRegistration(search),
+            ["category"] = ExtractCategory(search),
+            ["firstLicenseDate"] = FieldReaders.Date(search, FirstLicenseLabels, DateKind.Issue, today),
+            ["issueDate"] = FieldReaders.Date(search, IssueLabels, DateKind.Issue, today),
+            ["expirationDate"] = FieldReaders.Date(search, ExpirationLabels, DateKind.Expiration, today)
+        };
+
+        return Task.FromResult(new StructuredExtraction(
+            TypeName, SchemaVersion, FieldFactory.OverallConfidence(fields.Values), fields));
+    }
+
+    private static ExtractedFieldValue ExtractRegistration(LineSearch search)
+    {
+        foreach (var candidate in search.After(RegistrationLabels))
+        {
+            var match = RegistrationPattern().Match(candidate.Text);
+            if (match.Success)
+            {
+                return FieldFactory.Found(match.Value, match.Value, candidate.Line, candidate.Penalty, FieldValidationStatus.Valid, FieldReaders.FormatValid);
+            }
+        }
+
+        return FieldFactory.NotFound();
+    }
+
+    private static ExtractedFieldValue ExtractCategory(LineSearch search)
+    {
+        foreach (var candidate in search.After(CategoryLabels))
+        {
+            var normalized = new string([.. TextNormalization.ForMatching(candidate.Text).Where(char.IsAsciiLetterUpper)]);
+            if (Categories.Contains(normalized))
+            {
+                return FieldFactory.Found(candidate.Text.Trim(), normalized, candidate.Line, candidate.Penalty, FieldValidationStatus.Valid, CategoryValid);
+            }
+        }
+
+        return FieldFactory.NotFound();
+    }
+
+    /// <summary>Número de registro: 11 dígitos, sem separador.</summary>
+    [GeneratedRegex(@"(?<!\d)\d{11}(?!\d)", RegexOptions.CultureInvariant)]
+    private static partial Regex RegistrationPattern();
+}

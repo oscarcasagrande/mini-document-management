@@ -1,0 +1,45 @@
+{
+  "documentType": "BR_PROOF_OF_ADDRESS",
+  "fields": {
+    "holderName": {
+      "normalized": "MARIA APARECIDA DA SILVA SOUZA",
+      "status": "VALID"
+    },
+    "holderDocument": {
+      "normalized": "11144477735",
+      "status": "VALID"
+    },
+    "addressLine": {
+      "normalized": "AVENIDA DOS TESTES, 250 APTO 71",
+      "status": "VALID"
+    },
+    "neighborhood": {
+      "normalized": "VILA EXEMPLO",
+      "status": "VALID"
+    },
+    "city": {
+      "normalized": "SAO PAULO",
+      "status": "VALID"
+    },
+    "state": {
+      "normalized": "SP",
+      "status": "VALID"
+    },
+    "postalCode": {
+      "normalized": "04000000",
+      "status": "VALID"
+    },
+    "referenceMonth": {
+      "normalized": "2026-09",
+      "status": "VALID"
+    },
+    "dueDate": {
+      "normalized": "2026-10-15",
+      "status": "VALID"
+    },
+    "serviceType": {
+      "normalized": "ELECTRICITY",
+      "status": "VALID"
+    }
+  }
+}

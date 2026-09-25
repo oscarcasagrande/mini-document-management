@@ -15,7 +15,7 @@ public sealed class RulesDocumentClassifier : IDocumentClassifier
 
     private const decimal RequiredOnlyScore = 0.6m;
 
-    private static readonly IReadOnlyList<DocumentTypeProfile> DefaultProfiles = [DocumentTypeProfile.BrCpfCard];
+    private static readonly IReadOnlyList<DocumentTypeProfile> DefaultProfiles = DocumentTypeProfile.All;
 
     private readonly IReadOnlyList<DocumentTypeProfile> _profiles;
 

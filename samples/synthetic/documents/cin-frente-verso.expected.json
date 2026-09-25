@@ -1,0 +1,45 @@
+{
+  "documentType": "BR_CIN",
+  "fields": {
+    "name": {
+      "normalized": "MARIA APARECIDA DA SILVA SOUZA",
+      "status": "VALID"
+    },
+    "cpf": {
+      "normalized": "11144477735",
+      "status": "VALID"
+    },
+    "rg": {
+      "normalized": "123456789",
+      "status": "VALID"
+    },
+    "birthDate": {
+      "normalized": "1985-03-14",
+      "status": "VALID"
+    },
+    "issueDate": {
+      "normalized": "2024-05-20",
+      "status": "VALID"
+    },
+    "expirationDate": {
+      "normalized": "2034-05-20",
+      "status": "VALID"
+    },
+    "birthPlace": {
+      "normalized": "SAO PAULO - SP",
+      "status": "VALID"
+    },
+    "fatherName": {
+      "normalized": "JOSE DA SILVA SOUZA",
+      "status": "UNCERTAIN"
+    },
+    "motherName": {
+      "normalized": "ANA MARIA APARECIDA",
+      "status": "UNCERTAIN"
+    },
+    "mrz": {
+      "normalized": "IDBRA1234567897<<<<<<<<<<<<<<<\n8503149F3405204BRA<<<<<<<<<<<4\nSOUZA<<MARIA<APARECIDA<DA<SILV",
+      "status": "VALID"
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "documentType": "BR_CNPJ_CARD",
+  "fields": {
+    "cnpj": {
+      "normalized": "12ABC34501DE35",
+      "status": "VALID"
+    },
+    "openingDate": {
+      "normalized": "2015-03-01",
+      "status": "VALID"
+    },
+    "legalName": {
+      "normalized": "EXEMPLO SINTETICO LTDA",
+      "status": "VALID"
+    },
+    "tradeName": {
+      "normalized": null,
+      "status": "NOT_FOUND"
+    },
+    "mainActivityCode": {
+      "normalized": "6201501",
+      "status": "VALID"
+    },
+    "mainActivityDescription": {
+      "normalized": "DESENVOLVIMENTO DE PROGRAMAS DE COMPUTADOR SOB ENCOMENDA",
+      "status": "VALID"
+    },
+    "legalNature": {
+      "normalized": "206-2 - SOCIEDADE EMPRESARIA LIMITADA",
+      "status": "VALID"
+    },
+    "street": {
+      "normalized": "RUA DAS AMOSTRAS",
+      "status": "VALID"
+    },
+    "number": {
+      "normalized": "1000",
+      "status": "VALID"
+    },
+    "complement": {
+      "normalized": "SALA 12",
+      "status": "VALID"
+    },
+    "postalCode": {
+      "normalized": "01000000",
+      "status": "VALID"
+    },
+    "neighborhood": {
+      "normalized": "CENTRO",
+      "status": "VALID"
+    },
+    "city": {
+      "normalized": "SAO PAULO",
+      "status": "VALID"
+    },
+    "state": {
+      "normalized": "SP",
+      "status": "VALID"
+    },
+    "registrationStatus": {
+      "normalized": "ATIVA",
+      "status": "VALID"
+    },
+    "registrationStatusDate": {
+      "normalized": "2015-03-01",
+      "status": "VALID"
+    }
+  }
+}

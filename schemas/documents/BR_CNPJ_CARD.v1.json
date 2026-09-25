@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_CNPJ_CARD.v1",
+  "title": "Comprovante de inscrição e de situação cadastral do CNPJ",
+  "description": "Cartão CNPJ. O CNPJ passa pelo dígito verificador do RF-012, inclusive o alfanumérico. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": [
+    "cnpj",
+    "legalName",
+    "openingDate"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "cnpj": {
+      "description": "CNPJ normalizado para 14 posições sem máscara; as 12 primeiras aceitam letras (CNPJ alfanumérico) e as 2 últimas são dígitos verificadores.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9A-Z]{12}[0-9]{2}$",
+      "examples": [
+        "12ABC34501DE35"
+      ]
+    },
+    "openingDate": {
+      "description": "Data de abertura, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2015-03-01"
+      ]
+    },
+    "legalName": {
+      "description": "Nome empresarial, em caixa alta e sem acento.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "EXEMPLO SINTETICO LTDA"
+      ]
+    },
+    "tradeName": {
+      "description": "Título do estabelecimento (nome de fantasia). \"********\" no documento vira NOT_FOUND.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "EXEMPLO TECH"
+      ]
+    },
+    "mainActivityCode": {
+      "description": "Código da CNAE principal, só dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{7}$",
+      "examples": [
+        "6201501"
+      ]
+    },
+    "mainActivityDescription": {
+      "description": "Descrição da atividade econômica principal.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 300,
+      "examples": [
+        "DESENVOLVIMENTO DE PROGRAMAS DE COMPUTADOR SOB ENCOMENDA"
+      ]
+    },
+    "legalNature": {
+      "description": "Código e descrição da natureza jurídica.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "206-2 - SOCIEDADE EMPRESARIA LIMITADA"
+      ]
+    },
+    "street": {
+      "description": "Logradouro.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "RUA DAS AMOSTRAS"
+      ]
+    },
+    "number": {
+      "description": "Número do endereço.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 20,
+      "examples": [
+        "1000"
+      ]
+    },
+    "complement": {
+      "description": "Complemento. \"********\" no documento vira NOT_FOUND.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": [
+        "SALA 12"
+      ]
+    },
+    "postalCode": {
+      "description": "CEP normalizado para 8 dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{8}$",
+      "examples": [
+        "01000000"
+      ]
+    },
+    "neighborhood": {
+      "description": "Bairro ou distrito.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "CENTRO"
+      ]
+    },
+    "city": {
+      "description": "Município.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "SAO PAULO"
+      ]
+    },
+    "state": {
+      "description": "Sigla da unidade federativa.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Z]{2}$",
+      "examples": [
+        "SP"
+      ]
+    },
+    "registrationStatus": {
+      "description": "Situação cadastral.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 60,
+      "examples": [
+        "ATIVA"
+      ]
+    },
+    "registrationStatusDate": {
+      "description": "Data da situação cadastral, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2015-03-01"
+      ]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "requiredSignals": [
+        "CADASTRO NACIONAL DA PESSOA JURIDICA"
+      ],
+      "optionalSignals": [
+        "COMPROVANTE DE INSCRICAO E DE SITUACAO CADASTRAL",
+        "NUMERO DE INSCRICAO",
+        "DATA DE ABERTURA",
+        "NOME EMPRESARIAL",
+        "NATUREZA JURIDICA",
+        "SITUACAO CADASTRAL",
+        "ATIVIDADE ECONOMICA PRINCIPAL"
+      ],
+      "negativeSignals": [
+        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL",
+        "CLAUSULA"
+      ],
+      "threshold": 0.7
+    },
+    "validation": {
+      "cnpj": "Dígitos verificadores por módulo 11 sobre valores derivados do ASCII; 12 primeiras posições iguais são rejeitadas (RF-012).",
+      "openingDate": "Data real de calendário, não futura e não anterior a 1900.",
+      "postalCode": "Oito dígitos, não todos zero.",
+      "state": "Uma das 27 unidades federativas."
+    }
+  }
+}

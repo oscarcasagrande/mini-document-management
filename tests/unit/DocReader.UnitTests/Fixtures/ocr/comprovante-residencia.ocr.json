@@ -1,0 +1,336 @@
+{
+ "source": "comprovante-residencia.png",
+ "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
+ "pages": [
+  {
+   "page": 1,
+   "imageWidth": 1240,
+   "imageHeight": 1754,
+   "durationMs": 4747,
+   "blocks": [
+    {
+     "text": "COMPANHIA ENERGÉTICA EXEMPLO S.A.",
+     "confidence": 0.9998,
+     "boundingBox": [
+      98.0,
+      97.0,
+      955.0,
+      98.0,
+      955.0,
+      138.0,
+      98.0,
+      137.0
+     ]
+    },
+    {
+     "text": "FATURA DE ENERGIA ELÉTRICA",
+     "confidence": 0.9998,
+     "boundingBox": [
+      98.0,
+      152.0,
+      619.0,
+      151.0,
+      619.0,
+      181.0,
+      98.0,
+      182.0
+     ]
+    },
+    {
+     "text": "CLIENTE",
+     "confidence": 1.0,
+     "boundingBox": [
+      98.0,
+      247.0,
+      186.0,
+      247.0,
+      186.0,
+      272.0,
+      98.0,
+      272.0
+     ]
+    },
+    {
+     "text": "MARIA APARECIDA DA SILVA SOUZA",
+     "confidence": 0.9981,
+     "boundingBox": [
+      99.0,
+      284.0,
+      789.0,
+      284.0,
+      789.0,
+      318.0,
+      99.0,
+      318.0
+     ]
+    },
+    {
+     "text": "CPF/CNPJ",
+     "confidence": 1.0,
+     "boundingBox": [
+      97.0,
+      365.0,
+      195.0,
+      367.0,
+      194.0,
+      396.0,
+      96.0,
+      393.0
+     ]
+    },
+    {
+     "text": "111.444.777-35",
+     "confidence": 1.0,
+     "boundingBox": [
+      100.0,
+      406.0,
+      380.0,
+      406.0,
+      380.0,
+      437.0,
+      100.0,
+      437.0
+     ]
+    },
+    {
+     "text": "ENDEREÇO",
+     "confidence": 0.9997,
+     "boundingBox": [
+      97.0,
+      487.0,
+      214.0,
+      487.0,
+      214.0,
+      515.0,
+      97.0,
+      515.0
+     ]
+    },
+    {
+     "text": "AVENIDA DOS TESTES, 250 APTO 71",
+     "confidence": 0.9971,
+     "boundingBox": [
+      98.0,
+      524.0,
+      787.0,
+      524.0,
+      787.0,
+      558.0,
+      98.0,
+      558.0
+     ]
+    },
+    {
+     "text": "BAIRRO",
+     "confidence": 0.9999,
+     "boundingBox": [
+      96.0,
+      608.0,
+      181.0,
+      608.0,
+      181.0,
+      633.0,
+      96.0,
+      633.0
+     ]
+    },
+    {
+     "text": "VILA EXEMPLO",
+     "confidence": 0.9997,
+     "boundingBox": [
+      98.0,
+      643.0,
+      380.0,
+      645.0,
+      379.0,
+      679.0,
+      97.0,
+      677.0
+     ]
+    },
+    {
+     "text": "CEP 04000-000 SÃO PAULO - SP",
+     "confidence": 0.9884,
+     "boundingBox": [
+      98.0,
+      730.0,
+      724.0,
+      730.0,
+      724.0,
+      766.0,
+      98.0,
+      766.0
+     ]
+    },
+    {
+     "text": "UNIDADE CONSUMIDORA",
+     "confidence": 0.9999,
+     "boundingBox": [
+      99.0,
+      879.0,
+      355.0,
+      879.0,
+      355.0,
+      902.0,
+      99.0,
+      902.0
+     ]
+    },
+    {
+     "text": "REFERÊNCIA",
+     "confidence": 0.9998,
+     "boundingBox": [
+      658.0,
+      876.0,
+      790.0,
+      876.0,
+      790.0,
+      903.0,
+      658.0,
+      903.0
+     ]
+    },
+    {
+     "text": "1234567",
+     "confidence": 1.0,
+     "boundingBox": [
+      99.0,
+      914.0,
+      267.0,
+      914.0,
+      267.0,
+      948.0,
+      99.0,
+      948.0
+     ]
+    },
+    {
+     "text": "09/2026",
+     "confidence": 1.0,
+     "boundingBox": [
+      658.0,
+      914.0,
+      818.0,
+      914.0,
+      818.0,
+      949.0,
+      658.0,
+      949.0
+     ]
+    },
+    {
+     "text": "VENCIMENTO",
+     "confidence": 1.0,
+     "boundingBox": [
+      95.0,
+      1008.0,
+      236.0,
+      1005.0,
+      237.0,
+      1032.0,
+      96.0,
+      1035.0
+     ]
+    },
+    {
+     "text": "TOTAL A PAGAR",
+     "confidence": 0.9996,
+     "boundingBox": [
+      659.0,
+      1009.0,
+      823.0,
+      1009.0,
+      823.0,
+      1032.0,
+      659.0,
+      1032.0
+     ]
+    },
+    {
+     "text": "15/10/2026",
+     "confidence": 1.0,
+     "boundingBox": [
+      99.0,
+      1044.0,
+      317.0,
+      1044.0,
+      317.0,
+      1079.0,
+      99.0,
+      1079.0
+     ]
+    },
+    {
+     "text": "R$ 187,45",
+     "confidence": 0.9941,
+     "boundingBox": [
+      658.0,
+      1043.0,
+      855.0,
+      1043.0,
+      855.0,
+      1081.0,
+      658.0,
+      1081.0
+     ]
+    },
+    {
+     "text": "CONSUMO KWH",
+     "confidence": 0.9897,
+     "boundingBox": [
+      98.0,
+      1138.0,
+      261.0,
+      1138.0,
+      261.0,
+      1162.0,
+      98.0,
+      1162.0
+     ]
+    },
+    {
+     "text": "312",
+     "confidence": 1.0,
+     "boundingBox": [
+      94.0,
+      1172.0,
+      178.0,
+      1172.0,
+      178.0,
+      1211.0,
+      94.0,
+      1211.0
+     ]
+    },
+    {
+     "text": "Em caso de dúvida, ligue para a central de atendimento.",
+     "confidence": 0.9927,
+     "boundingBox": [
+      98.0,
+      1300.0,
+      789.0,
+      1300.0,
+      789.0,
+      1329.0,
+      98.0,
+      1329.0
+     ]
+    },
+    {
+     "text": "AMOSTRA SINTETICA - SEM VALOR LEGAL",
+     "confidence": 0.9997,
+     "boundingBox": [
+      384.0,
+      1697.0,
+      851.0,
+      1695.0,
+      852.0,
+      1722.0,
+      385.0,
+      1724.0
+     ]
+    }
+   ]
+  }
+ ]
+}

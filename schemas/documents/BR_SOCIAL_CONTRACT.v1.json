@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_SOCIAL_CONTRACT.v1",
+  "title": "Contrato social",
+  "description": "Texto corrido: os campos saem de expressões (\"com sede na\", \"capital social de\"), não de rótulos. Os sócios saem como campos indexados partners[N].name e partners[N].cpf, até 6. O CNPJ pode faltar num contrato de constituição. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": [
+    "companyName"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "companyName": {
+      "description": "Denominação social, em caixa alta e sem acento.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "EXEMPLO SINTETICO LTDA"
+      ]
+    },
+    "cnpj": {
+      "description": "CNPJ normalizado para 14 posições sem máscara; as 12 primeiras aceitam letras (CNPJ alfanumérico) e as 2 últimas são dígitos verificadores.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9A-Z]{12}[0-9]{2}$",
+      "examples": [
+        "12ABC34501DE35"
+      ]
+    },
+    "nire": {
+      "description": "Número de Identificação do Registro de Empresas, 11 dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "35234567890"
+      ]
+    },
+    "shareCapital": {
+      "description": "Capital social em reais, ponto decimal e duas casas.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]+\\.[0-9]{2}$",
+      "examples": [
+        "100000.00"
+      ]
+    },
+    "headquarters": {
+      "description": "Endereço da sede, do logradouro ao CEP.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 400,
+      "examples": [
+        "RUA DAS AMOSTRAS, NUMERO 1000, BAIRRO CENTRO, CEP 01000-000"
+      ]
+    },
+    "headquartersPostalCode": {
+      "description": "CEP normalizado para 8 dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{8}$",
+      "examples": [
+        "01000000"
+      ]
+    },
+    "corporatePurpose": {
+      "description": "Objeto social, até o ponto final da frase.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 400,
+      "examples": [
+        "DESENVOLVIMENTO DE PROGRAMAS DE COMPUTADOR SOB ENCOMENDA"
+      ]
+    },
+    "contractDate": {
+      "description": "Data de assinatura: a última data por extenso do texto, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2026-09-24"
+      ]
+    },
+    "partners[N].name": {
+      "description": "Nome do sócio N (a partir de 0), em caixa alta e sem acento.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA APARECIDA DA SILVA SOUZA"
+      ]
+    },
+    "partners[N].cpf": {
+      "description": "Número do CPF, normalizado para 11 dígitos sem máscara.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "11144477735"
+      ]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "requiredSignals": [
+        "CONTRATO SOCIAL"
+      ],
+      "optionalSignals": [
+        "CLAUSULA",
+        "SOCIOS",
+        "QUOTAS",
+        "CAPITAL SOCIAL",
+        "OBJETO SOCIAL",
+        "SEDE",
+        "ADMINISTRACAO",
+        "FORO",
+        "SOCIEDADE"
+      ],
+      "negativeSignals": [
+        "COMPROVANTE DE INSCRICAO E DE SITUACAO CADASTRAL",
+        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+      ],
+      "threshold": 0.7
+    },
+    "validation": {
+      "cnpj": "Dígitos verificadores por módulo 11, procurado perto da palavra CNPJ; sem essa âncora a confiança é rebaixada (RF-012).",
+      "partners[N].cpf": "Dígito verificador por módulo 11, o primeiro CPF depois do nome do sócio (RF-012).",
+      "shareCapital": "Valor em reais com vírgula decimal e duas casas.",
+      "contractDate": "Data por extenso real de calendário, não futura."
+    }
+  }
+}

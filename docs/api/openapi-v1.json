@@ -2,7 +2,7 @@
   "openapi": "3.0.4",
   "info": {
     "title": "DocReader PoC API",
-    "description": "Local proof of concept for document ingestion, OCR, classification and extraction.\n\n**There is no authentication.** Every endpoint is anonymous, the Swagger page is public and\nno bearer token is required. Do not expose this API to the internet and do not send real\npersonal documents to it. Use synthetic, masked or authorized files only.\n\nConventions: JSON in camelCase, timestamps in UTC ISO 8601, errors as\n`application/problem+json`, and an `X-Correlation-Id` header on every response.\n\nStage 2 of the execution plan delivers upload, listing, detail, content, deletion, OCR\n(PP-OCRv5 on CPU, see ADR 0002), the raw text and the structured result of the CPF card.\nOther document types are read as raw text only; their structured fields arrive in stage 3.",
+    "description": "Local proof of concept for document ingestion, OCR, classification and extraction.\n\n**There is no authentication.** Every endpoint is anonymous, the Swagger page is public and\nno bearer token is required. Do not expose this API to the internet and do not send real\npersonal documents to it. Use synthetic, masked or authorized files only.\n\nConventions: JSON in camelCase, timestamps in UTC ISO 8601, errors as\n`application/problem+json`, and an `X-Correlation-Id` header on every response.\n\nStage 3 of the execution plan delivers upload, listing, detail, content, deletion, OCR\n(PP-OCRv5 on CPU, see ADR 0002), the raw text and the structured result of seven document\ntypes: CPF card, CIN/RG, CNH, proof of address, CNPJ card, CCMEI and social contract.\nOther document types are read as raw text only.",
     "version": "v1"
   },
   "paths": {

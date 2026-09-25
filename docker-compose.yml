@@ -119,6 +119,9 @@ services:
     environment:
       OCR_PROVIDER: paddleocr
       OCR_MODEL_CACHE_DIR: /var/lib/docreader/ocr-models
+      # Detector and recognizer: ppocrv5-mobile (default, models baked into the image), ppocrv6-medium,
+      # ppocrv6-small or ppocrv6-tiny. Another profile downloads its models on first start (ADR 0002).
+      OCR_MODEL_PROFILE: ${OCR_MODEL_PROFILE:-ppocrv5-mobile}
       OCR_LOG_LEVEL: ${OCR_LOG_LEVEL:-INFO}
       # One page at a time: the memory budget below was sized for it (ADR 0002).
       OCR_MAX_CONCURRENCY: ${OCR_MAX_CONCURRENCY:-1}

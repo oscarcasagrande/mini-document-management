@@ -1,0 +1,518 @@
+{
+ "source": "cartao-cnpj.png",
+ "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
+ "pages": [
+  {
+   "page": 1,
+   "imageWidth": 1240,
+   "imageHeight": 1754,
+   "durationMs": 7320,
+   "blocks": [
+    {
+     "text": "REPÚBLICA FEDERATIVA DO BRASIL",
+     "confidence": 0.999,
+     "boundingBox": [
+      299.0,
+      73.0,
+      943.0,
+      74.0,
+      943.0,
+      105.0,
+      299.0,
+      104.0
+     ]
+    },
+    {
+     "text": "CADASTRO NACIONAL DA PESSOA JURÍDICA",
+     "confidence": 0.9928,
+     "boundingBox": [
+      252.0,
+      119.0,
+      986.0,
+      119.0,
+      986.0,
+      151.0,
+      252.0,
+      151.0
+     ]
+    },
+    {
+     "text": "COMPROVANTE DE INSCRIÇÃO E DE SITUAÇÃO CADASTRAL",
+     "confidence": 0.99,
+     "boundingBox": [
+      261.0,
+      166.0,
+      981.0,
+      166.0,
+      981.0,
+      196.0,
+      261.0,
+      196.0
+     ]
+    },
+    {
+     "text": "NÚMERO DE INSCRIÇÃO",
+     "confidence": 0.9995,
+     "boundingBox": [
+      68.0,
+      234.0,
+      277.0,
+      236.0,
+      277.0,
+      260.0,
+      67.0,
+      258.0
+     ]
+    },
+    {
+     "text": "DATA DE ABERTURA",
+     "confidence": 0.9885,
+     "boundingBox": [
+      630.0,
+      237.0,
+      808.0,
+      237.0,
+      808.0,
+      258.0,
+      630.0,
+      258.0
+     ]
+    },
+    {
+     "text": "12.ABC.345/01DE-35 MATRIZ",
+     "confidence": 0.9991,
+     "boundingBox": [
+      72.0,
+      277.0,
+      534.0,
+      277.0,
+      534.0,
+      301.0,
+      72.0,
+      301.0
+     ]
+    },
+    {
+     "text": "01/03/2015",
+     "confidence": 1.0,
+     "boundingBox": [
+      629.0,
+      274.0,
+      806.0,
+      274.0,
+      806.0,
+      305.0,
+      629.0,
+      305.0
+     ]
+    },
+    {
+     "text": "NOME EMPRESARIAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      69.0,
+      348.0,
+      249.0,
+      348.0,
+      249.0,
+      369.0,
+      69.0,
+      369.0
+     ]
+    },
+    {
+     "text": "EXEMPLO SINTETICO LTDA",
+     "confidence": 0.9986,
+     "boundingBox": [
+      71.0,
+      386.0,
+      490.0,
+      386.0,
+      490.0,
+      413.0,
+      71.0,
+      413.0
+     ]
+    },
+    {
+     "text": "TÍTULO DO ESTABELECIMENTO (NOME DE FANTASIA)",
+     "confidence": 0.9979,
+     "boundingBox": [
+      70.0,
+      456.0,
+      524.0,
+      456.0,
+      524.0,
+      479.0,
+      70.0,
+      479.0
+     ]
+    },
+    {
+     "text": "********",
+     "confidence": 0.9994,
+     "boundingBox": [
+      69.0,
+      494.0,
+      193.0,
+      494.0,
+      193.0,
+      514.0,
+      69.0,
+      514.0
+     ]
+    },
+    {
+     "text": "CÓDIGO E DESCRIÇÃO DA ATIVIDADE ECONÔMICA PRINCIPAL",
+     "confidence": 0.9997,
+     "boundingBox": [
+      69.0,
+      565.0,
+      595.0,
+      566.0,
+      595.0,
+      590.0,
+      69.0,
+      589.0
+     ]
+    },
+    {
+     "text": "62.01-5-01 - Desenvolvimento de programas de computador sob encomenda",
+     "confidence": 0.9989,
+     "boundingBox": [
+      68.0,
+      601.0,
+      1099.0,
+      602.0,
+      1099.0,
+      633.0,
+      68.0,
+      632.0
+     ]
+    },
+    {
+     "text": "CÓDIGO E DESCRIÇÃO DA NATUREZA JURÍDICA",
+     "confidence": 0.9998,
+     "boundingBox": [
+      70.0,
+      694.0,
+      473.0,
+      696.0,
+      473.0,
+      720.0,
+      70.0,
+      718.0
+     ]
+    },
+    {
+     "text": "206-2 - Sociedade Empresária Limitada",
+     "confidence": 0.999,
+     "boundingBox": [
+      70.0,
+      734.0,
+      693.0,
+      734.0,
+      693.0,
+      764.0,
+      70.0,
+      764.0
+     ]
+    },
+    {
+     "text": "LOGRADOURO",
+     "confidence": 1.0,
+     "boundingBox": [
+      68.0,
+      807.0,
+      194.0,
+      807.0,
+      194.0,
+      828.0,
+      68.0,
+      828.0
+     ]
+    },
+    {
+     "text": "NÚMERO",
+     "confidence": 0.9996,
+     "boundingBox": [
+      708.0,
+      803.0,
+      790.0,
+      805.0,
+      789.0,
+      831.0,
+      707.0,
+      829.0
+     ]
+    },
+    {
+     "text": "COMPLEMENTO",
+     "confidence": 1.0,
+     "boundingBox": [
+      908.0,
+      804.0,
+      1046.0,
+      806.0,
+      1046.0,
+      831.0,
+      908.0,
+      829.0
+     ]
+    },
+    {
+     "text": "RUA DAS AMOSTRAS",
+     "confidence": 0.9989,
+     "boundingBox": [
+      70.0,
+      844.0,
+      400.0,
+      845.0,
+      400.0,
+      872.0,
+      70.0,
+      871.0
+     ]
+    },
+    {
+     "text": "1000",
+     "confidence": 1.0,
+     "boundingBox": [
+      709.0,
+      844.0,
+      790.0,
+      844.0,
+      790.0,
+      873.0,
+      709.0,
+      873.0
+     ]
+    },
+    {
+     "text": "SALA 12",
+     "confidence": 0.9994,
+     "boundingBox": [
+      909.0,
+      842.0,
+      1043.0,
+      844.0,
+      1043.0,
+      873.0,
+      909.0,
+      871.0
+     ]
+    },
+    {
+     "text": "CEP",
+     "confidence": 1.0,
+     "boundingBox": [
+      68.0,
+      916.0,
+      108.0,
+      916.0,
+      108.0,
+      940.0,
+      68.0,
+      940.0
+     ]
+    },
+    {
+     "text": "BAIRRO/DISTRITO",
+     "confidence": 0.9999,
+     "boundingBox": [
+      339.0,
+      917.0,
+      495.0,
+      917.0,
+      495.0,
+      941.0,
+      339.0,
+      941.0
+     ]
+    },
+    {
+     "text": "MUNICÍPIO",
+     "confidence": 0.9998,
+     "boundingBox": [
+      708.0,
+      915.0,
+      804.0,
+      915.0,
+      804.0,
+      940.0,
+      708.0,
+      940.0
+     ]
+    },
+    {
+     "text": "UF",
+     "confidence": 0.9999,
+     "boundingBox": [
+      1066.0,
+      914.0,
+      1099.0,
+      914.0,
+      1099.0,
+      944.0,
+      1066.0,
+      944.0
+     ]
+    },
+    {
+     "text": "01.000-000",
+     "confidence": 0.9999,
+     "boundingBox": [
+      69.0,
+      953.0,
+      248.0,
+      955.0,
+      247.0,
+      983.0,
+      68.0,
+      981.0
+     ]
+    },
+    {
+     "text": "CENTRO",
+     "confidence": 1.0,
+     "boundingBox": [
+      338.0,
+      951.0,
+      471.0,
+      953.0,
+      471.0,
+      984.0,
+      338.0,
+      981.0
+     ]
+    },
+    {
+     "text": "SAO PAULO",
+     "confidence": 0.9992,
+     "boundingBox": [
+      710.0,
+      953.0,
+      895.0,
+      955.0,
+      895.0,
+      983.0,
+      709.0,
+      981.0
+     ]
+    },
+    {
+     "text": "SP",
+     "confidence": 1.0,
+     "boundingBox": [
+      1067.0,
+      952.0,
+      1118.0,
+      952.0,
+      1118.0,
+      986.0,
+      1067.0,
+      986.0
+     ]
+    },
+    {
+     "text": "SITUAÇÃO CADASTRAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      69.0,
+      1025.0,
+      269.0,
+      1025.0,
+      269.0,
+      1049.0,
+      69.0,
+      1049.0
+     ]
+    },
+    {
+     "text": "DATA DA SITUAÇÃO CADASTRAL",
+     "confidence": 0.9999,
+     "boundingBox": [
+      630.0,
+      1025.0,
+      910.0,
+      1025.0,
+      910.0,
+      1049.0,
+      630.0,
+      1049.0
+     ]
+    },
+    {
+     "text": "ATIVA",
+     "confidence": 0.9998,
+     "boundingBox": [
+      69.0,
+      1063.0,
+      169.0,
+      1063.0,
+      169.0,
+      1092.0,
+      69.0,
+      1092.0
+     ]
+    },
+    {
+     "text": "01/03/2015",
+     "confidence": 1.0,
+     "boundingBox": [
+      631.0,
+      1064.0,
+      804.0,
+      1064.0,
+      804.0,
+      1092.0,
+      631.0,
+      1092.0
+     ]
+    },
+    {
+     "text": "",
+     "confidence": 0.0,
+     "boundingBox": [
+      26.0,
+      1696.0,
+      89.0,
+      1698.0,
+      88.0,
+      1723.0,
+      25.0,
+      1721.0
+     ]
+    },
+    {
+     "text": "AMOSTRA SINTETICA - SEM VALOR LEGAL",
+     "confidence": 0.9996,
+     "boundingBox": [
+      384.0,
+      1697.0,
+      852.0,
+      1695.0,
+      853.0,
+      1722.0,
+      385.0,
+      1724.0
+     ]
+    },
+    {
+     "text": "",
+     "confidence": 0.0,
+     "boundingBox": [
+      1150.0,
+      1698.0,
+      1214.0,
+      1698.0,
+      1214.0,
+      1723.0,
+      1150.0,
+      1723.0
+     ]
+    }
+   ]
+  }
+ ]
+}

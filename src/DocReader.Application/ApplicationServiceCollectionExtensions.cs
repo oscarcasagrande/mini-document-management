@@ -47,6 +47,12 @@ public static class ApplicationServiceCollectionExtensions
         services.TryAddTimeProvider();
 
         services.AddScoped<IDocumentExtractor, BrCpfCardExtractor>();
+        services.AddScoped<IDocumentExtractor, BrCinExtractor>();
+        services.AddScoped<IDocumentExtractor, BrCnhExtractor>();
+        services.AddScoped<IDocumentExtractor, BrProofOfAddressExtractor>();
+        services.AddScoped<IDocumentExtractor, BrCnpjCardExtractor>();
+        services.AddScoped<IDocumentExtractor, BrCcmeiExtractor>();
+        services.AddScoped<IDocumentExtractor, BrSocialContractExtractor>();
 
         services.AddScoped<DocumentUploadService>();
         services.AddScoped<DocumentQueryService>();

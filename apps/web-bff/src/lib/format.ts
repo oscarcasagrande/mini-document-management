@@ -60,13 +60,71 @@ export function statusLabel(status: DocumentStatus): string {
 }
 
 const FIELD_LABELS: Record<string, string> = {
+  // Comuns a vários tipos
   cpf: "CPF",
+  cnpj: "CNPJ",
   name: "Nome",
   birthDate: "Data de nascimento",
+  issueDate: "Data de emissão",
+  expirationDate: "Data de validade",
+  openingDate: "Data de abertura",
+  postalCode: "CEP",
+  city: "Município",
+  state: "UF",
+  neighborhood: "Bairro",
+  shareCapital: "Capital social",
+  legalName: "Nome empresarial",
+  tradeName: "Nome fantasia",
+  mainActivityCode: "Atividade principal (código)",
+  mainActivityDescription: "Atividade principal (descrição)",
+  // CIN / RG
+  rg: "Registro Geral (RG)",
+  birthPlace: "Naturalidade",
+  fatherName: "Nome do pai",
+  motherName: "Nome da mãe",
+  mrz: "Zona de leitura mecânica (MRZ)",
+  // CNH
+  registrationNumber: "Nº de registro",
+  category: "Categoria",
+  firstLicenseDate: "Data da 1ª habilitação",
+  // Comprovante de residência
+  holderName: "Titular",
+  holderDocument: "CPF/CNPJ do titular",
+  addressLine: "Endereço",
+  referenceMonth: "Mês de referência",
+  dueDate: "Vencimento",
+  serviceType: "Tipo de serviço",
+  // Cartão CNPJ
+  legalNature: "Natureza jurídica",
+  street: "Logradouro",
+  number: "Número",
+  complement: "Complemento",
+  registrationStatus: "Situação cadastral",
+  registrationStatusDate: "Data da situação cadastral",
+  // CCMEI
+  address: "Endereço comercial",
+  holderCpf: "CPF do empresário",
+  holderBirthDate: "Nascimento do empresário",
+  certificateDate: "Data do certificado",
+  // Contrato social
+  companyName: "Denominação social",
+  nire: "NIRE",
+  headquarters: "Sede",
+  headquartersPostalCode: "CEP da sede",
+  corporatePurpose: "Objeto social",
+  contractDate: "Data do contrato",
 };
+
+const PARTNER_FIELDS: Record<string, string> = { name: "nome", cpf: "CPF" };
 
 /** Field names come from the schema of the type; unknown ones are shown as they are. */
 export function fieldLabel(path: string): string {
+  const partner = /^partners\[(\d+)\]\.(\w+)$/.exec(path);
+  if (partner) {
+    const [, position = "0", key = ""] = partner;
+    return `Sócio ${Number(position) + 1}: ${PARTNER_FIELDS[key] ?? key}`;
+  }
+
   return FIELD_LABELS[path] ?? path;
 }
 
@@ -93,8 +151,22 @@ export function validationTone(status: FieldValidationStatus): "pending" | "done
 const VALIDATION_MESSAGES: Record<string, string> = {
   CHECK_DIGIT_VALID: "Dígitos verificadores conferem (módulo 11)",
   CHECK_DIGIT_INVALID: "Dígitos verificadores não conferem",
-  DATE_VALID: "Data real de calendário, não futura",
+  DATE_VALID: "Data real de calendário, dentro do intervalo aceito para o campo",
   NO_LABEL_NEARBY: "Achado sem o rótulo ao lado; confiança reduzida",
+  DATE_INVALID: "Data impossível ou fora do intervalo aceito para este campo",
+  FORMAT_VALID: "Formato confere (sem dígito verificador para validar)",
+  POSTAL_CODE_VALID: "CEP com oito dígitos",
+  STATE_VALID: "Sigla de estado válida",
+  CATEGORY_VALID: "Categoria de habilitação reconhecida",
+  ADDRESS_BY_SHAPE: "Endereço achado pela forma da linha, sem rótulo",
+  SERVICE_TYPE_KEYWORD: "Tipo de serviço identificado por palavra-chave",
+  SERVICE_TYPE_AMBIGUOUS: "Mais de um tipo de serviço aparece no documento",
+  FILIATION_ORDER_ASSUMED: "Ordem pai/mãe suposta: o documento traz só o bloco de filiação",
+  MRZ_CHECK_VALID: "Dígitos verificadores da MRZ conferem",
+  MRZ_CHECK_INVALID: "Algum dígito verificador da MRZ não confere",
+  MRZ_BIRTH_DATE_MATCH: "Nascimento da MRZ confere com o impresso",
+  MRZ_BIRTH_DATE_MISMATCH: "Nascimento da MRZ difere do impresso",
+  MRZ_LENGTH_UNEXPECTED: "Linhas da MRZ com tamanho diferente de 30 caracteres",
 };
 
 export function validationMessage(code: string): string {

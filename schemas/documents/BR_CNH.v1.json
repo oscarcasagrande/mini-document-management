@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_CNH.v1",
+  "title": "Carteira Nacional de Habilitação (CNH)",
+  "description": "O CPF passa pelo dígito verificador; o número de registro tem o formato validado, sem o algoritmo dos dígitos do registro. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": [
+    "name",
+    "cpf",
+    "birthDate",
+    "registrationNumber"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "description": "Nome do condutor, em caixa alta, com espaços simples.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA APARECIDA DA SILVA SOUZA"
+      ]
+    },
+    "cpf": {
+      "description": "Número do CPF, normalizado para 11 dígitos sem máscara.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "11144477735"
+      ]
+    },
+    "birthDate": {
+      "description": "Data de nascimento, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "1985-03-14"
+      ]
+    },
+    "registrationNumber": {
+      "description": "Número de registro da CNH, 11 dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "01234567890"
+      ]
+    },
+    "category": {
+      "description": "Categoria de habilitação.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "AB",
+        "AC",
+        "AD",
+        "AE",
+        "ACC",
+        null
+      ],
+      "examples": [
+        "AB"
+      ]
+    },
+    "firstLicenseDate": {
+      "description": "Data da primeira habilitação, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2004-07-01"
+      ]
+    },
+    "issueDate": {
+      "description": "Data de emissão, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2024-07-01"
+      ]
+    },
+    "expirationDate": {
+      "description": "Data de validade, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2029-07-01"
+      ]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "requiredSignals": [
+        "CARTEIRA NACIONAL DE HABILITACAO"
+      ],
+      "optionalSignals": [
+        "REPUBLICA FEDERATIVA DO BRASIL",
+        "MINISTERIO DOS TRANSPORTES",
+        "SECRETARIA NACIONAL DE TRANSITO",
+        "CAT. HAB.",
+        "VALIDADE",
+        "FILIACAO",
+        "REGISTRO",
+        "CPF"
+      ],
+      "negativeSignals": [
+        "CADASTRO NACIONAL DA PESSOA JURIDICA",
+        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+      ],
+      "threshold": 0.7
+    },
+    "validation": {
+      "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",
+      "registrationNumber": "Formato: exatamente 11 dígitos.",
+      "category": "Uma das categorias A, B, C, D, E, AB, AC, AD, AE, ACC.",
+      "birthDate": "Data real de calendário, não futura e não anterior a 1900.",
+      "expirationDate": "Data real de calendário, até 50 anos adiante."
+    }
+  }
+}

@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_PROOF_OF_ADDRESS.v1",
+  "title": "Comprovante de residência",
+  "description": "Fatura de concessionária (energia, água, gás, telecomunicações). O endereço vem por rótulo ou, sem rótulo, pela forma da linha, com a confiança rebaixada. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": [
+    "holderName",
+    "addressLine",
+    "postalCode"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "holderName": {
+      "description": "Nome do titular da conta, em caixa alta, com espaços simples.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA APARECIDA DA SILVA SOUZA"
+      ]
+    },
+    "holderDocument": {
+      "description": "CPF (11 dígitos) ou CNPJ (14 posições) do titular, sem máscara.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^([0-9]{11}|[0-9A-Z]{12}[0-9]{2})$",
+      "examples": [
+        "11144477735"
+      ]
+    },
+    "addressLine": {
+      "description": "Logradouro e número, em caixa alta e sem acento.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 300,
+      "examples": [
+        "AVENIDA DOS TESTES, 250 APTO 71"
+      ]
+    },
+    "neighborhood": {
+      "description": "Bairro.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "VILA EXEMPLO"
+      ]
+    },
+    "city": {
+      "description": "Município.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "SAO PAULO"
+      ]
+    },
+    "state": {
+      "description": "Sigla da unidade federativa.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Z]{2}$",
+      "examples": [
+        "SP"
+      ]
+    },
+    "postalCode": {
+      "description": "CEP normalizado para 8 dígitos.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{8}$",
+      "examples": [
+        "01000000"
+      ]
+    },
+    "referenceMonth": {
+      "description": "Mês de referência da fatura, AAAA-MM.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "examples": [
+        "2026-09"
+      ]
+    },
+    "dueDate": {
+      "description": "Vencimento, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2026-10-15"
+      ]
+    },
+    "serviceType": {
+      "description": "Serviço faturado, por palavra-chave.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ELECTRICITY",
+        "WATER",
+        "GAS",
+        "TELECOM",
+        null
+      ],
+      "examples": [
+        "ELECTRICITY"
+      ]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "requiredSignals": [
+        "CEP"
+      ],
+      "optionalSignals": [
+        "FATURA",
+        "NOTA FISCAL",
+        "ENERGIA ELETRICA",
+        "AGUA E ESGOTO",
+        "GAS NATURAL",
+        "TELEFONE",
+        "INTERNET",
+        "UNIDADE CONSUMIDORA",
+        "VENCIMENTO",
+        "TOTAL A PAGAR",
+        "CONSUMO",
+        "REFERENCIA"
+      ],
+      "negativeSignals": [
+        "CADASTRO NACIONAL DA PESSOA JURIDICA",
+        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL",
+        "CARTEIRA NACIONAL DE HABILITACAO",
+        "CARTEIRA DE IDENTIDADE",
+        "CLAUSULA"
+      ],
+      "threshold": 0.7
+    },
+    "validation": {
+      "holderDocument": "CPF ou CNPJ com dígito verificador (RF-012), inclusive CNPJ alfanumérico.",
+      "postalCode": "Oito dígitos, não todos zero.",
+      "state": "Uma das 27 unidades federativas.",
+      "referenceMonth": "Mês de 1 a 12 e ano de quatro dígitos.",
+      "serviceType": "Só afirmado quando uma única família de palavras-chave aparece; com mais de uma, o campo sai UNCERTAIN."
+    }
+  }
+}

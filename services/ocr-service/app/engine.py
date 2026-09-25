@@ -64,20 +64,53 @@ def flatten_polygon(polygon: Any) -> list[float]:
     return flat
 
 
-class PaddleOcrEngine:
-    """PP-OCRv5 with the mobile detector and the Latin mobile recognizer.
+@dataclass(frozen=True)
+class ModelProfile:
+    """A detector and recognizer pair, selected by name with OCR_MODEL_PROFILE (docs/adr/0002)."""
 
-    This is the pipeline approved in ADR 0002. The server detector costs about 2.6x the latency for
-    the same text on the synthetic samples, so it is not the default.
+    name: str
+    ocr_version: str
+    detection_model: str
+    # None lets PaddleOCR pick the recognizer for lang="pt"; the v5 profile relies on that to get the
+    # Latin mobile recognizer.
+    recognition_model: str | None
+    label: str
+
+
+PROFILES: dict[str, ModelProfile] = {
+    profile.name: profile
+    for profile in (
+        ModelProfile("ppocrv5-mobile", "PP-OCRv5", "PP-OCRv5_mobile_det", None, "PP-OCRv5"),
+        ModelProfile("ppocrv6-medium", "PP-OCRv6", "PP-OCRv6_medium_det", "PP-OCRv6_medium_rec", "PP-OCRv6"),
+        ModelProfile("ppocrv6-small", "PP-OCRv6", "PP-OCRv6_small_det", "PP-OCRv6_small_rec", "PP-OCRv6"),
+        ModelProfile("ppocrv6-tiny", "PP-OCRv6", "PP-OCRv6_tiny_det", "PP-OCRv6_tiny_rec", "PP-OCRv6"),
+    )
+}
+
+DEFAULT_PROFILE = "ppocrv5-mobile"
+
+
+def resolve_profile(name: str) -> ModelProfile:
+    """Looks a profile up by name; an unknown name fails at startup instead of on the first page."""
+    try:
+        return PROFILES[name]
+    except KeyError:
+        raise ValueError(f"unknown OCR_MODEL_PROFILE '{name}'; choose one of: {', '.join(sorted(PROFILES))}") from None
+
+
+class PaddleOcrEngine:
+    """PaddleOCR with the detector and recognizer of the configured profile.
+
+    The default profile is the pipeline approved in ADR 0002. Every profile runs with oneDNN on unless
+    OCR_ENABLE_MKLDNN=false.
     """
 
-    DETECTION_MODEL = "PP-OCRv5_mobile_det"
-
-    def __init__(self, *, enable_mkldnn: bool, model_cache_dir: str) -> None:
+    def __init__(self, *, enable_mkldnn: bool, model_cache_dir: str, profile: str = DEFAULT_PROFILE) -> None:
         self._enable_mkldnn = enable_mkldnn
         self._model_cache_dir = model_cache_dir
+        self._profile = resolve_profile(profile)
         self._engine: Any = None
-        self.model_version = "PP-OCRv5 (not loaded)"
+        self.model_version = f"{self._profile.label} (not loaded)"
         self.warmup_ms = 0.0
 
     def load(self) -> None:
@@ -91,18 +124,24 @@ class PaddleOcrEngine:
 
         from paddleocr import PaddleOCR
 
-        self._engine = PaddleOCR(
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
-            lang="pt",
-            ocr_version="PP-OCRv5",
-            text_detection_model_name=self.DETECTION_MODEL,
-            enable_mkldnn=self._enable_mkldnn,
-        )
+        profile = self._profile
+        options: dict[str, Any] = {
+            "use_doc_orientation_classify": False,
+            "use_doc_unwarping": False,
+            "use_textline_orientation": False,
+            "lang": "pt",
+            "ocr_version": profile.ocr_version,
+            "text_detection_model_name": profile.detection_model,
+            "enable_mkldnn": self._enable_mkldnn,
+        }
+        if profile.recognition_model:
+            options["text_recognition_model_name"] = profile.recognition_model
 
+        self._engine = PaddleOCR(**options)
+
+        recognizer = profile.recognition_model or "latin_PP-OCRv5_mobile_rec"
         self.model_version = (
-            f"PP-OCRv5 {self.DETECTION_MODEL} + latin_PP-OCRv5_mobile_rec "
+            f"{profile.label} {profile.detection_model} + {recognizer} "
             f"(paddleocr {metadata.version('paddleocr')}, paddlepaddle {metadata.version('paddlepaddle')}, "
             f"mkldnn={'on' if self._enable_mkldnn else 'off'})"
         )

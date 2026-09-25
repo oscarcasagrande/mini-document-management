@@ -451,6 +451,13 @@ table.fields tr:last-child td {
   border-bottom: none;
 }
 
+/* Valores de várias linhas (MRZ, endereço) mantêm a quebra, e textos longos (objeto social) não estouram a célula. */
+table.fields td.mono {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  max-width: 360px;
+}
+
 details > summary {
   cursor: pointer;
   font-weight: 600;

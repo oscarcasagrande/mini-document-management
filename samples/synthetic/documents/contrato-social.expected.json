@@ -1,0 +1,53 @@
+{
+  "documentType": "BR_SOCIAL_CONTRACT",
+  "fields": {
+    "companyName": {
+      "normalized": "EXEMPLO SINTETICO LTDA",
+      "status": "VALID"
+    },
+    "cnpj": {
+      "normalized": "12ABC34501DE35",
+      "status": "VALID"
+    },
+    "nire": {
+      "normalized": "35234567890",
+      "status": "VALID"
+    },
+    "shareCapital": {
+      "normalized": "100000.00",
+      "status": "VALID"
+    },
+    "headquarters": {
+      "normalized": "RUA DAS AMOSTRAS, 1000, SALA 12, BAIRRO CENTRO, SAO PAULO/SP, CEP 01000-000",
+      "status": "VALID"
+    },
+    "headquartersPostalCode": {
+      "normalized": "01000000",
+      "status": "VALID"
+    },
+    "corporatePurpose": {
+      "normalized": "O DESENVOLVIMENTO DE PROGRAMAS DE COMPUTADOR SOB ENCOMENDA (CNAE 62.01-5-01) E O LICENCIAMENTO DE PROGRAMAS DE COMPUTADOR",
+      "status": "VALID"
+    },
+    "contractDate": {
+      "normalized": "2026-09-24",
+      "status": "VALID"
+    },
+    "partners[0].name": {
+      "normalized": "MARIA APARECIDA DA SILVA SOUZA",
+      "status": "VALID"
+    },
+    "partners[0].cpf": {
+      "normalized": "11144477735",
+      "status": "VALID"
+    },
+    "partners[1].name": {
+      "normalized": "CARLOS EDUARDO PEREIRA LIMA",
+      "status": "VALID"
+    },
+    "partners[1].cpf": {
+      "normalized": "52998224725",
+      "status": "VALID"
+    }
+  }
+}

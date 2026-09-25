@@ -24,6 +24,8 @@
 
   <ItemGroup>
     <Content Include="..\..\..\samples\synthetic\**\*" Link="samples/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- OCR real das amostras da Etapa 3, capturado por scripts/capture-ocr-fixtures.py. -->
+    <Content Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

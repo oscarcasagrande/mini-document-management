@@ -33,6 +33,11 @@ def _env_bool(name: str, default: bool) -> bool:
 @dataclass(frozen=True)
 class Settings:
     provider: str = "paddleocr"
+
+    # Which detector and recognizer to load: ppocrv5-mobile, ppocrv6-medium, ppocrv6-small or
+    # ppocrv6-tiny (docs/adr/0002). The models of the default are baked into the image.
+    model_profile: str = "ppocrv5-mobile"
+
     model_cache_dir: str = "/var/lib/docreader/ocr-models"
     log_level: str = "INFO"
 
@@ -64,6 +69,7 @@ class Settings:
 
         return Settings(
             provider=os.getenv("OCR_PROVIDER", defaults.provider),
+            model_profile=os.getenv("OCR_MODEL_PROFILE", defaults.model_profile).strip().lower(),
             model_cache_dir=os.getenv("OCR_MODEL_CACHE_DIR", defaults.model_cache_dir),
             log_level=os.getenv("OCR_LOG_LEVEL", defaults.log_level).upper(),
             max_concurrency=max(1, _env_int("OCR_MAX_CONCURRENCY", defaults.max_concurrency)),

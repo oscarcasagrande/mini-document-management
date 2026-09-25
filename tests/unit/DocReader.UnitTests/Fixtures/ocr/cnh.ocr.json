@@ -1,0 +1,350 @@
+{
+ "source": "cnh.png",
+ "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
+ "pages": [
+  {
+   "page": 1,
+   "imageWidth": 1200,
+   "imageHeight": 800,
+   "durationMs": 4397,
+   "blocks": [
+    {
+     "text": "REPÚBLICA FEDERATIVA DO BRASIL",
+     "confidence": 0.9998,
+     "boundingBox": [
+      317.0,
+      30.0,
+      882.0,
+      31.0,
+      882.0,
+      59.0,
+      317.0,
+      58.0
+     ]
+    },
+    {
+     "text": "MINISTÉRIO DOS TRANSPORTES",
+     "confidence": 0.9818,
+     "boundingBox": [
+      424.0,
+      69.0,
+      775.0,
+      70.0,
+      775.0,
+      94.0,
+      424.0,
+      93.0
+     ]
+    },
+    {
+     "text": "SECRETARIA NACIONAL DE TRÂNSITO",
+     "confidence": 0.9999,
+     "boundingBox": [
+      395.0,
+      100.0,
+      805.0,
+      100.0,
+      805.0,
+      124.0,
+      395.0,
+      124.0
+     ]
+    },
+    {
+     "text": "CARTEIRA NACIONAL DE HABILITAÇÃO",
+     "confidence": 0.9998,
+     "boundingBox": [
+      256.0,
+      142.0,
+      943.0,
+      142.0,
+      943.0,
+      172.0,
+      256.0,
+      172.0
+     ]
+    },
+    {
+     "text": "NOME",
+     "confidence": 1.0,
+     "boundingBox": [
+      335.0,
+      217.0,
+      404.0,
+      215.0,
+      405.0,
+      241.0,
+      336.0,
+      243.0
+     ]
+    },
+    {
+     "text": "MARIA APARECIDA DA SILVA SOUZA",
+     "confidence": 0.9975,
+     "boundingBox": [
+      339.0,
+      256.0,
+      1028.0,
+      256.0,
+      1028.0,
+      286.0,
+      339.0,
+      286.0
+     ]
+    },
+    {
+     "text": "DOC. IDENTIDADE / ORG. EMISSOR / UF",
+     "confidence": 0.9781,
+     "boundingBox": [
+      339.0,
+      319.0,
+      735.0,
+      319.0,
+      735.0,
+      342.0,
+      339.0,
+      342.0
+     ]
+    },
+    {
+     "text": "12.345.678-9 SSP SP",
+     "confidence": 0.9997,
+     "boundingBox": [
+      339.0,
+      355.0,
+      694.0,
+      355.0,
+      694.0,
+      382.0,
+      339.0,
+      382.0
+     ]
+    },
+    {
+     "text": "FOTO",
+     "confidence": 1.0,
+     "boundingBox": [
+      130.0,
+      369.0,
+      226.0,
+      369.0,
+      226.0,
+      398.0,
+      130.0,
+      398.0
+     ]
+    },
+    {
+     "text": "CPF",
+     "confidence": 1.0,
+     "boundingBox": [
+      337.0,
+      416.0,
+      382.0,
+      416.0,
+      382.0,
+      443.0,
+      337.0,
+      443.0
+     ]
+    },
+    {
+     "text": "3 DATA NASCIMENTO",
+     "confidence": 0.9999,
+     "boundingBox": [
+      779.0,
+      420.0,
+      995.0,
+      420.0,
+      995.0,
+      441.0,
+      779.0,
+      441.0
+     ]
+    },
+    {
+     "text": "111.444.777-35",
+     "confidence": 1.0,
+     "boundingBox": [
+      339.0,
+      456.0,
+      620.0,
+      454.0,
+      620.0,
+      485.0,
+      340.0,
+      487.0
+     ]
+    },
+    {
+     "text": "14/03/1985",
+     "confidence": 1.0,
+     "boundingBox": [
+      780.0,
+      455.0,
+      996.0,
+      454.0,
+      996.0,
+      486.0,
+      780.0,
+      487.0
+     ]
+    },
+    {
+     "text": "5 Nº REGISTRO",
+     "confidence": 0.9856,
+     "boundingBox": [
+      58.0,
+      580.0,
+      213.0,
+      580.0,
+      213.0,
+      601.0,
+      58.0,
+      601.0
+     ]
+    },
+    {
+     "text": "9 CAT. HAB.",
+     "confidence": 0.9994,
+     "boundingBox": [
+      438.0,
+      579.0,
+      561.0,
+      579.0,
+      561.0,
+      600.0,
+      438.0,
+      600.0
+     ]
+    },
+    {
+     "text": "1ª HABILITAÇÃO",
+     "confidence": 0.9996,
+     "boundingBox": [
+      778.0,
+      576.0,
+      944.0,
+      576.0,
+      944.0,
+      603.0,
+      778.0,
+      603.0
+     ]
+    },
+    {
+     "text": "04512345678",
+     "confidence": 1.0,
+     "boundingBox": [
+      58.0,
+      614.0,
+      280.0,
+      616.0,
+      280.0,
+      647.0,
+      58.0,
+      645.0
+     ]
+    },
+    {
+     "text": "AB",
+     "confidence": 0.9999,
+     "boundingBox": [
+      436.0,
+      613.0,
+      494.0,
+      613.0,
+      494.0,
+      648.0,
+      436.0,
+      648.0
+     ]
+    },
+    {
+     "text": "01/07/2004",
+     "confidence": 1.0,
+     "boundingBox": [
+      779.0,
+      616.0,
+      997.0,
+      616.0,
+      997.0,
+      647.0,
+      779.0,
+      647.0
+     ]
+    },
+    {
+     "text": "4a DATA EMISSÃO",
+     "confidence": 0.9998,
+     "boundingBox": [
+      58.0,
+      678.0,
+      245.0,
+      678.0,
+      245.0,
+      702.0,
+      58.0,
+      702.0
+     ]
+    },
+    {
+     "text": "4b VALIDADE",
+     "confidence": 0.9998,
+     "boundingBox": [
+      439.0,
+      680.0,
+      574.0,
+      680.0,
+      574.0,
+      701.0,
+      439.0,
+      701.0
+     ]
+    },
+    {
+     "text": "01/07/2024",
+     "confidence": 1.0,
+     "boundingBox": [
+      57.0,
+      715.0,
+      277.0,
+      713.0,
+      277.0,
+      747.0,
+      57.0,
+      749.0
+     ]
+    },
+    {
+     "text": "01/07/2029",
+     "confidence": 1.0,
+     "boundingBox": [
+      439.0,
+      716.0,
+      655.0,
+      716.0,
+      655.0,
+      747.0,
+      439.0,
+      747.0
+     ]
+    },
+    {
+     "text": "AMOSTRA SINTETICA - SEM VALOR LEGAL",
+     "confidence": 0.9993,
+     "boundingBox": [
+      368.0,
+      759.0,
+      831.0,
+      759.0,
+      831.0,
+      779.0,
+      368.0,
+      779.0
+     ]
+    }
+   ]
+  }
+ ]
+}

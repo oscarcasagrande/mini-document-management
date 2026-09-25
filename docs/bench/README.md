@@ -164,3 +164,40 @@ sem inanir o host.
 **Limitação desta medição, dita com todas as letras:** a capacidade que justificaria o custo do
 PP-StructureV3 — reconhecimento de tabela — **nunca chegou a ser demonstrada**, porque as páginas que
 a exercitariam não couberam na memória. O que se sabe é o custo, não o benefício.
+
+## Seguimento de 2026-09-25: latência em A4, PP-OCRv6 e redução de resolução
+
+Medição que fechou a pendência de latência do ADR 0002. Os números, a leitura e a decisão estão no ADR;
+aqui ficam o método e os arquivos.
+
+```bash
+# matriz completa: v5 mobile, v6 medium, small e tiny, com e sem redução para 2000 px, com 4 CPUs
+docker run --rm --user root --cpus=4 --memory=3g --entrypoint bash \
+  -v "$PWD/scripts:/scripts:ro" -v "$PWD/samples/synthetic/ocr:/samples:ro" \
+  -v ocr-bench-models:/models -v "$PWD/docs/bench:/out" \
+  docreader/ocr-service:stage2 /scripts/ocr_latency_experiment.sh
+
+# o padrão sem limite de CPU (o contêiner vê todas as threads da máquina)
+docker run --rm --user root --memory=3g --entrypoint bash -e OMP_NUM_THREADS=4 -e OUT_SUFFIX=-cpus8-omp4 \
+  -v "$PWD/scripts:/scripts:ro" -v "$PWD/samples/synthetic/ocr:/samples:ro" \
+  -v ocr-bench-models:/models -v "$PWD/docs/bench:/out" \
+  docreader/ocr-service:stage2 /scripts/ocr_latency_experiment.sh "PP-OCRv5 (det mobile)|0"
+
+# recall por linha e por caractere contra o texto que o gerador desenhou
+docker run --rm --entrypoint python -v "$PWD:/w" -w /w docreader/ocr-service:stage2 scripts/ocr_recall.py
+```
+
+Saída: `ocr-latency-<pipeline>-side<N>[<sufixo>].json`, um por configuração (`side0` é sem redução).
+
+- **O que mudou no benchmark.** `--max-side N` reduz a imagem com o mesmo `_limit_side` do serviço e inclui
+  decodificação e redução no tempo medido; as variantes `PP-OCRv6 medium|small|tiny` fixam detector e
+  reconhecedor do mesmo tamanho.
+- **O critério de valores-chave exatos não basta.** Todas as configurações o cumpriram, e o v6 small
+  perdeu cinco ou seis linhas inteiras de um parágrafo na página limpa. `ocr_recall.py` procura no que a
+  engine leu cada linha e cada célula que o gerador desenhou (similaridade ≥ 0,9, sem acento e sem caixa)
+  e informa o recall por item e por caractere.
+- **O regime de CPU pesa mais que o modelo.** O mesmo v5 mobile leva 15,8 s na página densa com todas as
+  threads e 28,0 s limitado a 4 CPUs.
+- **Exatidão na tarefa real.** `scripts/capture-engine-fixtures.ps1` captura o OCR das amostras da Etapa 3
+  com cada perfil (`OCR_MODEL_PROFILE`), e a mesma bateria de extração roda sobre cada captura com
+  `DOCREADER_OCR_FIXTURES=<pasta>`: 71/71 campos com v5 e v6 medium, 69/71 com small, 67/71 com tiny.

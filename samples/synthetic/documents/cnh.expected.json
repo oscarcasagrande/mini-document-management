@@ -1,0 +1,37 @@
+{
+  "documentType": "BR_CNH",
+  "fields": {
+    "name": {
+      "normalized": "MARIA APARECIDA DA SILVA SOUZA",
+      "status": "VALID"
+    },
+    "cpf": {
+      "normalized": "11144477735",
+      "status": "VALID"
+    },
+    "birthDate": {
+      "normalized": "1985-03-14",
+      "status": "VALID"
+    },
+    "registrationNumber": {
+      "normalized": "04512345678",
+      "status": "VALID"
+    },
+    "category": {
+      "normalized": "AB",
+      "status": "VALID"
+    },
+    "firstLicenseDate": {
+      "normalized": "2004-07-01",
+      "status": "VALID"
+    },
+    "issueDate": {
+      "normalized": "2024-07-01",
+      "status": "VALID"
+    },
+    "expirationDate": {
+      "normalized": "2029-07-01",
+      "status": "VALID"
+    }
+  }
+}

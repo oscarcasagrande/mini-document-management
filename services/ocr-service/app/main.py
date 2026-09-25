@@ -212,6 +212,7 @@ def create_app(engine: OcrEngine | None = None, settings: Settings | None = None
     active_engine: OcrEngine = engine or PaddleOcrEngine(
         enable_mkldnn=settings.enable_mkldnn,
         model_cache_dir=settings.model_cache_dir,
+        profile=settings.model_profile,
     )
 
     async def load_model() -> None:
