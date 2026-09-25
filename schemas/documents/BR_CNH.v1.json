@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "BR_CNH.v1",
   "title": "Carteira Nacional de Habilitação (CNH)",
-  "description": "O CPF passa pelo dígito verificador; o número de registro tem o formato validado, sem o algoritmo dos dígitos do registro. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "description": "O CPF e o número de registro passam pelo dígito verificador; validade vencida é sinalizada com DOCUMENT_EXPIRED sem reprovar o campo. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
   "type": "object",
   "required": [
     "name",
@@ -47,7 +47,7 @@
       ]
     },
     "registrationNumber": {
-      "description": "Número de registro da CNH, 11 dígitos.",
+      "description": "Número de registro da CNH, 11 dígitos, com os dois dígitos verificadores conferidos. Registro com DV errado sai INVALID, sem valor normalizado.",
       "type": [
         "string",
         "null"
@@ -139,10 +139,10 @@
     },
     "validation": {
       "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",
-      "registrationNumber": "Formato: exatamente 11 dígitos.",
+      "registrationNumber": "11 dígitos com dígitos verificadores do DENATRAN (pesos 9..1 e 1..9, desconto de 2 quando o 1º resto é 10); sequência de dígito repetido é rejeitada.",
       "category": "Uma das categorias A, B, C, D, E, AB, AC, AD, AE, ACC.",
       "birthDate": "Data real de calendário, não futura e não anterior a 1900.",
-      "expirationDate": "Data real de calendário, até 50 anos adiante."
+      "expirationDate": "Data real de calendário, até 50 anos adiante. Data anterior a hoje continua VALID e ganha a mensagem DOCUMENT_EXPIRED."
     }
   }
 }

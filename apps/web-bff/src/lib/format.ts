@@ -153,6 +153,7 @@ const VALIDATION_MESSAGES: Record<string, string> = {
   CHECK_DIGIT_INVALID: "Dígitos verificadores não conferem",
   DATE_VALID: "Data real de calendário, dentro do intervalo aceito para o campo",
   NO_LABEL_NEARBY: "Achado sem o rótulo ao lado; confiança reduzida",
+  DOCUMENT_EXPIRED: "Documento com validade vencida",
   DATE_INVALID: "Data impossível ou fora do intervalo aceito para este campo",
   FORMAT_VALID: "Formato confere (sem dígito verificador para validar)",
   POSTAL_CODE_VALID: "CEP com oito dígitos",

@@ -30,6 +30,7 @@ SAMPLES = ROOT / "samples" / "synthetic" / "documents"
 CASES = [
     ("cin-frente-verso", "cin-frente-verso.png", "image/png"),
     ("cnh", "cnh.png", "image/png"),
+    ("cnh-vencida", "cnh-vencida.png", "image/png"),
     ("comprovante-residencia", "comprovante-residencia.png", "image/png"),
     ("cartao-cnpj", "cartao-cnpj.png", "image/png"),
     ("ccmei", "ccmei.png", "image/png"),
@@ -122,6 +123,10 @@ def check_case(api: str, web: str | None, name: str, filename: str, mime: str, t
                 f"{path}: esperado {want['normalized']!r} ({want['status']}), "
                 f"veio {got.get('normalized')!r} ({got['validationStatus']}, lido {got.get('raw')!r})"
             )
+
+        missing = [code for code in want.get("messages", []) if code not in (got.get("validationMessages") or [])]
+        if missing:
+            problems.append(f"{path}: faltam os códigos {', '.join(missing)}")
 
     # Nenhum campo fora do esperado com status VALID sem valor normalizado: seria um campo mal formado.
     for path, got in fields.items():

@@ -1,12 +1,12 @@
 {
- "source": "cnh.png",
+ "source": "cnh-vencida.png",
  "modelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.2.2, mkldnn=on)",
  "pages": [
   {
    "page": 1,
    "imageWidth": 1200,
    "imageHeight": 800,
-   "durationMs": 5327,
+   "durationMs": 5183,
    "blocks": [
     {
      "text": "REPÚBLICA FEDERATIVA DO BRASIL",
@@ -293,38 +293,38 @@
      "confidence": 0.9998,
      "boundingBox": [
       439.0,
-      680.0,
+      679.0,
       574.0,
-      680.0,
+      679.0,
       574.0,
-      701.0,
+      700.0,
       439.0,
-      701.0
+      700.0
      ]
     },
     {
-     "text": "01/07/2024",
+     "text": "01/07/2018",
      "confidence": 1.0,
      "boundingBox": [
-      57.0,
-      715.0,
-      277.0,
-      713.0,
-      277.0,
+      59.0,
+      716.0,
+      276.0,
+      716.0,
+      276.0,
       747.0,
-      57.0,
-      749.0
+      59.0,
+      747.0
      ]
     },
     {
-     "text": "01/07/2029",
+     "text": "01/07/2023",
      "confidence": 1.0,
      "boundingBox": [
       439.0,
       716.0,
-      655.0,
+      654.0,
       716.0,
-      655.0,
+      654.0,
       747.0,
       439.0,
       747.0

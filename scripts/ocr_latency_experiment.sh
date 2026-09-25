@@ -9,7 +9,7 @@
 #   docker run --rm --user root --cpus=4 --memory=3g --entrypoint bash \
 #     -v "$PWD/scripts:/scripts:ro" -v "$PWD/samples/synthetic/ocr:/samples:ro" \
 #     -v ocr-bench-models:/models -v "$PWD/docs/bench:/out" \
-#     docreader/ocr-service:stage2 /scripts/ocr_latency_experiment.sh
+#     docreader/ocr-service:local /scripts/ocr_latency_experiment.sh
 #
 # OMP_NUM_THREADS (default 4) and OUT_SUFFIX (appended to the output name) let a second run vary the CPU
 # regime without overwriting the first, e.g. docker run without --cpus and -e OUT_SUFFIX=-cpus8-omp4.

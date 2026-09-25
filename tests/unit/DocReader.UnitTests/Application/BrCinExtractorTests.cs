@@ -111,6 +111,15 @@ public sealed class BrCinExtractorTests
     }
 
     [Fact]
+    public async Task Cin_com_validade_vencida_e_sinalizada_sem_reprovar_o_campo()
+    {
+        var fields = await ExtractAsync("DATA DE VALIDADE", "20/05/2024");
+
+        Assert.Equal("VALID", fields["expirationDate"].ValidationStatus);
+        Assert.Equal(["DATE_VALID", "DOCUMENT_EXPIRED"], fields["expirationDate"].ValidationMessages);
+    }
+
+    [Fact]
     public async Task Filiacao_em_bloco_sai_uncertain_porque_a_ordem_e_suposta()
     {
         var fields = await ExtractAsync("FILIAÇÃO", "JOSE DA SILVA SOUZA", "ANA MARIA APARECIDA");

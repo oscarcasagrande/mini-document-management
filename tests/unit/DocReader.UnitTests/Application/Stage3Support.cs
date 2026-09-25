@@ -95,16 +95,24 @@ internal static class Stage3Support
         var path = Path.Combine(AppContext.BaseDirectory, "samples", $"{name}.expected.json");
         using var document = JsonDocument.Parse(File.ReadAllText(path));
 
-        var fields = new Dictionary<string, (string? Normalized, string Status)>(StringComparer.Ordinal);
+        var fields = new Dictionary<string, ExpectedField>(StringComparer.Ordinal);
         foreach (var field in document.RootElement.GetProperty("fields").EnumerateObject())
         {
-            fields[field.Name] = (
+            var messages = field.Value.TryGetProperty("messages", out var list)
+                ? list.EnumerateArray().Select(item => item.GetString()!).ToArray()
+                : [];
+
+            fields[field.Name] = new ExpectedField(
                 field.Value.GetProperty("normalized").GetString(),
-                field.Value.GetProperty("status").GetString()!);
+                field.Value.GetProperty("status").GetString()!,
+                messages);
         }
 
         return new ExpectedSample(document.RootElement.GetProperty("documentType").GetString()!, fields);
     }
 
-    public sealed record ExpectedSample(string DocumentType, IReadOnlyDictionary<string, (string? Normalized, string Status)> Fields);
+    /// <param name="Messages">Códigos que o campo precisa conter (vazio quando o esperado não os exige).</param>
+    public sealed record ExpectedField(string? Normalized, string Status, IReadOnlyList<string> Messages);
+
+    public sealed record ExpectedSample(string DocumentType, IReadOnlyDictionary<string, ExpectedField> Fields);
 }

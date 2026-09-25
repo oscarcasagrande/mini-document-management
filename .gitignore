@@ -63,8 +63,9 @@ secrets.json
 # ---------------------------------------------------------------------------------------------
 # Documentos
 # ---------------------------------------------------------------------------------------------
-# Nenhum arquivo documental entra no repositório, exceto as amostras sintéticas geradas por
-# scripts/make-samples.mjs. Esta é a rede de segurança contra commitar documento real.
+# Nenhum arquivo documental entra no repositório, exceto as amostras sintéticas geradas pelos scripts
+# make-*samples.*. Esta é a rede de segurança contra commitar documento real; ela não substitui o cuidado
+# de manter o dataset de avaliação numa pasta fora do repositório (docs/evaluation.md).
 *.pdf
 *.tif
 *.tiff
@@ -78,6 +79,14 @@ secrets.json
 *.docx
 *.xlsx
 *.zip
+# Ground truth de documentos reais tem valores reais: fica com o dataset, fora do repositório. As
+# amostras sintéticas (samples/synthetic) usam .expected.json e podem ser versionadas.
+*.truth.json
+# Saída do avaliador (scripts/evaluate.py). Sem --include-values ela só traz números, mas não é para versionar.
+/evaluation-report/
+/evaluation-report-*/
+/dataset/
+/datasets/
 !samples/synthetic/**
 
 # ---------------------------------------------------------------------------------------------

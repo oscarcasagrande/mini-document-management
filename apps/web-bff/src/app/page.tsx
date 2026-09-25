@@ -13,8 +13,8 @@ export default function HomePage() {
     <>
       <h1>Leitura de documentos</h1>
       <p className="subtitle">
-        Envie um documento, receba um protocolo e acompanhe o processamento. Etapa 2 do plano de
-        execução: ingestão, OCR, classificação e extração de campos.
+        Envie um documento, receba um protocolo e acompanhe o processamento. Leitura local: OCR,
+        classificação e extração de campos, sem enviar nada para fora.
       </p>
 
       <AnonymousAccessBanner />
@@ -39,9 +39,10 @@ export default function HomePage() {
           </li>
         </ul>
         <p className="stage-note">
-          Nesta etapa o documento para em <strong>Na fila</strong>: o worker e o serviço de OCR sobem
-          como stubs e só passam a processar na Etapa 2. O arquivo original fica consultável desde o
-          primeiro segundo.
+          O documento passa por <strong>Na fila</strong>, leitura, classificação e extração até ficar
+          <strong>Concluído</strong>; se o OCR falhar, o arquivo original continua consultável. Os tipos
+          com campos estruturados são CPF, CIN/RG, CNH, comprovante de residência, cartão CNPJ, CCMEI e
+          contrato social.
         </p>
       </section>
     </>

@@ -7,8 +7,9 @@ namespace DocReader.Application.Extraction;
 /// <summary>
 /// Extrator da Carteira Nacional de Habilitação, conforme <c>schemas/documents/BR_CNH.v1.json</c>.
 ///
-/// O CPF passa pelo dígito verificador. O número de registro tem 11 dígitos, mas a PoC valida só o
-/// formato dele: o algoritmo dos dígitos do registro não está no escopo do PRD.
+/// O CPF e o número de registro passam pelo dígito verificador (`CnhRegistration`). A validade vencida não
+/// reprova o campo, que continua sendo uma data lida corretamente: ela é sinalizada com
+/// <see cref="FieldReaders.DocumentExpired"/>.
 /// </summary>
 public sealed partial class BrCnhExtractor(TimeProvider timeProvider) : IDocumentExtractor
 {
@@ -72,18 +73,37 @@ public sealed partial class BrCnhExtractor(TimeProvider timeProvider) : IDocumen
             TypeName, SchemaVersion, FieldFactory.OverallConfidence(fields.Values), fields));
     }
 
+    /// <summary>
+    /// Um registro com dígitos verificadores certos vence qualquer outro candidato; se só houver os que
+    /// reprovam, o primeiro sai como INVALID com o valor lido preservado, como no CPF.
+    /// </summary>
     private static ExtractedFieldValue ExtractRegistration(LineSearch search)
     {
+        LabelledValue? rejected = null;
+        string? rejectedRaw = null;
+
         foreach (var candidate in search.After(RegistrationLabels))
         {
             var match = RegistrationPattern().Match(candidate.Text);
-            if (match.Success)
+            if (!match.Success)
             {
-                return FieldFactory.Found(match.Value, match.Value, candidate.Line, candidate.Penalty, FieldValidationStatus.Valid, FieldReaders.FormatValid);
+                continue;
             }
+
+            if (CnhRegistration.TryNormalize(match.Value, out var normalized) && CnhRegistration.IsValid(normalized))
+            {
+                return FieldFactory.Found(match.Value, normalized, candidate.Line, candidate.Penalty, FieldValidationStatus.Valid, FieldReaders.CheckDigitValid);
+            }
+
+            rejected ??= candidate;
+            rejectedRaw ??= match.Value;
         }
 
-        return FieldFactory.NotFound();
+        return rejected is null
+            ? FieldFactory.NotFound()
+            : FieldFactory.Build(
+                rejectedRaw!, null, rejected.Line, FieldFactory.FallbackConfidencePenalty + rejected.Penalty,
+                FieldValidationStatus.Invalid, [FieldReaders.CheckDigitInvalid]);
     }
 
     private static ExtractedFieldValue ExtractCategory(LineSearch search)

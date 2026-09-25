@@ -175,16 +175,16 @@ aqui ficam o método e os arquivos.
 docker run --rm --user root --cpus=4 --memory=3g --entrypoint bash \
   -v "$PWD/scripts:/scripts:ro" -v "$PWD/samples/synthetic/ocr:/samples:ro" \
   -v ocr-bench-models:/models -v "$PWD/docs/bench:/out" \
-  docreader/ocr-service:stage2 /scripts/ocr_latency_experiment.sh
+  docreader/ocr-service:local /scripts/ocr_latency_experiment.sh
 
 # o padrão sem limite de CPU (o contêiner vê todas as threads da máquina)
 docker run --rm --user root --memory=3g --entrypoint bash -e OMP_NUM_THREADS=4 -e OUT_SUFFIX=-cpus8-omp4 \
   -v "$PWD/scripts:/scripts:ro" -v "$PWD/samples/synthetic/ocr:/samples:ro" \
   -v ocr-bench-models:/models -v "$PWD/docs/bench:/out" \
-  docreader/ocr-service:stage2 /scripts/ocr_latency_experiment.sh "PP-OCRv5 (det mobile)|0"
+  docreader/ocr-service:local /scripts/ocr_latency_experiment.sh "PP-OCRv5 (det mobile)|0"
 
 # recall por linha e por caractere contra o texto que o gerador desenhou
-docker run --rm --entrypoint python -v "$PWD:/w" -w /w docreader/ocr-service:stage2 scripts/ocr_recall.py
+docker run --rm --entrypoint python -v "$PWD:/w" -w /w docreader/ocr-service:local scripts/ocr_recall.py
 ```
 
 Saída: `ocr-latency-<pipeline>-side<N>[<sufixo>].json`, um por configuração (`side0` é sem redução).

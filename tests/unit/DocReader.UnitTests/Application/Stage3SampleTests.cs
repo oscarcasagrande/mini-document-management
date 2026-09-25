@@ -37,6 +37,7 @@ public sealed class Stage3SampleTests
     [
         "cin-frente-verso",
         "cnh",
+        "cnh-vencida",
         "comprovante-residencia",
         "cartao-cnpj",
         "ccmei",
@@ -78,6 +79,12 @@ public sealed class Stage3SampleTests
                 mismatches.Add(
                     $"{path}: esperado {want.Normalized ?? "null"} ({want.Status}), " +
                     $"veio {got.Normalized ?? "null"} ({got.ValidationStatus}, raw \"{got.Raw}\")");
+            }
+
+            var missing = want.Messages.Where(code => !(got.ValidationMessages ?? []).Contains(code)).ToArray();
+            if (missing.Length > 0)
+            {
+                mismatches.Add($"{path}: faltam os códigos {string.Join(", ", missing)}");
             }
         }
 

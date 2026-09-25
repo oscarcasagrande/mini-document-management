@@ -9,7 +9,7 @@ conta como lido quando algum bloco reconhecido tem similaridade de pelo menos 0,
 sem caixa. O recall por caracteres pesa os itens pelo tamanho: perder uma cláusula inteira custa mais do
 que perder uma célula de "QTD".
 
-    docker run --rm --entrypoint python -v "$PWD:/w" -w /w docreader/ocr-service:stage2 scripts/ocr_recall.py
+    docker run --rm --entrypoint python -v "$PWD:/w" -w /w docreader/ocr-service:local scripts/ocr_recall.py
 """
 
 from __future__ import annotations

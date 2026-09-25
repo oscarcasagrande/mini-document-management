@@ -2,7 +2,7 @@ Testes ponta a ponta contra o compose de pé.
 
 ## `stage3_acceptance.py`
 
-Envia uma amostra de cada tipo estruturado (`samples/synthetic/documents`) por `POST /api/v1/documents`, espera
+Envia uma amostra de cada tipo estruturado (`samples/synthetic/documents`, inclusive a `cnh-vencida`) por `POST /api/v1/documents`, espera
 `COMPLETED` e confere, por campo, o valor normalizado e o status de `GET /documents/{id}/result` contra o
 `<amostra>.expected.json`. Com `--web`, confere também que a tela de detalhe mostra os valores lidos. Só
 biblioteca padrão; sai com código 0 se todos os tipos passarem.
@@ -19,4 +19,4 @@ documento por vez: documentos enviados juntos esperam na fila e inflam o tempo d
 
 Ainda por escrever, do plano da Etapa 2 em diante: upload pela interface web e por `curl` em sequência,
 listagem e filtros, exclusão, reinício do worker e falha do OCR com preservação do original. Os cenários de
-queda do `ocr-service` e reprocessamento foram executados à mão no aceite da Etapa 2 (ver `docs/HANDOFF.md`).
+queda do `ocr-service` e reprocessamento foram executados à mão no aceite da Etapa 2, sem script.

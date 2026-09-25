@@ -1,4 +1,4 @@
-# DocReader PoC, stage 2 of the execution plan: OCR end to end.
+# DocReader PoC: ingestion, OCR, classification and structured extraction, all local.
 #
 #   docker compose up --build
 #
@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.web-bff
-    image: docreader/web-bff:stage2
+    image: docreader/web-bff:local
     restart: unless-stopped
     environment:
       # Server side address of the API. The browser never sees it: the BFF proxies every call.
@@ -39,7 +39,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.api
-    image: docreader/api:stage2
+    image: docreader/api:local
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
@@ -79,7 +79,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.worker
-    image: docreader/worker:stage2
+    image: docreader/worker:local
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
@@ -114,7 +114,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.ocr-service
-    image: docreader/ocr-service:stage2
+    image: docreader/ocr-service:local
     restart: unless-stopped
     environment:
       OCR_PROVIDER: paddleocr

@@ -291,6 +291,12 @@ tbody tr:hover {
   color: var(--done);
 }
 
+/* Aviso sobre um campo que é válido mas pede atenção, como a validade vencida. */
+.warn {
+  color: var(--warning-text);
+  font-weight: 600;
+}
+
 .chip--error {
   background: var(--error-surface);
   color: var(--error);

@@ -6,8 +6,8 @@ using DocReader.Worker;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-// Etapa 2: o worker consome a fila (ADR 0001) e processa cada documento pelo ocr-service, renovando
-// a reserva do job a cada página (ADR 0002).
+// O worker consome a fila (ADR 0001) e processa cada documento pelo ocr-service, renovando a reserva
+// do job a cada página (ADR 0002).
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();

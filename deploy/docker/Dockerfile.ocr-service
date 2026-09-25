@@ -1,8 +1,8 @@
 # Build context is the repository root:
 #   docker build -f deploy/docker/Dockerfile.ocr-service .
 #
-# Stage 2: PaddleOCR with the PP-OCRv5 pipeline approved in ADR 0002 (mobile detector, Latin
-# recognizer), CPU only. PP-StructureV3 is deliberately not installed: it stays out of stage 2 and
+# PaddleOCR with the PP-OCRv5 pipeline approved in ADR 0002 (mobile detector, Latin recognizer),
+# CPU only. PP-StructureV3 is deliberately not installed: it is out of scope and
 # would add gigabytes and an out-of-memory risk. The models are downloaded once, at build time, and
 # baked into the image, so the container starts offline and the first request never waits for a
 # download.

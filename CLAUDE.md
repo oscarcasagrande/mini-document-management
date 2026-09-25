@@ -16,26 +16,34 @@ visualização/download e Swagger.
 **Etapa 2 — concluída.** OCR ponta a ponta (PaddleOCR PP-OCRv5 mobile em CPU), fila com heartbeat,
 retry e fencing, `/text`, `/result`, `/reprocess`. Decisão de engine e números em `docs/adr/0002-*.md`.
 
-**Etapa 3 — extração estruturada: implementada, com aceite via `docker compose` executado.** Aguarda
-aprovação.
+**Etapa 3 — concluída.** Extração estruturada de sete tipos: `BR_CPF_CARD`, `BR_CIN` (CIN e RG, com MRZ
+TD1), `BR_CNH`, `BR_PROOF_OF_ADDRESS`, `BR_CNPJ_CARD`, `BR_CCMEI` e `BR_SOCIAL_CONTRACT`. Cada um tem schema
+em `schemas/documents/` (o README de lá lista campos, validações e o que **não** é validado), perfil de
+classificação, extrator e testes. A extração é por rótulo e geometria (`LineSearch`, `FieldReaders` em
+`src/DocReader.Application/Extraction`); o contrato social é por expressões sobre o texto juntado
+(`ProseIndex`), com sócios como `partners[N].*`.
 
-- Sete tipos com extrator, schema e perfil de classificação: `BR_CPF_CARD`, `BR_CIN` (CIN e RG, com MRZ
-  TD1), `BR_CNH`, `BR_PROOF_OF_ADDRESS`, `BR_CNPJ_CARD`, `BR_CCMEI` e `BR_SOCIAL_CONTRACT`. Schemas em
-  `schemas/documents/` (o README de lá lista campos e validações e o que **não** é validado).
-- Validadores de domínio: CNPJ alfanumérico (RF-012), CEP, UF, valor em reais, data por extenso, MRZ.
-- Extração por rótulo e geometria (`LineSearch`, `FieldReaders` em `src/DocReader.Application/Extraction`);
-  contrato social por expressões sobre o texto juntado (`ProseIndex`). Sócios saem como `partners[N].*`.
-- Testes: 446 unitários (inclusive as seis amostras sobre **OCR real** capturado em
-  `tests/unit/DocReader.UnitTests/Fixtures/ocr`), 21 de integração, 29 do `pytest`. Ponta a ponta:
-  `tests/e2e/stage3_acceptance.py`.
-- Latência de A4 medida e fechada no ADR 0002: o alvo (≤ 18 s/página) é atingido **sem limite de CPU**
-  (pior caso 15,8 s) e não com 4 CPUs (28 s). `OCR_MODEL_PROFILE` troca o modelo; os menores são mais
-  rápidos e menos exatos, e não foram adotados.
+**Etapa 4 — avaliação e hardening: framework pronto, medição em documento real pendente.** Aguarda aprovação.
 
-**Limite do que foi medido:** as amostras são sintéticas, desenhadas com a estrutura de rótulo e valor dos
-documentos reais. Desempenho em documento real, de outros estados, concessionárias e juntas, é assunto da
-Etapa 4. Fora do escopo até lá: PDF com camada de texto nativa (RF-009), orientação/deskew,
-PP-StructureV3 e `/document-types`.
+- DV do número de registro da CNH (`CnhRegistration`, algoritmo do DENATRAN como o `brdoc` o reproduz) e
+  sinalização de validade vencida (`DOCUMENT_EXPIRED`, sem reprovar o campo) em CIN e CNH.
+- `scripts/evaluate.py` avalia o sistema contra uma pasta **fora do repositório** de documentos anotados:
+  precision, recall e F1 por tipo e campo, exatidão de DV, classificação, texto utilizável, latência e os três
+  indicadores do PRD §3. Formato do ground truth e métricas em `docs/evaluation.md`; testes em `tests/accuracy`.
+  Recusa pasta dentro do repo, não escreve valor de campo no relatório sem `--include-values`, apaga da API o
+  que enviou. Smoke test com `samples/synthetic/documents` (`--truth-suffix .expected.json`).
+- Testes: 487 unitários (as sete amostras rodam sobre **OCR real** capturado em
+  `tests/unit/DocReader.UnitTests/Fixtures/ocr`), 21 de integração, 29 do `pytest` do OCR, 49 do avaliador.
+  Ponta a ponta: `tests/e2e/stage3_acceptance.py`.
+- Latência de A4 fechada no ADR 0002: o alvo (≤ 18 s/página) é atingido **sem limite de CPU** (pior caso
+  15,8 s) e não com 4 CPUs (28 s). `OCR_MODEL_PROFILE` troca o modelo; os menores são mais rápidos e menos
+  exatos, e não foram adotados.
+
+**O que não foi feito, e por quê:** nenhuma medição em documento real (não há dataset; o framework existe para
+isso); a comparação opcional com Tesseract/Docling do PRD §26; e a decisão de continuidade e produção, que
+depende da medição. As amostras sintéticas provam que o pipeline funciona e que as regras não regridem, não
+que os extratores acertam em documento de outro estado, concessionária ou junta. Fora do escopo: PDF com camada
+de texto nativa (RF-009), orientação/deskew, PP-StructureV3 e `/document-types`.
 
 ## Estrutura do repositório
 
@@ -53,7 +61,7 @@ PP-StructureV3 e `/document-types`.
   /DocReader.Api.Contracts   DTOs públicos (request/response) da API v1
 /tests
   /unit /integration /e2e /accuracy
-/schemas/documents   JSON Schemas por tipo documental (Etapa 3)
+/schemas/documents   JSON Schemas por tipo documental (campos, sinais de classificação, validações)
 /samples/synthetic   amostras sintéticas para teste manual
 /deploy/docker       Dockerfiles (contexto de build = raiz do repo)
 /docs
@@ -113,6 +121,14 @@ Os testes usam xunit.v3 sobre Microsoft.Testing.Platform. O `global.json` faz o 
 (`"test": { "runner": "Microsoft.Testing.Platform" }`); sem ele o `dotnet test` do SDK 10 falha
 tentando usar o VSTest. `bash scripts/dotnet.sh run --project tests/unit/DocReader.UnitTests`
 executa a suíte direto, sem passar pelo `dotnet test`.
+
+### Testes e avaliação
+
+```bash
+bash scripts/dotnet.sh test tests/unit/DocReader.UnitTests          # unitários; integração e demais suítes: README
+docker run --rm -v "$PWD:/w" -w /w python:3.12-slim sh -c "pip install -q pytest && python -m pytest tests/accuracy -q"
+python scripts/evaluate.py --dataset <pasta fora do repo> --api http://localhost:8080   # docs/evaluation.md
+```
 
 ### Migrations
 
@@ -199,3 +215,26 @@ Vêm do PRD (§16, §20, §21) e valem para todo código novo.
   só onde há estado ou evento.
 - Python: FastAPI com type hints e Pydantic.
 - Mensagens de commit e código em inglês; documentação de produto em português.
+
+## Armadilhas conhecidas
+
+Coisas que já custaram tempo e não se enxergam no código.
+
+- **Disco cheio derruba o Docker.** O disco virtual do Docker Desktop (`docker_data.vhdx`) fica somente leitura
+  quando o `C:` chega a zero, e sem Docker não há build .NET (`scripts/dotnet.sh` também roda em contêiner).
+  Nunca apague o `.vhdx` nem resete o Docker Desktop: os volumes `docreader_postgres-data` e
+  `docreader_document-storage` vivem nele. Limpe só o descartável (`docker builder prune`, os volumes
+  `ocr-bench-models` e `ocr-onednn-venvs`) e **nunca** use `docker system prune --volumes`.
+- **No Windows, use o helper PowerShell.** O Bash do WSL não enxerga o Docker: `powershell -File
+  scripts/dotnet.ps1 test tests/unit/DocReader.UnitTests`. `dotnet ef` usa `src/DocReader.Infrastructure` como
+  projeto de inicialização (o da API não referencia o pacote Design).
+- **Chave Guid atribuída pelo domínio precisa de `ValueGeneratedNever`.** Sem isso o EF trata um filho novo de
+  uma entidade rastreada como linha existente e emite `UPDATE` (0 linhas afetadas) em vez de `INSERT`.
+- **`AcquireNextAsync` não abre transação explícita**: com `EnableRetryOnFailure` (produção) isso lança. Toda
+  transação passa pela estratégia de execução; o fixture de integração usa retry justamente para isso não voltar.
+- **A latência do OCR depende do limite de CPU do contêiner** (15,8 s contra 28 s numa página densa, ADR 0002).
+  Não imponha `cpus:` ao `ocr-service` sem reler o ADR.
+- **Heredoc com interpolação C# (`$"..."`) quebra o Bash tool**: escreva o arquivo com a ferramenta de escrita
+  ou rode `node arquivo.js`.
+- **Fixtures de OCR são texto real, não fabricado.** Depois de mudar engine, pré-processamento ou amostras,
+  recapture com `scripts/capture-ocr-fixtures.py` antes de mexer nos extratores.

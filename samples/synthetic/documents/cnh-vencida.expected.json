@@ -26,12 +26,15 @@
       "status": "VALID"
     },
     "issueDate": {
-      "normalized": "2024-07-01",
+      "normalized": "2018-07-01",
       "status": "VALID"
     },
     "expirationDate": {
-      "normalized": "2029-07-01",
-      "status": "VALID"
+      "normalized": "2023-07-01",
+      "status": "VALID",
+      "messages": [
+        "DOCUMENT_EXPIRED"
+      ]
     }
   }
 }

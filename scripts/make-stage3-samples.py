@@ -78,8 +78,12 @@ def wrap(text: str, typeface: ImageFont.FreeTypeFont, max_width: int) -> list[st
     return lines
 
 
-def field(normalized: str | None, status: str = "VALID") -> dict:
-    return {"normalized": normalized, "status": status}
+def field(normalized: str | None, status: str = "VALID", messages: list[str] | None = None) -> dict:
+    """Um campo esperado. `messages`, quando dado, são códigos que o resultado precisa conter."""
+    expected = {"normalized": normalized, "status": status}
+    if messages:
+        expected["messages"] = messages
+    return expected
 
 
 # ------------------------------------------------------------------ MRZ (ICAO 9303, TD1)
@@ -165,7 +169,9 @@ def build_cin() -> tuple[Image.Image, dict]:
 
 # ------------------------------------------------------------------ CNH
 
-def build_cnh() -> tuple[Image.Image, dict]:
+def build_cnh(expired: bool = False) -> tuple[Image.Image, dict]:
+    """CNH. `expired` gera a mesma habilitação com validade em 2023, para a sinalização de vencida."""
+    issue, validity = ("01/07/2018", "01/07/2023") if expired else ("01/07/2024", "01/07/2029")
     width, height = 1200, 800
     image = Image.new("RGB", (width, height), PAPER)
     draw = ImageDraw.Draw(image)
@@ -184,11 +190,12 @@ def build_cnh() -> tuple[Image.Image, dict]:
     labelled(draw, 340, 320, "DOC. IDENTIDADE / ORG. EMISSOR / UF", "12.345.678-9 SSP SP", value_size=30)
     labelled(draw, 340, 420, "CPF", CPF_MARIA, mono=True)
     labelled(draw, 780, 420, "3 DATA NASCIMENTO", "14/03/1985")
-    labelled(draw, 60, 580, "5 Nº REGISTRO", "04512345678", mono=True)
+    # Registro com dígitos verificadores válidos (base 045123456, DV 21), como o validador exige.
+    labelled(draw, 60, 580, "5 Nº REGISTRO", "04512345621", mono=True)
     labelled(draw, 440, 580, "9 CAT. HAB.", "AB")
     labelled(draw, 780, 580, "1ª HABILITAÇÃO", "01/07/2004")
-    labelled(draw, 60, 680, "4a DATA EMISSÃO", "01/07/2024")
-    labelled(draw, 440, 680, "4b VALIDADE", "01/07/2029")
+    labelled(draw, 60, 680, "4a DATA EMISSÃO", issue)
+    labelled(draw, 440, 680, "4b VALIDADE", validity)
 
     footer_mark(image, top=height - 46)
 
@@ -198,11 +205,11 @@ def build_cnh() -> tuple[Image.Image, dict]:
             "name": field("MARIA APARECIDA DA SILVA SOUZA"),
             "cpf": field("11144477735"),
             "birthDate": field("1985-03-14"),
-            "registrationNumber": field("04512345678"),
+            "registrationNumber": field("04512345621"),
             "category": field("AB"),
             "firstLicenseDate": field("2004-07-01"),
-            "issueDate": field("2024-07-01"),
-            "expirationDate": field("2029-07-01"),
+            "issueDate": field("2018-07-01" if expired else "2024-07-01"),
+            "expirationDate": field("2023-07-01" if expired else "2029-07-01", messages=["DOCUMENT_EXPIRED"] if expired else None),
         },
     }
     return image, expected
@@ -528,6 +535,7 @@ def main() -> None:
     single_page = {
         "cin-frente-verso": build_cin(),
         "cnh": build_cnh(),
+        "cnh-vencida": build_cnh(expired=True),
         "comprovante-residencia": build_proof_of_address(),
         "cartao-cnpj": build_cnpj_card(),
         "ccmei": build_ccmei(),

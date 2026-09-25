@@ -31,6 +31,12 @@ internal static class FieldReaders
     public const string CheckDigitInvalid = "CHECK_DIGIT_INVALID";
     public const string DateValid = "DATE_VALID";
     public const string DateInvalid = "DATE_INVALID";
+
+    /// <summary>
+    /// A data de validade já passou. Não reprova o campo: a data foi lida e é uma data real. Quem consome o
+    /// resultado decide o que fazer com um documento vencido.
+    /// </summary>
+    public const string DocumentExpired = "DOCUMENT_EXPIRED";
     public const string FormatValid = "FORMAT_VALID";
     public const string PostalCodeValid = "POSTAL_CODE_VALID";
     public const string StateValid = "STATE_VALID";
@@ -60,9 +66,11 @@ internal static class FieldReaders
                 {
                     if (IsPlausible(parsed, kind, today))
                     {
+                        var expired = kind == DateKind.Expiration && parsed < today;
+
                         return FieldFactory.Found(
                             match.Value, BrazilianDate.ToIso(parsed), candidate.Line, candidate.Penalty,
-                            FieldValidationStatus.Valid, DateValid);
+                            FieldValidationStatus.Valid, expired ? new[] { DateValid, DocumentExpired } : new[] { DateValid });
                     }
                 }
 

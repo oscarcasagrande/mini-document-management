@@ -21,7 +21,7 @@ param(
     [string[]]$Profiles = @("ppocrv5-mobile", "ppocrv6-small", "ppocrv6-tiny", "ppocrv6-medium"),
     [string]$OutRoot = ".tmp/engines",
     [string]$Network = "docreader_internal",
-    [string]$Image = "docreader/ocr-service:stage2"
+    [string]$Image = "docreader/ocr-service:local"
 )
 
 $ErrorActionPreference = "Stop"

@@ -14,7 +14,7 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="Channel">WEB when it came from the interface, API otherwise.</param>
 /// <param name="Status">Current status.</param>
 /// <param name="ExpectedDocumentType">Type hint sent at upload time, when any.</param>
-/// <param name="DetectedDocumentType">Type identified by the classifier, null until stage 3.</param>
+/// <param name="DetectedDocumentType">Type identified by the classifier, null until the document is classified.</param>
 /// <param name="ClassificationConfidence">Confidence between 0 and 1, when available.</param>
 /// <param name="ExternalReference">Caller reference sent at upload time, when any.</param>
 /// <param name="UploadedAt">Upload instant in UTC.</param>

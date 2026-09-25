@@ -5,8 +5,8 @@ using Microsoft.Extensions.Options;
 namespace DocReader.Api.HealthChecks;
 
 /// <summary>
-/// Readiness of the internal OCR service (RF-016). In stage 1 the service is a stub that answers
-/// <c>/health</c>; the probe already lives here so stage 2 only has to make it do real work.
+/// Readiness of the internal OCR service (RF-016). The service answers <c>/health</c> with 503 until its
+/// models are loaded and warm, so a healthy answer means it can read a page.
 /// </summary>
 public sealed class OcrServiceHealthCheck(
     IHttpClientFactory httpClientFactory,

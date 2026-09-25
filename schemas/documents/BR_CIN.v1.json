@@ -153,7 +153,7 @@
       "rg": "Formato: 7 a 10 caracteres, o último podendo ser X. Não há dígito verificador nacional.",
       "birthDate": "Data real de calendário, não futura e não anterior a 1900.",
       "issueDate": "Data real de calendário, não futura.",
-      "expirationDate": "Data real de calendário, até 50 anos adiante.",
+      "expirationDate": "Data real de calendário, até 50 anos adiante. Data anterior a hoje continua VALID e ganha a mensagem DOCUMENT_EXPIRED.",
       "mrz": "Dígitos verificadores do ICAO 9303 (número, nascimento, validade e composto) e conferência da data de nascimento com a impressa."
     }
   }

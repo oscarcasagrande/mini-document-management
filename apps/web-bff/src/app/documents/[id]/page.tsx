@@ -168,7 +168,7 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
                             {validationLabel(field.validationStatus)}
                           </span>
                           {field.validationMessages.map((code) => (
-                            <div key={code} className="muted small">
+                            <div key={code} className={code === "DOCUMENT_EXPIRED" ? "small warn" : "muted small"}>
                               {validationMessage(code)}
                             </div>
                           ))}

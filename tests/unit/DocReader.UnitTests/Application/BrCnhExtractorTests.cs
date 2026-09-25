@@ -23,7 +23,7 @@ public sealed class BrCnhExtractorTests
             "DOC. IDENTIDADE / ORG. EMISSOR / UF", "12.345.678-9 SSP SP",
             "CPF", "111.444.777-35",
             "3 DATA NASCIMENTO", "14/03/1985",
-            "5 Nº REGISTRO", "04512345678",
+            "5 Nº REGISTRO", "04512345621",
             "9 CAT. HAB.", "AB",
             "1ª HABILITAÇÃO", "01/07/2004",
             "4a DATA EMISSÃO", "01/07/2024",
@@ -33,7 +33,7 @@ public sealed class BrCnhExtractorTests
         Assert.Equal("11144477735", fields["cpf"].Normalized);
         Assert.Equal("VALID", fields["cpf"].ValidationStatus);
         Assert.Equal("1985-03-14", fields["birthDate"].Normalized);
-        Assert.Equal("04512345678", fields["registrationNumber"].Normalized);
+        Assert.Equal("04512345621", fields["registrationNumber"].Normalized);
         Assert.Equal("AB", fields["category"].Normalized);
         Assert.Equal("2004-07-01", fields["firstLicenseDate"].Normalized);
         Assert.Equal("2024-07-01", fields["issueDate"].Normalized);
@@ -79,7 +79,7 @@ public sealed class BrCnhExtractorTests
 
     [Theory]
     [InlineData("0451234567")]
-    [InlineData("045123456789")]
+    [InlineData("045123456219")]
     [InlineData("ABC12345678")]
     public async Task Registro_precisa_ter_exatamente_onze_digitos(string value)
     {
@@ -108,9 +108,9 @@ public sealed class BrCnhExtractorTests
     [Fact]
     public async Task Rotulo_e_valor_na_mesma_linha_com_dois_pontos()
     {
-        var fields = await ExtractAsync("Nº Registro: 04512345678", "Validade: 01/07/2029", "Cat. Hab.: B");
+        var fields = await ExtractAsync("Nº Registro: 04512345621", "Validade: 01/07/2029", "Cat. Hab.: B");
 
-        Assert.Equal("04512345678", fields["registrationNumber"].Normalized);
+        Assert.Equal("04512345621", fields["registrationNumber"].Normalized);
         Assert.Equal("2029-07-01", fields["expirationDate"].Normalized);
         Assert.Equal("B", fields["category"].Normalized);
     }
@@ -122,13 +122,88 @@ public sealed class BrCnhExtractorTests
             new("5 Nº REGISTRO", 60, 580, 240, 22),
             new("9 CAT. HAB.", 440, 580, 200, 22),
             new("1ª HABILITAÇÃO", 780, 580, 240, 22),
-            new("04512345678", 60, 614, 240, 34),
+            new("04512345621", 60, 614, 240, 34),
             new("AB", 440, 614, 60, 34),
             new("01/07/2004", 780, 614, 200, 34)));
 
-        Assert.Equal("04512345678", fields["registrationNumber"].Normalized);
+        Assert.Equal("04512345621", fields["registrationNumber"].Normalized);
         Assert.Equal("AB", fields["category"].Normalized);
         Assert.Equal("2004-07-01", fields["firstLicenseDate"].Normalized);
+    }
+
+    [Fact]
+    public async Task Registro_com_digito_verificador_correto_e_valido()
+    {
+        var fields = await ExtractAsync("Nº REGISTRO", "04512345621");
+
+        Assert.Equal("VALID", fields["registrationNumber"].ValidationStatus);
+        Assert.Equal("04512345621", fields["registrationNumber"].Normalized);
+        Assert.Equal(["CHECK_DIGIT_VALID"], fields["registrationNumber"].ValidationMessages);
+    }
+
+    [Fact]
+    public async Task Registro_com_digito_verificador_errado_e_invalido_e_preserva_o_valor_lido()
+    {
+        var fields = await ExtractAsync("Nº REGISTRO", "04512345678");
+
+        Assert.Equal("INVALID", fields["registrationNumber"].ValidationStatus);
+        Assert.Null(fields["registrationNumber"].Normalized);
+        Assert.Equal("04512345678", fields["registrationNumber"].Raw);
+        Assert.Equal(["CHECK_DIGIT_INVALID"], fields["registrationNumber"].ValidationMessages);
+    }
+
+    [Fact]
+    public async Task Registro_invalido_perde_confianca_como_o_cpf_invalido()
+    {
+        var valid = await ExtractAsync("Nº REGISTRO", "04512345621");
+        var invalid = await ExtractAsync("Nº REGISTRO", "04512345678");
+
+        Assert.True(invalid["registrationNumber"].Confidence < valid["registrationNumber"].Confidence);
+    }
+
+    [Fact]
+    public async Task Registro_valido_vence_um_candidato_invalido_que_aparece_antes()
+    {
+        var fields = await ExtractAsync("Nº REGISTRO", "04512345678", "REGISTRO", "04512345621");
+
+        Assert.Equal("VALID", fields["registrationNumber"].ValidationStatus);
+        Assert.Equal("04512345621", fields["registrationNumber"].Normalized);
+    }
+
+    [Fact]
+    public async Task Validade_vencida_e_sinalizada_sem_reprovar_o_campo()
+    {
+        var fields = await ExtractAsync("VALIDADE", "01/07/2023");
+
+        Assert.Equal("VALID", fields["expirationDate"].ValidationStatus);
+        Assert.Equal("2023-07-01", fields["expirationDate"].Normalized);
+        Assert.Equal(["DATE_VALID", "DOCUMENT_EXPIRED"], fields["expirationDate"].ValidationMessages);
+    }
+
+    [Fact]
+    public async Task Validade_no_futuro_nao_e_sinalizada()
+    {
+        var fields = await ExtractAsync("VALIDADE", "01/07/2029");
+
+        Assert.Equal(["DATE_VALID"], fields["expirationDate"].ValidationMessages);
+    }
+
+    [Fact]
+    public async Task Validade_que_vence_hoje_ainda_vale()
+    {
+        // O relógio dos testes marca 2026-09-25: o dia da validade ainda é válido.
+        var fields = await ExtractAsync("VALIDADE", "25/09/2026");
+
+        Assert.Equal(["DATE_VALID"], fields["expirationDate"].ValidationMessages);
+    }
+
+    [Fact]
+    public async Task Datas_de_emissao_e_nascimento_passadas_nunca_sao_sinalizadas_como_vencidas()
+    {
+        var fields = await ExtractAsync("DATA NASCIMENTO", "14/03/1985", "4a DATA EMISSÃO", "01/07/2024");
+
+        Assert.DoesNotContain("DOCUMENT_EXPIRED", fields["birthDate"].ValidationMessages!);
+        Assert.DoesNotContain("DOCUMENT_EXPIRED", fields["issueDate"].ValidationMessages!);
     }
 
     [Fact]

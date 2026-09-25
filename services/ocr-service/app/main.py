@@ -1,6 +1,6 @@
 """Local OCR service of the DocReader proof of concept.
 
-Stage 2 of the execution plan: PP-OCRv5 (mobile detector, Latin recognizer) on CPU, one page per
+PaddleOCR on CPU (PP-OCRv5 mobile by default, see OCR_MODEL_PROFILE and ADR 0002), one page per
 call. The worker sends the original file and a page number; this service rasterizes that page when
 needed, reads it and answers blocks with confidence and coordinates, plus the untouched provider
 payload. It is reachable only from the internal Docker network.
@@ -39,7 +39,6 @@ from .pages import (
 from .settings import Settings
 
 SERVICE_NAME = "ocr-service"
-STAGE = 2
 CORRELATION_HEADER = "X-Correlation-Id"
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 PROBLEM_BASE = "https://docreader.local/problems/"
@@ -90,7 +89,6 @@ class HealthResponse(ApiModel):
 
     status: str = Field(examples=["healthy"])
     service: str = Field(examples=[SERVICE_NAME])
-    stage: int = Field(examples=[STAGE])
     provider: str = Field(examples=["paddleocr"])
     model_loaded: bool = Field(examples=[True])
     model_version: str | None = Field(default=None)
@@ -237,7 +235,7 @@ def create_app(engine: OcrEngine | None = None, settings: Settings | None = None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        logger.info("ocr-service starting. stage=%s provider=%s", STAGE, settings.provider)
+        logger.info("ocr-service starting. provider=%s profile=%s", settings.provider, settings.model_profile)
         # Loading in the background keeps /health/live answering while the models come up.
         loading = asyncio.create_task(load_model())
         yield
@@ -285,7 +283,6 @@ def create_app(engine: OcrEngine | None = None, settings: Settings | None = None
         return HealthResponse(
             status="healthy" if state.model_loaded else "starting",
             service=SERVICE_NAME,
-            stage=STAGE,
             provider=settings.provider,
             model_loaded=state.model_loaded,
             model_version=active_engine.model_version if state.model_loaded else None,

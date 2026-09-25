@@ -7,8 +7,8 @@ nunca inventa valor (RF-011).
 | Tipo | Schema | Extrator | Campos | Validações determinísticas |
 |---|---|---|---|---|
 | Cartão de CPF | `BR_CPF_CARD.v1.json` | `BrCpfCardExtractor` | cpf, name, birthDate | DV do CPF, data |
-| CIN / RG | `BR_CIN.v1.json` | `BrCinExtractor` | name, cpf, rg, birthDate, issueDate, expirationDate, birthPlace, fatherName, motherName, mrz | DV do CPF, datas, formato do RG, MRZ (ICAO 9303 TD1) |
-| CNH | `BR_CNH.v1.json` | `BrCnhExtractor` | name, cpf, birthDate, registrationNumber, category, firstLicenseDate, issueDate, expirationDate | DV do CPF, datas, 11 dígitos do registro, categoria |
+| CIN / RG | `BR_CIN.v1.json` | `BrCinExtractor` | name, cpf, rg, birthDate, issueDate, expirationDate, birthPlace, fatherName, motherName, mrz | DV do CPF, datas, validade vencida, formato do RG, MRZ (ICAO 9303 TD1) |
+| CNH | `BR_CNH.v1.json` | `BrCnhExtractor` | name, cpf, birthDate, registrationNumber, category, firstLicenseDate, issueDate, expirationDate | DV do CPF, **DV do registro**, datas, validade vencida, categoria |
 | Comprovante de residência | `BR_PROOF_OF_ADDRESS.v1.json` | `BrProofOfAddressExtractor` | holderName, holderDocument, addressLine, neighborhood, city, state, postalCode, referenceMonth, dueDate, serviceType | DV de CPF/CNPJ, CEP, UF, competência |
 | Cartão CNPJ | `BR_CNPJ_CARD.v1.json` | `BrCnpjCardExtractor` | cnpj, openingDate, legalName, tradeName, mainActivityCode/Description, legalNature, endereço, situação | DV do CNPJ **alfanumérico**, datas, CEP, UF |
 | CCMEI | `BR_CCMEI.v1.json` | `BrCcmeiExtractor` | cnpj, legalName, tradeName, openingDate, shareCapital, atividade, address, postalCode, city, state, holderName, holderCpf, holderBirthDate, certificateDate | DV do CNPJ e do CPF, datas, CEP, UF, valor em reais |
@@ -35,7 +35,9 @@ nunca inventa valor (RF-011).
   (`samples/synthetic/documents`) desenhadas com a estrutura de rótulo e valor dos documentos reais, mas não
   copiadas deles. Layouts de outros estados, de outras concessionárias e de contratos de outras juntas
   vão errar de formas que esta suíte não vê; a Etapa 4 (avaliação) é quem mede isso.
-- O número de registro da CNH tem o formato validado (11 dígitos), não os dígitos verificadores dele.
+- O DV do registro da CNH segue o algoritmo do DENATRAN como as bibliotecas de validação o reproduzem
+  (`CnhRegistration`); a PoC não consulta a base oficial, então um número com DV certo pode não existir.
 - O RG não tem dígito verificador nacional: valida-se o formato.
-- Validade vencida não é sinalizada: a data é validada como data, não como prazo.
+- **Validade vencida** (CIN e CNH) não reprova o campo: a data continua `VALID`, com a mensagem
+  `DOCUMENT_EXPIRED` em `validationMessages`. É quem consome o resultado que decide o que fazer com ela.
 - Documento com frente e verso na mesma imagem funciona; em arquivos separados são dois documentos.
