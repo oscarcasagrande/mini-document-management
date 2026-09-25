@@ -5,24 +5,34 @@ extração estruturada e consulta — tudo em contêineres, sem nuvem e sem API 
 
 PRD e SDD completos em [`docs/PRD.md`](docs/PRD.md). Decisões de arquitetura em [`docs/adr`](docs/adr).
 
-## Etapa atual: 1 — walking skeleton
+## Etapa atual: 2 — OCR ponta a ponta
 
-O plano de execução (PRD §26) tem quatro etapas. **Esta entrega é a Etapa 1** e cobre:
+O plano de execução (PRD §26) tem quatro etapas. A Etapa 1 (walking skeleton) foi aprovada; **a
+Etapa 2 acrescenta o processamento** e cobre:
 
-| Entregue nesta etapa | Ainda não |
+| Entregue | Ainda não |
 |---|---|
-| Compose com os cinco serviços, redes `public`/`internal`, volumes e health checks | Consumo da fila pelo worker |
-| `POST /api/v1/documents` com `202`, protocolo e `Location` | OCR de verdade (PaddleOCR/PP-StructureV3) |
-| Persistência do documento e do job na mesma transação | Texto bruto por página |
-| Listagem paginada com filtros, detalhe, `by-protocol`, status | Classificação e confiança |
-| Visualização inline, download e exclusão | Extração estruturada e validação de campos |
-| Validação de MIME real por assinatura, limites de tamanho e páginas | Reprocessamento |
-| `Idempotency-Key` com escopo chave + SHA-256 | Endpoints `/text`, `/result`, `/reprocess`, `/document-types` |
-| Swagger em `/swagger` atendendo a DoD do PRD §17 | |
+| `ocr-service` com PaddleOCR PP-OCRv5 (CPU), uma página por chamada, 3 GiB de memória | PDF com camada de texto nativa (RF-009) |
+| Worker consumindo a fila: `QUEUED` → `PREPROCESSING` → `OCR_RUNNING` → `CLASSIFYING` → `EXTRACTING` → `COMPLETED` | Orientação e deskew |
+| Retry com backoff (3 tentativas), recuperação de job preso, erro visível (`OCR_UNAVAILABLE`) | PP-StructureV3 e tabelas |
+| Classificador por regras e extrator de cartão de CPF (número, nome, nascimento) com validação de dígito verificador e data | Demais tipos documentais (Etapa 3) e `/document-types` |
+| `GET /documents/{id}/text`, `GET /documents/{id}/result`, `POST /documents/{id}/reprocess` | Latência de página A4 dentro do requisito (ver abaixo) |
+| Tela de detalhe com campos, confiança, validação, texto bruto e progresso | |
 
-`worker` e `ocr-service` sobem como **stubs**: participam da topologia e respondem `/health`, mas não
-processam. Um documento enviado agora fica em `QUEUED` — e o **arquivo original já é consultável e
-baixável**, que é o ponto do walking skeleton.
+A escolha de engine e os números medidos estão em [`docs/adr/0002-*.md`](docs/adr) e
+[`docs/bench`](docs/bench). **Pendência conhecida:** uma página A4 leva 23–47 s de OCR em CPU, e o
+requisito é 5 páginas em 90 s. Cartões levam 5–9 s.
+
+Para ver o resultado de um documento:
+
+```bash
+curl -s "http://localhost:8080/api/v1/documents/$ID/text"     # texto bruto por página
+curl -s "http://localhost:8080/api/v1/documents/$ID/result"   # tipo, campos, confiança e validação
+curl -s -X POST "http://localhost:8080/api/v1/documents/$ID/reprocess"   # 202; 409 se já há job em andamento
+```
+
+Um documento com CPF de dígito verificador errado sai como `validationStatus: "INVALID"` com o valor
+lido preservado; nada é corrigido nem descartado.
 
 ## Subir
 
@@ -217,16 +227,16 @@ migration pendente o `/health/ready` reprova.
 
 ```bash
 bash scripts/dotnet.sh ef migrations add <Nome> \
-  --project src/DocReader.Infrastructure --startup-project apps/api
+  --project src/DocReader.Infrastructure --startup-project src/DocReader.Infrastructure
 ```
 
 ## Estrutura
 
 ```text
 apps/api            API ASP.NET Core + Swagger
-apps/worker         Worker Service (stub na Etapa 1)
+apps/worker         Worker Service: consome a fila e chama o ocr-service
 apps/web-bff        Next.js: interface e BFF
-services/ocr-service  FastAPI (stub na Etapa 1)
+services/ocr-service  FastAPI + PaddleOCR
 src/                Domain, Application, Infrastructure, Api.Contracts
 tests/              unit, integration, e2e, accuracy
 deploy/docker       Dockerfiles (contexto de build = raiz)

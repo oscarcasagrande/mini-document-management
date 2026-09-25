@@ -1,15 +1,18 @@
 # Build context is the repository root:
 #   docker build -f deploy/docker/Dockerfile.worker .
 #
-# Stage 1 of the execution plan ships the worker as a stub with health endpoints. It is already in the
-# topology so stage 2 only has to add the queue consumer.
+# The worker consumes the processing queue, so it builds against the same src/ projects as the API.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props NuGet.config ./
+COPY src/DocReader.Domain/DocReader.Domain.csproj src/DocReader.Domain/
+COPY src/DocReader.Application/DocReader.Application.csproj src/DocReader.Application/
+COPY src/DocReader.Infrastructure/DocReader.Infrastructure.csproj src/DocReader.Infrastructure/
 COPY apps/worker/DocReader.Worker.csproj apps/worker/
 RUN dotnet restore apps/worker/DocReader.Worker.csproj
 
+COPY src/ src/
 COPY apps/worker/ apps/worker/
 RUN dotnet publish apps/worker/DocReader.Worker.csproj \
       --configuration Release \
@@ -31,7 +34,7 @@ ENV ASPNETCORE_URLS=http://+:8080 \
 WORKDIR /app
 COPY --from=build /app/publish ./
 
-# The worker reads originals from the same volume as the API once it starts processing.
+# The worker reads originals from the same volume as the API.
 RUN mkdir -p /var/lib/docreader/storage \
  && chown -R "${APP_UID}:${APP_UID}" /var/lib/docreader
 

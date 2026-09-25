@@ -1,4 +1,4 @@
-# DocReader PoC — stage 1 of the execution plan (walking skeleton).
+# DocReader PoC, stage 2 of the execution plan: OCR end to end.
 #
 #   docker compose up --build
 #
@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.web-bff
-    image: docreader/web-bff:stage1
+    image: docreader/web-bff:stage2
     restart: unless-stopped
     environment:
       # Server side address of the API. The browser never sees it: the BFF proxies every call.
@@ -39,7 +39,7 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.api
-    image: docreader/api:stage1
+    image: docreader/api:stage2
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
@@ -54,6 +54,8 @@ services:
       DocReader__Security__AllowAnonymousAccess: ${ALLOW_ANONYMOUS_ACCESS:-true}
       DocReader__Security__AllowedCorsOrigins__0: http://localhost:${WEB_PORT:-3000}
       DocReader__Ocr__BaseUrl: http://ocr-service:8000
+      # The status endpoint reports "attempt N of M", so the API needs the same limit as the worker.
+      DocReader__Queue__MaxAttempts: ${QUEUE_MAX_ATTEMPTS:-3}
     ports:
       - "${API_PORT:-8080}:8080"
     networks:
@@ -77,13 +79,21 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.worker
-    image: docreader/worker:stage1
+    image: docreader/worker:stage2
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-docreader};Username=${POSTGRES_USER:-docreader};Password=${POSTGRES_PASSWORD:-docreader}"
       DocReader__Storage__RootPath: /var/lib/docreader/storage
       DocReader__Ocr__BaseUrl: http://ocr-service:8000
+      # Budget of one page as seen by the worker. It must stay above OCR_PAGE_TIMEOUT_SECONDS of the OCR
+      # service, so the service answers 504 first and the failure carries a precise code.
+      DocReader__Ocr__PageTimeout: ${OCR_WORKER_PAGE_TIMEOUT:-00:02:30}
+      DocReader__Queue__MaxAttempts: ${QUEUE_MAX_ATTEMPTS:-3}
+      DocReader__Queue__RetryBaseDelay: ${QUEUE_RETRY_BASE_DELAY:-00:00:15}
+      # Silence after which a job is taken from its worker. The worker renews it after every page, so this
+      # is not a limit on the document; it must stay above the page timeout (checked at startup).
+      DocReader__Queue__JobLockTimeout: ${QUEUE_JOB_LOCK_TIMEOUT:-00:05:00}
     networks:
       - internal
     volumes:
@@ -104,12 +114,26 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.ocr-service
-    image: docreader/ocr-service:stage1
+    image: docreader/ocr-service:stage2
     restart: unless-stopped
     environment:
       OCR_PROVIDER: paddleocr
       OCR_MODEL_CACHE_DIR: /var/lib/docreader/ocr-models
       OCR_LOG_LEVEL: ${OCR_LOG_LEVEL:-INFO}
+      # One page at a time: the memory budget below was sized for it (ADR 0002).
+      OCR_MAX_CONCURRENCY: ${OCR_MAX_CONCURRENCY:-1}
+      # Wall clock budget of a page, waiting for a slot included.
+      OCR_PAGE_TIMEOUT_SECONDS: ${OCR_PAGE_TIMEOUT_SECONDS:-120}
+      OCR_PDF_DPI: ${OCR_PDF_DPI:-200}
+      OCR_MAX_IMAGE_SIDE: ${OCR_MAX_IMAGE_SIDE:-3200}
+      OCR_MAX_UPLOAD_BYTES: ${UPLOAD_MAX_SIZE_BYTES:-26214400}
+      # oneDNN needs the paddlepaddle build pinned in requirements.txt; set false with any other build.
+      OCR_ENABLE_MKLDNN: ${OCR_ENABLE_MKLDNN:-true}
+      OMP_NUM_THREADS: ${OCR_THREADS:-4}
+    # Explicit memory ceiling: the measured peak is about 2.3 GB, and a runaway page must kill this
+    # container (which restarts) instead of taking the machine with it. Swap is off so the limit is real.
+    mem_limit: ${OCR_MEMORY_LIMIT:-3g}
+    memswap_limit: ${OCR_MEMORY_LIMIT:-3g}
     # No published port: the OCR service is reachable only from the internal network.
     networks:
       - internal

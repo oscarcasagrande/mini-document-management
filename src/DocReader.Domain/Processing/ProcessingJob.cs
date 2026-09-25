@@ -26,9 +26,20 @@ public sealed class ProcessingJob
     /// <summary>Earliest moment the job may be acquired; moved forward by the retry backoff.</summary>
     public DateTimeOffset AvailableAt { get; private set; }
 
+    /// <summary>
+    /// Last sign of life of the worker that holds the job. It is set when the job is acquired and
+    /// renewed by every heartbeat, so the recovery of a stuck job measures the time since the last
+    /// page and never the total duration of the document (ADR 0002).
+    /// </summary>
     public DateTimeOffset? LockedAt { get; private set; }
 
     public string? LockedBy { get; private set; }
+
+    /// <summary>Pages already read in the current attempt. Reset to zero when the job is acquired.</summary>
+    public int PagesCompleted { get; private set; }
+
+    /// <summary>Pages the current attempt has to read, known once the worker starts.</summary>
+    public int? PageCount { get; private set; }
 
     public DateTimeOffset? StartedAt { get; private set; }
 

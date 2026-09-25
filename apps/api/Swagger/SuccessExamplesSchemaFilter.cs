@@ -14,6 +14,8 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
     private const string SampleId = "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21";
     private const string SampleProtocol = "DOC-20260924-000001";
     private const string SampleInstant = "2026-09-24T22:00:00Z";
+    private const string SampleModelVersion =
+        "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.3.1, mkldnn=off)";
     private const string SampleBasePath = "/api/v1/documents/" + SampleId;
 
     public void Apply(IOpenApiSchema schema, SchemaFilterContext context)
@@ -57,8 +59,19 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
                 ["classificationConfidence"] = null,
                 ["uploadedAt"] = SampleInstant,
                 ["completedAt"] = null,
-                ["lastError"] = null
+                ["lastError"] = null,
+                ["processing"] = BuildProcessing()
             };
+        }
+
+        if (type == typeof(DocumentTextResponse))
+        {
+            return BuildText();
+        }
+
+        if (type == typeof(DocumentResultResponse))
+        {
+            return BuildResult();
         }
 
         if (type == typeof(DocumentSummaryResponse))
@@ -126,6 +139,7 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
         ["classification"] = null,
         ["extraction"] = null,
         ["lastError"] = null,
+        ["processing"] = BuildProcessing(),
         ["timeline"] = new JsonArray(
             new JsonObject
             {
@@ -151,11 +165,97 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
         ["links"] = BuildLinks()
     };
 
+    private static JsonObject BuildProcessing() => new()
+    {
+        ["jobStatus"] = "RUNNING",
+        ["attempt"] = 1,
+        ["maxAttempts"] = 3,
+        ["pagesCompleted"] = 0,
+        ["pageCount"] = 1,
+        ["nextAttemptAt"] = null
+    };
+
+    private static JsonObject BuildText() => new()
+    {
+        ["id"] = SampleId,
+        ["protocol"] = SampleProtocol,
+        ["status"] = "COMPLETED",
+        ["ocrProvider"] = "paddleocr",
+        ["ocrModelVersion"] = SampleModelVersion,
+        ["extractedAt"] = SampleInstant,
+        ["pages"] = new JsonArray(new JsonObject
+        {
+            ["page"] = 1,
+            ["text"] = "REPUBLICA FEDERATIVA DO BRASIL\nCADASTRO DE PESSOAS FISICAS\nNUMERO DE INSCRICAO\n111.444.777-35\nNOME\nMARIA APARECIDA DA SILVA SOUZA\nNASCIMENTO\n14/03/1985"
+        })
+    };
+
+    private static JsonObject BuildResult() => new()
+    {
+        ["id"] = SampleId,
+        ["protocol"] = SampleProtocol,
+        ["status"] = "COMPLETED",
+        ["upload"] = new JsonObject
+        {
+            ["fileName"] = "cartao-cpf.png",
+            ["channel"] = "API",
+            ["uploadedAt"] = SampleInstant,
+            ["externalReference"] = "CLIENTE-123"
+        },
+        ["classification"] = new JsonObject
+        {
+            ["detectedType"] = "BR_CPF_CARD",
+            ["confidence"] = 1.0,
+            ["classifierVersion"] = "rules-1.0.0"
+        },
+        ["extraction"] = new JsonObject
+        {
+            ["ocrProvider"] = "paddleocr",
+            ["ocrModelVersion"] = SampleModelVersion,
+            ["extractorVersion"] = "br-cpf-card-1.0.0",
+            ["schemaVersion"] = 1,
+            ["overallConfidence"] = 0.9957,
+            ["extractedAt"] = SampleInstant,
+            ["fields"] = new JsonObject
+            {
+                ["cpf"] = BuildField("111.444.777-35", "11144477735", 1.0, "VALID", "CHECK_DIGIT_VALID"),
+                ["name"] = BuildField("MARIA APARECIDA DA SILVA SOUZA", "MARIA APARECIDA DA SILVA SOUZA", 0.9871, "VALID"),
+                ["birthDate"] = BuildField("14/03/1985", "1985-03-14", 1.0, "VALID", "DATE_VALID")
+            }
+        }
+    };
+
+    private static JsonObject BuildField(string raw, string normalized, double confidence, string status, params string[] messages)
+    {
+        var codes = new JsonArray();
+        foreach (var message in messages)
+        {
+            codes.Add(message);
+        }
+
+        return new JsonObject
+        {
+            ["raw"] = raw,
+            ["normalized"] = normalized,
+            ["confidence"] = confidence,
+            ["validationStatus"] = status,
+            ["validationMessages"] = codes,
+            ["evidence"] = new JsonObject
+            {
+                ["page"] = 1,
+                ["boundingBox"] = new JsonArray(110.0, 332.0, 470.0, 332.0, 470.0, 380.0, 110.0, 380.0)
+            }
+        };
+    }
+
     private static JsonObject BuildLinks() => new()
     {
         ["self"] = SampleBasePath,
         ["status"] = SampleBasePath + "/status",
         ["content"] = SampleBasePath + "/content",
-        ["download"] = SampleBasePath + "/content?download=true"
+        ["download"] = SampleBasePath + "/content?download=true",
+        ["text"] = SampleBasePath + "/text",
+        ["result"] = SampleBasePath + "/result",
+        ["reprocess"] = SampleBasePath + "/reprocess"
     };
 }

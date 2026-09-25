@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace DocReader.Application.Options;
 
 /// <summary>
-/// Ajustes do consumo da fila, conforme RF-007 e a ADR 0001.
+/// Ajustes do consumo da fila, conforme RF-007 e as ADRs 0001 e 0002.
 /// </summary>
 public sealed class ProcessingQueueOptions
 {
@@ -19,10 +19,13 @@ public sealed class ProcessingQueueOptions
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
 
     /// <summary>
-    /// Depois deste tempo com o job em RUNNING, considera-se que o worker morreu e o job volta para
-    /// PENDING. É o que impede que um reinício perca trabalho.
+    /// Tempo sem heartbeat depois do qual se considera que o worker morreu e o job volta para
+    /// PENDING. O worker renova a reserva a cada página lida, então isto mede o silêncio desde a
+    /// última página e nunca a duração total do documento: um job longo que segue avançando não é
+    /// pego por outro worker. Precisa ser maior que o tempo de uma única página
+    /// (<see cref="OcrProviderOptions.PageTimeout"/>).
     /// </summary>
-    public TimeSpan JobLockTimeout { get; set; } = TimeSpan.FromMinutes(10);
+    public TimeSpan JobLockTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Tentativas totais antes de declarar falha definitiva.</summary>
     [Range(1, 10)]
@@ -33,6 +36,9 @@ public sealed class ProcessingQueueOptions
 
     public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>Teto de tempo de processamento de um documento, do preparo à persistência.</summary>
-    public TimeSpan ProcessingTimeout { get; set; } = TimeSpan.FromMinutes(5);
+    /// <summary>
+    /// Teto absoluto de uma tentativa, do preparo à persistência. Não é o que detecta worker morto
+    /// (isso é o heartbeat): existe só para que um documento gigante não ocupe o worker para sempre.
+    /// </summary>
+    public TimeSpan ProcessingTimeout { get; set; } = TimeSpan.FromMinutes(60);
 }

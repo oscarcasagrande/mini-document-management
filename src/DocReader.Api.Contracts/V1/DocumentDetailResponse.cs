@@ -3,16 +3,17 @@ using DocReader.Domain.Documents;
 namespace DocReader.Api.Contracts.V1;
 
 /// <summary>
-/// Consolidated view of a document. Classification and extraction stay null until stages 3 and 2 of
-/// the execution plan are delivered; the original file is always available regardless.
+/// Consolidated view of a document. Classification and extraction stay null until the worker has
+/// produced them; the original file is always available regardless.
 /// </summary>
 /// <param name="Id">Identity of the document.</param>
 /// <param name="Protocol">Human readable protocol.</param>
 /// <param name="Status">Current status.</param>
 /// <param name="Upload">What was received.</param>
 /// <param name="Classification">Identified type, when the classifier already ran.</param>
-/// <param name="Extraction">Structured result, when the extractor already ran.</param>
+/// <param name="Extraction">Identity of the latest result, when the pipeline already produced one.</param>
 /// <param name="LastError">Last processing error, when any.</param>
+/// <param name="Processing">Progress of the asynchronous work, null when no job exists.</param>
 /// <param name="Timeline">Ordered processing events.</param>
 /// <param name="Links">Related endpoints.</param>
 public sealed record DocumentDetailResponse(
@@ -23,6 +24,7 @@ public sealed record DocumentDetailResponse(
     DocumentClassificationResponse? Classification,
     DocumentExtractionResponse? Extraction,
     DocumentErrorResponse? LastError,
+    DocumentProcessingResponse? Processing,
     IReadOnlyList<DocumentTimelineEntryResponse> Timeline,
     DocumentLinks Links);
 
@@ -53,9 +55,16 @@ public sealed record DocumentUploadResponse(
 public sealed record DocumentClassificationResponse(string DetectedType, decimal? Confidence);
 
 /// <param name="OcrProvider">Provider that produced the text.</param>
-/// <param name="SchemaVersion">Version of the schema used for the fields.</param>
+/// <param name="OcrModelVersion">Pipeline and library versions, for reproducibility.</param>
+/// <param name="SchemaVersion">Version of the schema used for the fields; null when the type has no extractor.</param>
 /// <param name="OverallConfidence">Aggregated confidence between 0 and 1.</param>
-public sealed record DocumentExtractionResponse(string OcrProvider, int SchemaVersion, decimal? OverallConfidence);
+/// <param name="ExtractedAt">Instant the result was persisted, in UTC.</param>
+public sealed record DocumentExtractionResponse(
+    string OcrProvider,
+    string OcrModelVersion,
+    int? SchemaVersion,
+    decimal? OverallConfidence,
+    DateTimeOffset ExtractedAt);
 
 /// <param name="Code">Stable machine readable code.</param>
 /// <param name="Message">Short operator facing description, never document content.</param>

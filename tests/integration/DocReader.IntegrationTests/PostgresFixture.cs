@@ -62,10 +62,29 @@ public sealed class PostgresFixture : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Empties every table. The tests of a collection share one database and run one after the other,
+    /// so each starts from nothing instead of inheriting jobs another test left behind.
+    /// </summary>
+    public async Task ResetAsync()
+    {
+        if (ConnectionString is null)
+        {
+            return;
+        }
+
+        await using var context = CreateContext();
+        await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE documents CASCADE;");
+    }
+
     public DocReaderDbContext CreateContext()
     {
+        // Same retrying strategy as production: without it the tests would accept code that opens a
+        // transaction outside strategy.ExecuteAsync, which then fails only when it runs for real.
         var options = new DbContextOptionsBuilder<DocReaderDbContext>()
-            .UseNpgsql(ConnectionString ?? throw new InvalidOperationException("Sem banco de teste."))
+            .UseNpgsql(
+                ConnectionString ?? throw new InvalidOperationException("Sem banco de teste."),
+                npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(1), null))
             .Options;
 
         return new DocReaderDbContext(options);

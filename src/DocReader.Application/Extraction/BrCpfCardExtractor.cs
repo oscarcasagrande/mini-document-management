@@ -18,6 +18,13 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
 {
     public const string TypeName = "BR_CPF_CARD";
 
+    public const string ExtractorVersion = "br-cpf-card-1.0.0";
+
+    public const string CheckDigitValid = "CHECK_DIGIT_VALID";
+    public const string CheckDigitInvalid = "CHECK_DIGIT_INVALID";
+    public const string DateValid = "DATE_VALID";
+    public const string NoLabelNearby = "NO_LABEL_NEARBY";
+
     /// <summary>Quanto a confiança cai quando o valor foi achado sem o rótulo ao lado.</summary>
     private const decimal FallbackConfidencePenalty = 0.30m;
 
@@ -27,6 +34,13 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
     private static readonly string[] CpfLabels = ["NUMERO DE INSCRICAO", "N DE INSCRICAO", "INSCRICAO", "CPF"];
     private static readonly string[] NameLabels = ["NOME"];
     private static readonly string[] BirthLabels = ["NASCIMENTO", "DATA DE NASCIMENTO"];
+
+    /// <summary>
+    /// Marcadores de linhas cuja data não é a de nascimento. No cartão, "INSCRICAO EM 02/09/2003"
+    /// fica entre o rótulo NASCIMENTO e o valor, e o PP-OCRv5 pode devolvê-la antes do valor: sem
+    /// este filtro a data de inscrição seria lida como nascimento.
+    /// </summary>
+    private static readonly string[] NonBirthDateMarkers = ["INSCRICAO EM", "DATA DE INSCRICAO", "EMITIDO EM", "EMISSAO"];
 
     /// <summary>
     /// Cabeçalhos do cartão que não são nome de pessoa. Sem esta lista, a busca por fallback pegaria
@@ -48,6 +62,8 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
     public string DocumentType => TypeName;
 
     public int SchemaVersion => 1;
+
+    public string Version => ExtractorVersion;
 
     public Task<StructuredExtraction> ExtractAsync(OcrResult result, CancellationToken ct)
     {
@@ -84,7 +100,7 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
             {
                 if (Cpf.TryNormalize(match.Value, out var normalized) && Cpf.IsValid(normalized))
                 {
-                    return Found(match.Value, normalized, line, penalty, FieldValidationStatus.Valid);
+                    return Found(match.Value, normalized, line, penalty, FieldValidationStatus.Valid, CheckDigitValid);
                 }
             }
         }
@@ -96,19 +112,30 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
             {
                 if (Cpf.TryNormalize(match.Value, out var normalized) && Cpf.IsValid(normalized))
                 {
-                    return Found(match.Value, normalized, line, FallbackConfidencePenalty, FieldValidationStatus.Valid);
+                    return Found(match.Value, normalized, line, FallbackConfidencePenalty, FieldValidationStatus.Valid, CheckDigitValid);
                 }
             }
         }
 
         // Preferência 3: algo com cara de CPF mas que não passa no dígito verificador. Reportar como
         // INVALID é mais útil do que reportar NOT_FOUND: diz que leu e reprovou, não que não achou.
+        // A penalidade é a mesma nos dois casos, mas o aviso de rótulo ausente só vale quando o valor
+        // realmente não estava perto de um rótulo.
+        foreach (var (line, distancePenalty) in CandidatesNear(lines, CpfLabels))
+        {
+            var match = CpfPattern().Match(line.Text);
+            if (match.Success && Cpf.TryNormalize(match.Value, out _))
+            {
+                return Build(match.Value, null, line, FallbackConfidencePenalty + distancePenalty, FieldValidationStatus.Invalid, [CheckDigitInvalid]);
+            }
+        }
+
         foreach (var line in lines)
         {
             var match = CpfPattern().Match(line.Text);
-            if (match.Success && Cpf.TryNormalize(match.Value, out var normalized))
+            if (match.Success && Cpf.TryNormalize(match.Value, out _))
             {
-                return Found(match.Value, null, line, FallbackConfidencePenalty, FieldValidationStatus.Invalid);
+                return Found(match.Value, null, line, FallbackConfidencePenalty, FieldValidationStatus.Invalid, CheckDigitInvalid);
             }
         }
 
@@ -146,12 +173,17 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
     {
         foreach (var (line, penalty) in CandidatesNear(lines, BirthLabels))
         {
+            if (IsNonBirthDateLine(line))
+            {
+                continue;
+            }
+
             foreach (Match match in DatePattern().Matches(line.Text))
             {
                 if (BrazilianDate.TryParse(match.Value, out var parsed) &&
                     BrazilianDate.IsPlausibleBirthDate(parsed, today))
                 {
-                    return Found(match.Value, BrazilianDate.ToIso(parsed), line, penalty, FieldValidationStatus.Valid);
+                    return Found(match.Value, BrazilianDate.ToIso(parsed), line, penalty, FieldValidationStatus.Valid, DateValid);
                 }
             }
         }
@@ -159,6 +191,7 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
         // Fallback: a data plausível mais antiga do documento. Num cartão de CPF convivem a data de
         // nascimento e a data de inscrição, e a de nascimento é sempre a anterior.
         var candidates = lines
+            .Where(line => !IsNonBirthDateLine(line))
             .SelectMany(line => DatePattern().Matches(line.Text).Select(match => (Line: line, Match: match)))
             .Select(entry => (entry.Line, entry.Match, Parsed: BrazilianDate.TryParse(entry.Match.Value, out var parsed) ? parsed : (DateOnly?)null))
             .Where(entry => entry.Parsed is not null && BrazilianDate.IsPlausibleBirthDate(entry.Parsed.Value, today))
@@ -221,6 +254,9 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
         return remainder.Length > 0 ? remainder : text;
     }
 
+    private static bool IsNonBirthDateLine(OcrTextLine line) =>
+        NonBirthDateMarkers.Any(marker => line.Normalized.Contains(marker, StringComparison.Ordinal));
+
     private static bool IsHeader(string normalized) =>
         HeaderLines.Any(header => normalized.Contains(header, StringComparison.Ordinal) || header.Contains(normalized, StringComparison.Ordinal));
 
@@ -229,7 +265,22 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
         string? normalized,
         OcrTextLine line,
         decimal penalty,
-        FieldValidationStatus status)
+        FieldValidationStatus status,
+        params string[] messages)
+    {
+        // Uma penalidade de fallback significa que o valor foi achado sem o rótulo ao lado.
+        string[] reasons = penalty >= FallbackConfidencePenalty ? [.. messages, NoLabelNearby] : messages;
+
+        return Build(raw, normalized, line, penalty, status, reasons);
+    }
+
+    private static ExtractedFieldValue Build(
+        string raw,
+        string? normalized,
+        OcrTextLine line,
+        decimal penalty,
+        FieldValidationStatus status,
+        string[] reasons)
     {
         var baseConfidence = line.Confidence ?? 0.80m;
         var confidence = Math.Clamp(baseConfidence - penalty, 0.01m, 1.00m);
@@ -240,7 +291,8 @@ public sealed partial class BrCpfCardExtractor(TimeProvider timeProvider) : IDoc
             Math.Round(confidence, 4),
             EnumNaming.ToUpperSnakeCase(status),
             line.PageNumber,
-            line.BoundingBox);
+            line.BoundingBox,
+            reasons);
     }
 
     private static ExtractedFieldValue NotFound() =>

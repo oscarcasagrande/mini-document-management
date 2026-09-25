@@ -13,29 +13,33 @@ Plano de execução em etapas (PRD §26).
 **Etapa 1 — concluída e aprovada.** Compose completo, upload pela API, persistência, lista,
 visualização/download e Swagger.
 
-**Etapa atual: 2 — OCR ponta a ponta.** Em andamento:
+**Etapa 2 — OCR ponta a ponta: implementada, com aceite via `docker compose` executado.** Aguarda
+aprovação. Decisão de engine e números em `docs/adr/0002-*.md`; evidência em `docs/bench/`.
 
-- fila implementada em `PostgresProcessingQueue` com `FOR UPDATE SKIP LOCKED` (ADR 0001);
-- validação de CPF e de data brasileira no domínio;
-- extrator `BR_CPF_CARD` (número, nome, nascimento) sobre linhas de OCR;
-- benchmark de engine em `docs/bench/`.
+- `ocr-service` real (FastAPI + PaddleOCR PP-OCRv5 mobile, `paddlepaddle` 3.2.2 com oneDNN),
+  `POST /v1/ocr/page` uma página por chamada, concorrência 1, limite de 3 GiB;
+- `IDocumentOcrProvider` (`PaddleOcrServiceProvider`) e laço de consumo no worker;
+- fila em `PostgresProcessingQueue` (`FOR UPDATE SKIP LOCKED`, ADR 0001) com heartbeat por página
+  (`locked_at`), fencing por tentativa, retry com backoff (3 tentativas) e um job vivo por documento;
+- classificador por regras (`rules-1.0.0`) e extrator `BR_CPF_CARD` (cpf, name, birthDate) com
+  `validationStatus` e códigos (`CHECK_DIGIT_VALID`, `CHECK_DIGIT_INVALID`, `DATE_VALID`,
+  `NO_LABEL_NEARBY`);
+- `extractions` e `extracted_fields` (migration `AddOcrResults`), endpoints `/text`, `/result` e
+  `/reprocess`, UI com campos, texto bruto e progresso.
 
-Pendente, e **bloqueado até a escolha de engine ser aprovada**: `ocr-service` real, provedor
-`IDocumentOcrProvider`, laço de consumo no worker, classificador, persistência de `extractions` e
-`extracted_fields`, endpoints `/text` e `/result`.
-
-O worker **não consome a fila ainda**: ligar o laço antes do provedor de OCR marcaria documentos
-como processados sem processá-los. Ele publica a profundidade da fila nos logs enquanto isso.
+**Pendência obrigatória antes da Etapa 3:** página A4 leva 23–47 s no OCR e o requisito é 5 páginas
+em 90 s (~18 s/página). As hipóteses a medir estão no ADR 0002. Também fora da Etapa 2: PDF com
+camada de texto nativa (RF-009), orientação/deskew, PP-StructureV3 e `/document-types`.
 
 ## Estrutura do repositório
 
 ```text
 /apps
   /api              DocReader.Api — ASP.NET Core (net10.0), controllers + Swagger
-  /worker           DocReader.Worker — Worker Service; stub com /health na Etapa 1
+  /worker           DocReader.Worker — Worker Service; consome a fila e chama o ocr-service
   /web-bff          Next.js (App Router) + TypeScript; UI e BFF
 /services
-  /ocr-service      FastAPI; stub com /health na Etapa 1
+  /ocr-service      FastAPI + PaddleOCR; POST /v1/ocr/page, /health (readiness) e /health/live
 /src
   /DocReader.Domain          entidades, enums, protocolo, regras puras; sem dependências
   /DocReader.Application     casos de uso e contratos (IFileStorage, IProcessingQueue, ...)
@@ -113,9 +117,9 @@ Com migrations pendentes e a flag desligada, `/health/ready` reprova.
 
 ```bash
 bash scripts/dotnet.sh ef migrations add <Nome> \
-  --project src/DocReader.Infrastructure --startup-project apps/api
+  --project src/DocReader.Infrastructure --startup-project src/DocReader.Infrastructure
 bash scripts/dotnet.sh ef database update \
-  --project src/DocReader.Infrastructure --startup-project apps/api
+  --project src/DocReader.Infrastructure --startup-project src/DocReader.Infrastructure
 ```
 
 ### web-bff

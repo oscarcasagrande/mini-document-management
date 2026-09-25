@@ -1,7 +1,7 @@
 namespace DocReader.Application.Abstractions;
 
 /// <summary>
-/// Normalized OCR output. Reserved for stage 2 of the execution plan.
+/// Normalized OCR output.
 /// </summary>
 /// <param name="ProviderName">Provider that produced the result.</param>
 /// <param name="ModelVersion">Model or pipeline version, recorded for reproducibility.</param>

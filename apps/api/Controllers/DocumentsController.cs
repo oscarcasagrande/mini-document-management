@@ -23,8 +23,10 @@ public sealed class DocumentsController(
     DocumentUploadService uploadService,
     DocumentQueryService queryService,
     DocumentDeletionService deletionService,
+    DocumentReprocessingService reprocessingService,
     IOptions<PagingOptions> pagingOptions,
-    IOptions<UploadOptions> uploadOptions) : ControllerBase
+    IOptions<UploadOptions> uploadOptions,
+    IOptions<ProcessingQueueOptions> queueOptions) : ControllerBase
 {
     /// <summary>
     /// Receives a document and queues it for processing.
@@ -158,9 +160,9 @@ public sealed class DocumentsController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     public async Task<ActionResult<DocumentDetailResponse>> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        var document = await queryService.GetByIdAsync(id, includeEvents: true, ct);
+        var snapshot = await queryService.GetSnapshotAsync(id, includeEvents: true, ct);
 
-        return Ok(DocumentResponseMapper.ToDetail(document));
+        return Ok(DocumentResponseMapper.ToDetail(snapshot, queueOptions.Value.MaxAttempts));
     }
 
     /// <summary>
@@ -177,9 +179,10 @@ public sealed class DocumentsController(
         string protocol,
         CancellationToken ct)
     {
-        var document = await queryService.GetByProtocolAsync(protocol, includeEvents: true, ct);
+        var document = await queryService.GetByProtocolAsync(protocol, includeEvents: false, ct);
+        var snapshot = await queryService.GetSnapshotAsync(document.Id, includeEvents: true, ct);
 
-        return Ok(DocumentResponseMapper.ToDetail(document));
+        return Ok(DocumentResponseMapper.ToDetail(snapshot, queueOptions.Value.MaxAttempts));
     }
 
     /// <summary>
@@ -194,9 +197,9 @@ public sealed class DocumentsController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     public async Task<ActionResult<DocumentStatusResponse>> GetStatusAsync(Guid id, CancellationToken ct)
     {
-        var document = await queryService.GetByIdAsync(id, includeEvents: false, ct);
+        var snapshot = await queryService.GetSnapshotAsync(id, includeEvents: false, ct);
 
-        return Ok(DocumentResponseMapper.ToStatus(document));
+        return Ok(DocumentResponseMapper.ToStatus(snapshot, queueOptions.Value.MaxAttempts));
     }
 
     /// <summary>
@@ -237,6 +240,91 @@ public sealed class DocumentsController(
             lastModified: null,
             entityTag,
             enableRangeProcessing: true);
+    }
+
+    /// <summary>
+    /// Returns the raw text the OCR read, page by page.
+    /// </summary>
+    /// <remarks>
+    /// The text is exactly what the OCR produced, in reading order, with nothing corrected or
+    /// interpreted. It belongs to the latest extraction: while a reprocessing runs, the previous text
+    /// stays available and <c>status</c> tells what is happening now. Answers 409 while there is
+    /// nothing to return yet, or when every attempt failed.
+    /// </remarks>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="200">Text of the latest extraction.</response>
+    /// <response code="404">No document with this id.</response>
+    /// <response code="409">The document has no result yet, or its processing failed.</response>
+    [HttpGet("{id:guid}/text")]
+    [ProducesResponseType(typeof(DocumentTextResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
+    public async Task<ActionResult<DocumentTextResponse>> GetTextAsync(Guid id, CancellationToken ct)
+    {
+        var text = await queryService.GetTextAsync(id, ct);
+
+        return Ok(DocumentResponseMapper.ToText(text));
+    }
+
+    /// <summary>
+    /// Returns the canonical structured result.
+    /// </summary>
+    /// <remarks>
+    /// Each field carries the value as read (<c>raw</c>), the normalized value, a confidence between
+    /// 0 and 1, a validation status (<c>VALID</c>, <c>INVALID</c>, <c>NOT_FOUND</c> or
+    /// <c>UNCERTAIN</c>) with machine readable messages such as <c>CHECK_DIGIT_VALID</c>, and the
+    /// evidence (page and bounding box in pixels of the analysed page image). A field that was not
+    /// found is null, never invented. Answers 409 while there is nothing to return yet, or when
+    /// every attempt failed.
+    /// </remarks>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="200">Result of the latest extraction.</response>
+    /// <response code="404">No document with this id.</response>
+    /// <response code="409">The document has no result yet, or its processing failed.</response>
+    [HttpGet("{id:guid}/result")]
+    [ProducesResponseType(typeof(DocumentResultResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
+    public async Task<ActionResult<DocumentResultResponse>> GetResultAsync(Guid id, CancellationToken ct)
+    {
+        var result = await queryService.GetResultAsync(id, ct);
+
+        return Ok(DocumentResponseMapper.ToResult(result));
+    }
+
+    /// <summary>
+    /// Runs the pipeline again on a document that is already stored.
+    /// </summary>
+    /// <remarks>
+    /// Creates a new processing attempt and a new extraction; previous results are kept. The original
+    /// file is never touched. A document that is already queued or being processed answers 409, so
+    /// the same document is never processed twice at once.
+    /// </remarks>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="202">Queued again. Poll <c>statusUrl</c> to follow it.</response>
+    /// <response code="404">No document with this id.</response>
+    /// <response code="409">The document is already queued or being processed.</response>
+    [HttpPost("{id:guid}/reprocess")]
+    [ProducesResponseType(typeof(UploadAcceptedResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
+    public async Task<IActionResult> ReprocessAsync(Guid id, CancellationToken ct)
+    {
+        var document = await reprocessingService.ReprocessAsync(id, ct);
+        var links = DocumentResponseMapper.LinksFor(document.Id);
+
+        var response = new UploadAcceptedResponse(
+            document.Id,
+            document.Protocol,
+            document.Status,
+            links.Status,
+            links.Self,
+            links.Content);
+
+        return Accepted(links.Self, response);
     }
 
     /// <summary>

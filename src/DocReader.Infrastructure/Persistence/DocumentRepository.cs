@@ -1,6 +1,7 @@
 using DocReader.Application.Abstractions;
 using DocReader.Application.Documents;
 using DocReader.Domain.Documents;
+using DocReader.Domain.Extractions;
 using DocReader.Domain.Idempotency;
 using DocReader.Domain.Processing;
 using Microsoft.EntityFrameworkCore;
@@ -103,6 +104,113 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
         return new PagedResult<Document>(items, filter.Page, filter.PageSize, totalCount);
     }
 
+    public Task<ProcessingJob?> FindLatestJobAsync(Guid documentId, CancellationToken ct) =>
+        dbContext.ProcessingJobs
+            .AsNoTracking()
+            .Where(job => job.DocumentId == documentId)
+            .OrderByDescending(job => job.CreatedAt)
+            .ThenByDescending(job => job.Id)
+            .FirstOrDefaultAsync(ct);
+
+    public Task<ExtractionSummary?> FindLatestExtractionSummaryAsync(Guid documentId, CancellationToken ct) =>
+        SummariesOf(documentId).FirstOrDefaultAsync(ct);
+
+    public async Task<ExtractionResultView?> FindLatestExtractionResultAsync(Guid documentId, CancellationToken ct)
+    {
+        var summary = await SummariesOf(documentId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        if (summary is null)
+        {
+            return null;
+        }
+
+        // Projected on purpose: the entity would also load the raw OCR payload of every field's parent.
+        var fields = await dbContext.ExtractedFields
+            .AsNoTracking()
+            .Where(field => field.ExtractionId == summary.ExtractionId)
+            .OrderBy(field => field.FieldPath)
+            .Select(field => new ExtractedFieldView(
+                field.FieldPath,
+                field.RawValue,
+                field.NormalizedValue,
+                field.Confidence,
+                field.PageNumber,
+                field.BoundingBoxJson,
+                field.ValidationStatus,
+                field.ValidationMessagesJson))
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return new ExtractionResultView(summary, fields);
+    }
+
+    public async Task<ExtractionTextView?> FindLatestExtractionTextAsync(Guid documentId, CancellationToken ct)
+    {
+        var summary = await SummariesOf(documentId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        if (summary is null)
+        {
+            return null;
+        }
+
+        var pageTexts = await dbContext.Extractions
+            .AsNoTracking()
+            .Where(extraction => extraction.Id == summary.ExtractionId)
+            .Select(extraction => extraction.PageTextsJson)
+            .FirstAsync(ct)
+            .ConfigureAwait(false);
+
+        return new ExtractionTextView(summary, pageTexts);
+    }
+
+    public async Task<ReprocessOutcome> QueueReprocessingAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
+    {
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async cancellationToken =>
+        {
+            dbContext.ChangeTracker.Clear();
+
+            await using var transaction = await dbContext.Database
+                .BeginTransactionAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            // Serializes concurrent requests for the same document: the second one waits here and then
+            // sees the job the first one created.
+            var locked = await dbContext.Database
+                .SqlQuery<Guid>($"SELECT id AS \"Value\" FROM documents WHERE id = {documentId} FOR UPDATE")
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (locked.Count == 0)
+            {
+                return ReprocessOutcome.NotFound;
+            }
+
+            var hasActiveJob = await dbContext.ProcessingJobs
+                .AnyAsync(
+                    job => job.DocumentId == documentId &&
+                           (job.Status == ProcessingJobStatus.Pending || job.Status == ProcessingJobStatus.Running),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            var document = await dbContext.Documents
+                .FirstAsync(candidate => candidate.Id == documentId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (hasActiveJob || document.Status is not (DocumentStatus.Stored or DocumentStatus.Failed or DocumentStatus.Completed))
+            {
+                return ReprocessOutcome.Conflict;
+            }
+
+            document.MarkQueued(now, "REPROCESS_REQUESTED");
+            dbContext.ProcessingJobs.Add(ProcessingJob.CreateForDocument(documentId, now));
+
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+            return ReprocessOutcome.Queued;
+        }, ct).ConfigureAwait(false);
+    }
+
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct)
     {
         // Events, jobs and idempotency keys are removed by the cascading foreign keys.
@@ -113,6 +221,21 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
 
         return affected > 0;
     }
+
+    private IQueryable<ExtractionSummary> SummariesOf(Guid documentId) =>
+        dbContext.Extractions
+            .AsNoTracking()
+            .Where(extraction => extraction.DocumentId == documentId)
+            .OrderByDescending(extraction => extraction.CreatedAt)
+            .Select(extraction => new ExtractionSummary(
+                extraction.Id,
+                extraction.OcrProvider,
+                extraction.OcrModelVersion,
+                extraction.ClassifierVersion,
+                extraction.ExtractorVersion,
+                extraction.SchemaVersion,
+                extraction.OverallConfidence,
+                extraction.CreatedAt));
 
     private IQueryable<Document> BaseQuery(bool includeEvents)
     {

@@ -61,8 +61,10 @@ A variável de ambiente `FLAGS_use_mkldnn=false` resolve e tem precedência sobr
 `enable_mkldnn` da pipeline — com a variável em `true`, passar `enable_mkldnn=False` não adianta.
 Desligar o PIR (`FLAGS_enable_pir_api=0`) não destrava.
 
-Isso tem custo: oneDNN é justamente a biblioteca de aceleração em CPU. Os números medidos aqui são,
-portanto, o **pior caso**; uma build com oneDNN funcionando seria mais rápida.
+Isso tem custo: oneDNN é justamente a biblioteca de aceleração em CPU. Os números da rodada final
+acima são, portanto, o **pior caso**. O experimento da seção seguinte mostrou que a `paddlepaddle`
+**3.2.2** roda com oneDNN; é a versão adotada no `ocr-service` (ADR 0002), com `OCR_ENABLE_MKLDNN=false`
+para reverter.
 
 ### `paddlex[ocr]` é obrigatório para o PP-StructureV3
 
@@ -97,21 +99,40 @@ parada, oneDNN desligado (ver achados acima). `--repeat 2`, aquecimento descarta
 
 ### PP-OCRv5 — detecção mobile, reconhecimento `latin_PP-OCRv5_mobile_rec`
 
-Carga de modelo **4,4 s**. Pico de RSS **2,09 GB**. Completou as 6 amostras.
+Rodada final (`ocr-benchmark-v5-mobile.json`, `paddlepaddle` 3.3.1, oneDNN desligado). Carga de modelo
+**6,2 s**. Pico de RSS **2,09 GB**. Completou as 6 amostras. A coluna "Máx" é a maior das duas
+medições (com `--repeat 2` não há p95 que se sustente).
 
-| Amostra | MP | Mediana | p95 | ms/MP | Blocos | Chars | Tabelas |
+| Amostra | MP | Mediana | Máx | ms/MP | Blocos | Chars | Tabelas |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `cpf-card-limpo.png` | 0,77 | 11,3 s | 11,8 s | 14.612 | 12 | 252 | 0 |
-| `cpf-card-escaneado.png` | 0,81 | 7,2 s | 7,4 s | 8.826 | 12 | 252 | 0 |
-| `pagina-tabela.png` | 3,87 | 25,6 s | 25,9 s | 6.629 | 62 | 667 | 0 |
-| `pagina-texto-densa.png` | 3,87 | 40,8 s | 40,8 s | 10.545 | 36 | 2.093 | 0 |
-| `pagina-tabela-escaneada.png` | 3,96 | 26,2 s | 26,3 s | 6.619 | 63 | 668 | 0 |
-| `pagina-texto-densa-escaneada.png` | 3,99 | 43,5 s | 48,7 s | 10.904 | 33 | 2.089 | 0 |
+| `cpf-card-limpo.png` | 0,77 | 8,6 s | 8,9 s | 11.199 | 12 | 252 | 0 |
+| `cpf-card-escaneado.png` | 0,81 | 6,9 s | 7,2 s | 8.425 | 12 | 252 | 0 |
+| `pagina-tabela.png` | 3,87 | 27,8 s | 28,3 s | 7.184 | 62 | 667 | 0 |
+| `pagina-texto-densa.png` | 3,87 | 40,9 s | 41,0 s | 10.573 | 36 | 2.093 | 0 |
+| `pagina-tabela-escaneada.png` | 3,96 | 26,1 s | 26,1 s | 6.579 | 63 | 668 | 0 |
+| `pagina-texto-densa-escaneada.png` | 3,99 | 39,0 s | 39,2 s | 9.766 | 33 | 2.089 | 0 |
 
-Total das 6 amostras: 154,6 s para 17,27 MP, **8.951 ms/MP ponderado**. Média por página A4: **34,0 s**.
+Total das 6 amostras: 149,2 s para 17,27 MP, **8.638 ms/MP ponderado**. CPF, nome e nascimento dos
+dois cartões, e os totais e CNPJ das páginas, saíram exatos (campo `expected` do JSON).
 
-O p95 colado na mediana mostra que, dentro de uma mesma execução, a medição é estável. A variância
-relevante é **entre** execuções: a mesma amostra deu 8,0 s e 11,3 s em execuções diferentes, ~40%.
+Medida à parte, a mesma amostra varia entre execuções: na primeira rodada, o cartão limpo deu 8,0 s e
+11,3 s em execuções diferentes (~40%). Números desta tabela servem para ordem de grandeza, não para
+comparar 10%.
+
+### Com oneDNN (`paddlepaddle` 3.2.2)
+
+Experimento de `scripts/ocr_onednn_experiment.sh`; a 3.3.1 falha com oneDNN (achado abaixo), a 3.2.2 roda
+e devolve texto e confiança idênticos. Controle = 3.2.2 com oneDNN desligado.
+
+| Amostra | Sem oneDNN | Com oneDNN | Ganho |
+|---|---:|---:|---:|
+| `cpf-card-limpo.png` | 8,5 s | 5,6 s | 34% |
+| `cpf-card-escaneado.png` | 6,9 s | 4,9 s | 29% |
+| `pagina-tabela.png` | 29,5 s | 22,7 s | 23% |
+| `pagina-texto-densa.png` | 47,2 s | 31,0 s | 34% |
+
+Pico de RSS 2,07 → 2,28 GB. Uma rodada exploratória anterior deu 18,1 s na página com tabela; a
+tabela acima usa a rodada registrada em `ocr-onednn-pp3.2.2-mkldnn-true.json`.
 
 ### PP-OCRv5 — detecção server (padrão de `lang="pt"`)
 

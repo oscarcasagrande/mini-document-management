@@ -1,5 +1,13 @@
-# Stage 1 keeps the image small: only the web stack is installed. PaddleOCR and its vision
-# dependencies arrive with stage 2 of the execution plan.
+# Runtime dependencies of the OCR service. PaddleOCR pulls numpy, opencv, pillow and the PaddleX
+# runtime with it; the pins below are the versions measured in docs/bench and approved in ADR 0002.
+#
+# paddlepaddle is 3.2.2, not the newer 3.3.1: the 3.3.1 CPU build fails every inference when oneDNN is
+# on, and 3.2.2 runs with oneDNN and returns the same text and confidences, 23-34% faster.
 fastapi==0.141.1
 uvicorn[standard]==0.53.0
 pydantic==2.13.5
+python-multipart==0.0.20
+pypdfium2==5.13.0
+paddlepaddle==3.2.2
+paddleocr==3.7.0
+paddlex[ocr-core]==3.7.2

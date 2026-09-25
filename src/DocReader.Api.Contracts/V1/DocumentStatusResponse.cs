@@ -12,7 +12,8 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="ClassificationConfidence">Confidence between 0 and 1, when available.</param>
 /// <param name="UploadedAt">Upload instant in UTC.</param>
 /// <param name="CompletedAt">Instant processing finished, in UTC.</param>
-/// <param name="LastError">Last processing error, when any.</param>
+/// <param name="LastError">Last processing error, when any. While a retry is scheduled it explains why.</param>
+/// <param name="Processing">Progress of the asynchronous work, null when no job exists.</param>
 public sealed record DocumentStatusResponse(
     Guid Id,
     string Protocol,
@@ -21,4 +22,5 @@ public sealed record DocumentStatusResponse(
     decimal? ClassificationConfidence,
     DateTimeOffset UploadedAt,
     DateTimeOffset? CompletedAt,
-    DocumentErrorResponse? LastError);
+    DocumentErrorResponse? LastError,
+    DocumentProcessingResponse? Processing);

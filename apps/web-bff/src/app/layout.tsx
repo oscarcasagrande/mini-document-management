@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <header className="top-bar">
           <div className="top-bar__inner">
             <Link href="/" className="brand">
-              DocReader<span>PoC local · Etapa 1</span>
+              DocReader<span>PoC local · Etapa 2</span>
             </Link>
             <nav className="nav">
               <Link href="/">Enviar</Link>

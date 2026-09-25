@@ -1,0 +1,4 @@
+# Test dependencies. The tests use a fake engine, so PaddleOCR itself is not needed to run them:
+#   pip install fastapi "uvicorn[standard]" pydantic python-multipart pypdfium2 pillow numpy -r requirements-dev.txt
+pytest==8.4.2
+httpx==0.28.1

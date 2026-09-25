@@ -12,8 +12,11 @@ public sealed class DocumentEventConfiguration : IEntityTypeConfiguration<Docume
 
         builder.HasKey(documentEvent => documentEvent.Id);
 
+        // The domain assigns the key. Without this EF treats an event added to a tracked document as an
+        // existing row and issues an UPDATE instead of an INSERT.
         builder.Property(documentEvent => documentEvent.Id)
-            .HasColumnName("id");
+            .HasColumnName("id")
+            .ValueGeneratedNever();
 
         builder.Property(documentEvent => documentEvent.DocumentId)
             .HasColumnName("document_id")

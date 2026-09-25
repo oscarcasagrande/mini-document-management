@@ -1,5 +1,7 @@
 using DocReader.Api.Http;
 using DocReader.Application.Errors;
+using DocReader.Domain;
+using DocReader.Domain.Documents;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -95,6 +97,22 @@ public sealed class ApiExceptionHandler(
             ProblemTypes.NotFound,
             "DOCUMENT_NOT_FOUND",
             "No document matches the requested identifier."),
+
+        ResultNotReadyException notReady => new ErrorDescriptor(
+            StatusCodes.Status409Conflict,
+            "Result not available",
+            ProblemTypes.Conflict,
+            "RESULT_NOT_READY",
+            notReady.Status is DocumentStatus.Failed
+                ? "Processing failed and there is no earlier result to return. Check lastError on the document and reprocess it."
+                : $"The document is {EnumNaming.ToUpperSnakeCase(notReady.Status)} and has no result yet. Poll the status endpoint and try again when it is COMPLETED."),
+
+        ReprocessConflictException => new ErrorDescriptor(
+            StatusCodes.Status409Conflict,
+            "Document already being processed",
+            ProblemTypes.Conflict,
+            "REPROCESS_CONFLICT",
+            "The document is queued or being processed, or it was rejected. Wait for it to finish before reprocessing."),
 
         DocumentContentMissingException => new ErrorDescriptor(
             StatusCodes.Status410Gone,

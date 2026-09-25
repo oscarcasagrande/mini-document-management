@@ -4,7 +4,7 @@
 #
 #   bash scripts/dotnet.sh build DocReader.slnx
 #   bash scripts/dotnet.sh test tests/unit/DocReader.UnitTests
-#   bash scripts/dotnet.sh ef migrations add Name --project src/DocReader.Infrastructure --startup-project apps/api
+#   bash scripts/dotnet.sh ef migrations add Name --project src/DocReader.Infrastructure --startup-project src/DocReader.Infrastructure
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

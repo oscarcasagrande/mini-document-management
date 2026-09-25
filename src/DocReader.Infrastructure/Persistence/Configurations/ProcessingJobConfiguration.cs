@@ -51,6 +51,14 @@ public sealed class ProcessingJobConfiguration : IEntityTypeConfiguration<Proces
             .HasColumnName("locked_by")
             .HasMaxLength(128);
 
+        builder.Property(job => job.PagesCompleted)
+            .HasColumnName("pages_completed")
+            .HasDefaultValue(0)
+            .IsRequired();
+
+        builder.Property(job => job.PageCount)
+            .HasColumnName("page_count");
+
         builder.Property(job => job.StartedAt)
             .HasColumnName("started_at");
 
@@ -79,5 +87,12 @@ public sealed class ProcessingJobConfiguration : IEntityTypeConfiguration<Proces
 
         builder.HasIndex(job => job.DocumentId)
             .HasDatabaseName("ix_processing_jobs_document_id");
+
+        // RF-013: never two jobs alive for the same document. The reprocessing path checks first,
+        // and this index is what makes the rule hold even against a race.
+        builder.HasIndex(job => job.DocumentId)
+            .IsUnique()
+            .HasFilter("status IN ('PENDING', 'RUNNING')")
+            .HasDatabaseName("ux_processing_jobs_document_id_active");
     }
 }

@@ -1,9 +1,12 @@
 using DocReader.Application.Abstractions;
+using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Extraction;
 using DocReader.Application.Options;
+using DocReader.Application.Processing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DocReader.Application;
 
@@ -48,6 +51,28 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<DocumentUploadService>();
         services.AddScoped<DocumentQueryService>();
         services.AddScoped<DocumentDeletionService>();
+        services.AddScoped<DocumentReprocessingService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// What only the worker needs: the pipeline, the classifier and the option checks that keep
+    /// healthy workers from taking each other's jobs.
+    /// </summary>
+    public static IServiceCollection AddDocReaderProcessing(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<OcrProviderOptions>()
+            .Bind(configuration.GetSection(OcrProviderOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<ProcessingQueueOptions>, ProcessingOptionsValidator>();
+
+        services.AddSingleton<IDocumentClassifier, RulesDocumentClassifier>();
+        services.AddScoped<DocumentProcessor>();
 
         return services;
     }

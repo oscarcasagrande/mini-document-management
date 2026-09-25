@@ -1,14 +1,25 @@
 # Build context is the repository root:
 #   docker build -f deploy/docker/Dockerfile.ocr-service .
 #
-# Stage 1 keeps this image small: only FastAPI and uvicorn. PaddleOCR with PP-StructureV3 and the model
-# cache arrive with stage 2 of the execution plan.
+# Stage 2: PaddleOCR with the PP-OCRv5 pipeline approved in ADR 0002 (mobile detector, Latin
+# recognizer), CPU only. PP-StructureV3 is deliberately not installed: it stays out of stage 2 and
+# would add gigabytes and an out-of-memory risk. The models are downloaded once, at build time, and
+# baked into the image, so the container starts offline and the first request never waits for a
+# download.
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    OCR_MODEL_CACHE_DIR=/var/lib/docreader/ocr-models
+    OCR_MODEL_CACHE_DIR=/var/lib/docreader/ocr-models \
+    PADDLE_PDX_CACHE_HOME=/var/lib/docreader/ocr-models \
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True \
+    OMP_NUM_THREADS=4
+
+# libgl and libglib are required by the OpenCV that PaddleOCR brings; libgomp by the Paddle runtime.
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends libgl1 libglib2.0-0 libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -17,16 +28,24 @@ RUN pip install --no-cache-dir --requirement requirements.txt
 
 COPY services/ocr-service/app/ app/
 
-# Non root runtime user, owning the model cache so stage 2 can populate it on first start.
+# Non root runtime user, owning the model cache.
 RUN useradd --create-home --uid 10001 ocr \
  && mkdir -p "${OCR_MODEL_CACHE_DIR}" \
  && chown -R ocr:ocr /app /var/lib/docreader
 
 USER ocr
+
+# Downloads the detector and the recognizer into the image and runs one warm-up inference with oneDNN
+# on, so a broken model, library or oneDNN build fails the build instead of the first document.
+RUN python -c "from app.engine import PaddleOcrEngine; import os; PaddleOcrEngine(enable_mkldnn=True, model_cache_dir=os.environ['OCR_MODEL_CACHE_DIR']).load()"
+
 EXPOSE 8000
 
-# No curl in the image: the readiness probe uses the interpreter that is already here.
-HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
+# /health answers 503 until the models are loaded, so the container only turns healthy when it can
+# actually read a page. No curl in the image: the probe uses the interpreter that is already here.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=5 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"
 
+# One process on purpose: the models are loaded once, and concurrency is a setting of the service
+# (OCR_MAX_CONCURRENCY), not something to obtain by forking the memory footprint.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-server-header"]

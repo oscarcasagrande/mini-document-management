@@ -13,8 +13,8 @@ export default function HomePage() {
     <>
       <h1>Leitura de documentos</h1>
       <p className="subtitle">
-        Envie um documento, receba um protocolo e acompanhe o processamento. Etapa 1 do plano de
-        execução: ingestão, consulta, visualização e download.
+        Envie um documento, receba um protocolo e acompanhe o processamento. Etapa 2 do plano de
+        execução: ingestão, OCR, classificação e extração de campos.
       </p>
 
       <AnonymousAccessBanner />

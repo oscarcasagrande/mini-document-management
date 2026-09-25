@@ -1,4 +1,5 @@
 using DocReader.Domain.Documents;
+using DocReader.Domain.Extractions;
 using DocReader.Domain.Idempotency;
 using DocReader.Domain.Processing;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,10 @@ public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> opti
     public DbSet<DocumentEvent> DocumentEvents => Set<DocumentEvent>();
 
     public DbSet<ProcessingJob> ProcessingJobs => Set<ProcessingJob>();
+
+    public DbSet<DocumentExtraction> Extractions => Set<DocumentExtraction>();
+
+    public DbSet<ExtractedField> ExtractedFields => Set<ExtractedField>();
 
     public DbSet<IdempotencyRecord> IdempotencyKeys => Set<IdempotencyRecord>();
 

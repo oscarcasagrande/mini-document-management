@@ -11,4 +11,13 @@ public static class DocumentEventTypes
     public const string Rejected = "REJECTED";
     public const string Deleted = "DELETED";
     public const string Failed = "FAILED";
+
+    public const string PreprocessingStarted = "PREPROCESSING_STARTED";
+    public const string OcrStarted = "OCR_STARTED";
+    public const string OcrPageCompleted = "OCR_PAGE_COMPLETED";
+    public const string Classified = "CLASSIFIED";
+    public const string ClassificationStarted = "CLASSIFICATION_STARTED";
+    public const string ExtractionStarted = "EXTRACTION_STARTED";
+    public const string Completed = "COMPLETED";
+    public const string RetryScheduled = "RETRY_SCHEDULED";
 }

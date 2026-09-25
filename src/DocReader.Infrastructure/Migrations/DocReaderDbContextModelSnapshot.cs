@@ -145,7 +145,6 @@ namespace DocReader.Infrastructure.Migrations
             modelBuilder.Entity("DocReader.Domain.Documents.DocumentEvent", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -180,6 +179,148 @@ namespace DocReader.Infrastructure.Migrations
                         .HasDatabaseName("ix_document_events_document_id_occurred_at");
 
                     b.ToTable("document_events", (string)null);
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Extractions.DocumentExtraction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ClassifierVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("classifier_version");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("ExtractorVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("extractor_version");
+
+                    b.Property<string>("OcrModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("ocr_model_version");
+
+                    b.Property<string>("OcrProvider")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ocr_provider");
+
+                    b.Property<decimal?>("OverallConfidence")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("overall_confidence");
+
+                    b.Property<string>("PageTextsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("page_texts");
+
+                    b.Property<Guid>("ProcessingJobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("processing_job_id");
+
+                    b.Property<string>("RawOcrResultJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("raw_ocr_result");
+
+                    b.Property<string>("RawText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("raw_text");
+
+                    b.Property<int?>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<string>("StructuredResultJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("structured_result");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessingJobId")
+                        .HasDatabaseName("ix_extractions_processing_job_id");
+
+                    b.HasIndex("DocumentId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_extractions_document_id_created_at");
+
+                    b.ToTable("extractions", (string)null);
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Extractions.ExtractedField", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BoundingBoxJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("bounding_box");
+
+                    b.Property<decimal?>("Confidence")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("confidence");
+
+                    b.Property<Guid>("ExtractionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("extraction_id");
+
+                    b.Property<string>("FieldPath")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("field_path");
+
+                    b.Property<string>("NormalizedValue")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("normalized_value");
+
+                    b.Property<int?>("PageNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("page_number");
+
+                    b.Property<string>("RawValue")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("raw_value");
+
+                    b.Property<string>("ValidationMessagesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("validation_messages");
+
+                    b.Property<string>("ValidationStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("validation_status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExtractionId", "FieldPath")
+                        .IsUnique()
+                        .HasDatabaseName("ix_extracted_fields_extraction_id_field_path");
+
+                    b.ToTable("extracted_fields", (string)null);
                 });
 
             modelBuilder.Entity("DocReader.Domain.Idempotency.IdempotencyRecord", b =>
@@ -272,6 +413,16 @@ namespace DocReader.Infrastructure.Migrations
                         .HasColumnType("character varying(128)")
                         .HasColumnName("locked_by");
 
+                    b.Property<int?>("PageCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("page_count");
+
+                    b.Property<int>("PagesCompleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("pages_completed");
+
                     b.Property<string>("Stage")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -291,7 +442,9 @@ namespace DocReader.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentId")
-                        .HasDatabaseName("ix_processing_jobs_document_id");
+                        .IsUnique()
+                        .HasDatabaseName("ux_processing_jobs_document_id_active")
+                        .HasFilter("status IN ('PENDING', 'RUNNING')");
 
                     b.HasIndex("Status", "AvailableAt", "CreatedAt")
                         .HasDatabaseName("ix_processing_jobs_status_available_at_created_at");
@@ -323,6 +476,30 @@ namespace DocReader.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("DocReader.Domain.Extractions.DocumentExtraction", b =>
+                {
+                    b.HasOne("DocReader.Domain.Documents.Document", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DocReader.Domain.Processing.ProcessingJob", null)
+                        .WithMany()
+                        .HasForeignKey("ProcessingJobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Extractions.ExtractedField", b =>
+                {
+                    b.HasOne("DocReader.Domain.Extractions.DocumentExtraction", null)
+                        .WithMany("Fields")
+                        .HasForeignKey("ExtractionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("DocReader.Domain.Idempotency.IdempotencyRecord", b =>
                 {
                     b.HasOne("DocReader.Domain.Documents.Document", null)
@@ -344,6 +521,11 @@ namespace DocReader.Infrastructure.Migrations
             modelBuilder.Entity("DocReader.Domain.Documents.Document", b =>
                 {
                     b.Navigation("Events");
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Extractions.DocumentExtraction", b =>
+                {
+                    b.Navigation("Fields");
                 });
 #pragma warning restore 612, 618
         }

@@ -104,7 +104,7 @@ public sealed class Document
     /// <summary>
     /// Marks the document as queued for the worker. Called in the same transaction that persists the job.
     /// </summary>
-    public void MarkQueued(DateTimeOffset occurredAt)
+    public void MarkQueued(DateTimeOffset occurredAt, string? details = null)
     {
         if (Status is not (DocumentStatus.Stored or DocumentStatus.Failed or DocumentStatus.Completed))
         {
@@ -112,9 +112,77 @@ public sealed class Document
         }
 
         Status = DocumentStatus.Queued;
+        CompletedAt = null;
         LastErrorCode = null;
         LastErrorMessage = null;
-        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.Queued, DocumentStatus.Queued, occurredAt));
+        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.Queued, DocumentStatus.Queued, occurredAt, details));
+    }
+
+
+    /// <summary>
+    /// Moves an in-flight document to the next stage of the pipeline and records it on the timeline.
+    /// </summary>
+    public void AdvanceTo(DocumentStatus stage, string eventType, DateTimeOffset occurredAt, string? details = null)
+    {
+        if (Status is not (DocumentStatus.Queued or DocumentStatus.Preprocessing or DocumentStatus.OcrRunning
+            or DocumentStatus.Classifying or DocumentStatus.Extracting))
+        {
+            throw new InvalidOperationException($"Cannot advance a document in status {Status} to {stage}.");
+        }
+
+        Status = stage;
+        _events.Add(DocumentEvent.Create(Id, eventType, stage, occurredAt, details));
+    }
+
+    /// <summary>
+    /// Records progress inside the current stage, such as a page that was read. The status does not change.
+    /// </summary>
+    public void RecordProgress(string eventType, DateTimeOffset occurredAt, string? details = null) =>
+        _events.Add(DocumentEvent.Create(Id, eventType, Status, occurredAt, details));
+
+    public void RecordClassification(
+        string detectedType,
+        decimal? confidence,
+        DateTimeOffset occurredAt,
+        string? details = null)
+    {
+        DetectedDocumentType = detectedType;
+        ClassificationConfidence = confidence;
+        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.Classified, DocumentStatus.Classifying, occurredAt, details));
+    }
+
+    /// <summary>
+    /// The only way to reach COMPLETED: called once the whole result is persisted, so a partial
+    /// result never shows as complete.
+    /// </summary>
+    public void MarkCompleted(DateTimeOffset occurredAt)
+    {
+        Status = DocumentStatus.Completed;
+        CompletedAt = occurredAt;
+        LastErrorCode = null;
+        LastErrorMessage = null;
+        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.Completed, DocumentStatus.Completed, occurredAt));
+    }
+
+    /// <summary>
+    /// A transient failure with attempts left: the document goes back to the queue and keeps the
+    /// error visible until a later attempt succeeds.
+    /// </summary>
+    public void MarkRetryScheduled(string errorCode, string errorMessage, DateTimeOffset occurredAt)
+    {
+        Status = DocumentStatus.Queued;
+        LastErrorCode = errorCode;
+        LastErrorMessage = errorMessage;
+        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.RetryScheduled, DocumentStatus.Queued, occurredAt, errorCode));
+    }
+
+    /// <summary>
+    /// The worker gave the document back without failing it, for instance on a clean shutdown.
+    /// </summary>
+    public void MarkRequeued(DateTimeOffset occurredAt, string details)
+    {
+        Status = DocumentStatus.Queued;
+        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.Queued, DocumentStatus.Queued, occurredAt, details));
     }
 
     public void MarkFailed(string errorCode, string errorMessage, DateTimeOffset occurredAt)

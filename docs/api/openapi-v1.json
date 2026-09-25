@@ -1,0 +1,2021 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "DocReader PoC API",
+    "description": "Local proof of concept for document ingestion, OCR, classification and extraction.\n\n**There is no authentication.** Every endpoint is anonymous, the Swagger page is public and\nno bearer token is required. Do not expose this API to the internet and do not send real\npersonal documents to it. Use synthetic, masked or authorized files only.\n\nConventions: JSON in camelCase, timestamps in UTC ISO 8601, errors as\n`application/problem+json`, and an `X-Correlation-Id` header on every response.\n\nStage 2 of the execution plan delivers upload, listing, detail, content, deletion, OCR\n(PP-OCRv5 on CPU, see ADR 0002), the raw text and the structured result of the CPF card.\nOther document types are read as raw text only; their structured fields arrive in stage 3.",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/v1/documents": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Receives a document and queues it for processing.",
+        "description": "The response is asynchronous on purpose: the API stores the original, issues the protocol and\nanswers `202 Accepted` with a `Location` header, while OCR, classification and\nextraction run in the worker. Poll `statusUrl` to follow the document.\n            \nAccepted formats are PDF, PNG, JPEG and TIFF, checked by the real file signature rather than\nby the announced content type. Size and page limits are configurable and answer 413 and 422.\n            \nSend the optional `Idempotency-Key` header to make a retry safe: the same key with the\nsame file replays the original response, and the same key with a different file answers 409.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Optional replay protection key.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Upload-Channel",
+            "in": "header",
+            "description": "Origin of the upload, `WEB` or `API`. The interface sends WEB; anything else\ndefaults to API.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "File"
+                ],
+                "type": "object",
+                "properties": {
+                  "File": {
+                    "type": "string",
+                    "description": "The document itself. PDF, PNG, JPEG or TIFF, validated by its real signature and not by the\nannounced content type.",
+                    "format": "binary"
+                  },
+                  "ExpectedDocumentType": {
+                    "maxLength": 64,
+                    "type": "string",
+                    "description": "Optional hint about the document type. It never overrides the classifier; a divergence is\nrecorded instead."
+                  },
+                  "ExternalReference": {
+                    "maxLength": 128,
+                    "type": "string",
+                    "description": "Optional reference of the calling system, echoed back in every response."
+                  }
+                }
+              },
+              "encoding": {
+                "File": {
+                  "style": "form"
+                },
+                "ExpectedDocumentType": {
+                  "style": "form"
+                },
+                "ExternalReference": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Document accepted, stored and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadAcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed or a field is invalid.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The Idempotency-Key was already used with a different file.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Idempotency-Key conflict",
+                  "status": 409,
+                  "detail": "This Idempotency-Key was already used with a different file. Use a new key or resend the original file.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "IDEMPOTENCY_KEY_CONFLICT",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is above the configured size limit.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/file-too-large",
+                  "title": "File too large",
+                  "status": 413,
+                  "detail": "The uploaded file has 41943040 bytes and the limit is 26214400 bytes.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "FILE_TOO_LARGE",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The real signature is not an accepted format, or contradicts the declared type.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unsupported-media-type",
+                  "title": "Unsupported media type",
+                  "status": 415,
+                  "detail": "Only PDF, PNG, JPEG and TIFF files are accepted.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "UNSUPPORTED_MEDIA_TYPE",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The file is an accepted format but unreadable or above the page limit.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "The document has 84 pages and the limit is 50 pages.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "PAGE_LIMIT_EXCEEDED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Lists uploaded documents, newest first.",
+        "description": "Every filter is optional and they combine with AND. `page` starts at 1 and\n`pageSize` is capped by the configured maximum. The envelope carries\n`totalCount` and `totalPages` so a client can paginate without guessing.",
+        "parameters": [
+          {
+            "name": "protocol",
+            "in": "query",
+            "description": "Full or partial protocol, case insensitive.",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileName",
+            "in": "query",
+            "description": "Full or partial original file name, case insensitive.",
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentType",
+            "in": "query",
+            "description": "Detected or expected document type, matched exactly.",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "description": "Upload channel: WEB or API.",
+            "schema": {
+              "maxLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Status: RECEIVED, STORED, QUEUED, PREPROCESSING, OCR_RUNNING, CLASSIFYING, EXTRACTING,\nCOMPLETED, FAILED or REJECTED.",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "uploadedFrom",
+            "in": "query",
+            "description": "Lower bound of the upload instant, inclusive, ISO 8601 in UTC.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "uploadedTo",
+            "in": "query",
+            "description": "Upper bound of the upload instant, inclusive, ISO 8601 in UTC.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "One based page number. Defaults to 1.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Items per page. Defaults to the configured page size and is capped by the maximum.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Page of documents, possibly empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentSummaryResponsePagedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A filter value is invalid.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/documents",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Returns the consolidated view of one document, including its processing timeline.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Document found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "DESTRUCTIVE AND IRREVERSIBLE — Deletes a document permanently.",
+        "description": "Removes the row, the timeline, the processing jobs, the idempotency keys bound to it and the\nstored original. There is no soft delete and no recovery; the interface asks for confirmation\nbefore calling this endpoint.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Document and file removed."
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/by-protocol/{protocol}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Returns the consolidated view of one document addressed by its human readable protocol.",
+        "parameters": [
+          {
+            "name": "protocol",
+            "in": "path",
+            "description": "Protocol in the form `DOC-yyyyMMdd-NNNNNN`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/by-protocol/{protocol}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Document found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this protocol, or the protocol is malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/by-protocol/{protocol}",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/status": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Returns the light status payload, meant for polling.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/status",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/status",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/content": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Serves the original file exactly as it was received.",
+        "description": "The default is `Content-Disposition: inline`, so a browser renders the PDF or the image\nin place. Add `?download=true` to force a download. The original stays available even\nwhen processing failed, which is a hard requirement of the PoC.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "description": "True to answer with an attachment instead of inline content.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/content",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The original bytes.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/tiff": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/content",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Metadata exists but the stored file is gone.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-content-unavailable",
+                  "title": "Original file is no longer available",
+                  "status": 410,
+                  "detail": "The document metadata exists but the stored file is gone.",
+                  "instance": "/api/v1/documents/{id}/content",
+                  "errorCode": "DOCUMENT_CONTENT_MISSING",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/text": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Returns the raw text the OCR read, page by page.",
+        "description": "The text is exactly what the OCR produced, in reading order, with nothing corrected or\ninterpreted. It belongs to the latest extraction: while a reprocessing runs, the previous text\nstays available and `status` tells what is happening now. Answers 409 while there is\nnothing to return yet, or when every attempt failed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/text",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Text of the latest extraction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTextResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/text",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The document has no result yet, or its processing failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Result not available",
+                  "status": 409,
+                  "detail": "The document is OCR_RUNNING and has no result yet. Poll the status endpoint and try again when it is COMPLETED.",
+                  "instance": "/api/v1/documents/{id}/text",
+                  "errorCode": "RESULT_NOT_READY",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/result": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Returns the canonical structured result.",
+        "description": "Each field carries the value as read (`raw`), the normalized value, a confidence between\n0 and 1, a validation status (`VALID`, `INVALID`, `NOT_FOUND` or\n`UNCERTAIN`) with machine readable messages such as `CHECK_DIGIT_VALID`, and the\nevidence (page and bounding box in pixels of the analysed page image). A field that was not\nfound is null, never invented. Answers 409 while there is nothing to return yet, or when\nevery attempt failed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/result",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Result of the latest extraction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResultResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/result",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The document has no result yet, or its processing failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Result not available",
+                  "status": 409,
+                  "detail": "The document is OCR_RUNNING and has no result yet. Poll the status endpoint and try again when it is COMPLETED.",
+                  "instance": "/api/v1/documents/{id}/result",
+                  "errorCode": "RESULT_NOT_READY",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/reprocess": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Runs the pipeline again on a document that is already stored.",
+        "description": "Creates a new processing attempt and a new extraction; previous results are kept. The original\nfile is never touched. A document that is already queued or being processed answers 409, so\nthe same document is never processed twice at once.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/reprocess",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Queued again. Poll `statusUrl` to follow it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadAcceptedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/reprocess",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The document is already queued or being processed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Document already being processed",
+                  "status": 409,
+                  "detail": "The document is queued or being processed, or it was rejected. Wait for it to finish before reprocessing.",
+                  "instance": "/api/v1/documents/{id}/reprocess",
+                  "errorCode": "REPROCESS_CONFLICT",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DocumentClassificationResponse": {
+        "type": "object",
+        "properties": {
+          "detectedType": {
+            "type": "string",
+            "description": "Identified document type, or UNKNOWN."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence between 0 and 1.",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentDetailResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/DocumentUploadResponse"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/DocumentClassificationResponse"
+          },
+          "extraction": {
+            "$ref": "#/components/schemas/DocumentExtractionResponse"
+          },
+          "lastError": {
+            "$ref": "#/components/schemas/DocumentErrorResponse"
+          },
+          "processing": {
+            "$ref": "#/components/schemas/DocumentProcessingResponse"
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentTimelineEntryResponse"
+            },
+            "description": "Ordered processing events."
+          },
+          "links": {
+            "$ref": "#/components/schemas/DocumentLinks"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Consolidated view of a document. Classification and extraction stay null until the worker has\nproduced them; the original file is always available regardless.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "status": "QUEUED",
+          "upload": {
+            "fileName": "cartao-cnpj.pdf",
+            "channel": "API",
+            "uploadedAt": "2026-09-24T22:00:00Z",
+            "completedAt": null,
+            "externalReference": "CLIENTE-123",
+            "expectedDocumentType": null,
+            "mimeType": "application/pdf",
+            "sizeBytes": 184320,
+            "pageCount": 1,
+            "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+          },
+          "classification": null,
+          "extraction": null,
+          "lastError": null,
+          "processing": {
+            "jobStatus": "RUNNING",
+            "attempt": 1,
+            "maxAttempts": 3,
+            "pagesCompleted": 0,
+            "pageCount": 1,
+            "nextAttemptAt": null
+          },
+          "timeline": [
+            {
+              "eventType": "RECEIVED",
+              "stage": "RECEIVED",
+              "details": null,
+              "occurredAt": "2026-09-24T22:00:00Z"
+            },
+            {
+              "eventType": "STORED",
+              "stage": "STORED",
+              "details": null,
+              "occurredAt": "2026-09-24T22:00:00Z"
+            },
+            {
+              "eventType": "QUEUED",
+              "stage": "QUEUED",
+              "details": null,
+              "occurredAt": "2026-09-24T22:00:00Z"
+            }
+          ],
+          "links": {
+            "self": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+            "status": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/status",
+            "content": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/content",
+            "download": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/content?download=true",
+            "text": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/text",
+            "result": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/result",
+            "reprocess": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/reprocess"
+          }
+        }
+      },
+      "DocumentErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable machine readable code."
+          },
+          "message": {
+            "type": "string",
+            "description": "Short operator facing description, never document content."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentExtractionResponse": {
+        "type": "object",
+        "properties": {
+          "ocrProvider": {
+            "type": "string",
+            "description": "Provider that produced the text."
+          },
+          "ocrModelVersion": {
+            "type": "string",
+            "description": "Pipeline and library versions, for reproducibility."
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "description": "Version of the schema used for the fields; null when the type has no extractor.",
+            "format": "int32",
+            "nullable": true
+          },
+          "overallConfidence": {
+            "type": "number",
+            "description": "Aggregated confidence between 0 and 1.",
+            "format": "double",
+            "nullable": true
+          },
+          "extractedAt": {
+            "type": "string",
+            "description": "Instant the result was persisted, in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentLinks": {
+        "type": "object",
+        "properties": {
+          "self": {
+            "type": "string",
+            "description": "Consolidated detail."
+          },
+          "status": {
+            "type": "string",
+            "description": "Lightweight status for polling."
+          },
+          "content": {
+            "type": "string",
+            "description": "Original file, inline by default."
+          },
+          "download": {
+            "type": "string",
+            "description": "Original file as an attachment."
+          },
+          "text": {
+            "type": "string",
+            "description": "Raw OCR text, page by page."
+          },
+          "result": {
+            "type": "string",
+            "description": "Canonical structured result."
+          },
+          "reprocess": {
+            "type": "string",
+            "description": "POST here to run the pipeline again."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Endpoints related to one document, so a client never has to build paths by hand."
+      },
+      "DocumentProcessingResponse": {
+        "type": "object",
+        "properties": {
+          "jobStatus": {
+            "$ref": "#/components/schemas/ProcessingJobStatus"
+          },
+          "attempt": {
+            "type": "integer",
+            "description": "Attempt in course or the last one that ran; 0 before the first is acquired.",
+            "format": "int32"
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "description": "Attempts allowed before a transient failure becomes definitive.",
+            "format": "int32"
+          },
+          "pagesCompleted": {
+            "type": "integer",
+            "description": "Pages already read in the current attempt.",
+            "format": "int32"
+          },
+          "pageCount": {
+            "type": "integer",
+            "description": "Pages the attempt has to read, known once the worker starts.",
+            "format": "int32",
+            "nullable": true
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "description": "Earliest moment of the next attempt, in UTC, while a retry is scheduled.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Where the asynchronous work of a document stands: which attempt, how many pages were read and,\nwhen a retry is scheduled, when it will run. It is what makes a long document look alive instead\nof stuck."
+      },
+      "DocumentResultClassificationResponse": {
+        "type": "object",
+        "properties": {
+          "detectedType": {
+            "type": "string",
+            "description": "Identified document type, or UNKNOWN."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence between 0 and 1; null when UNKNOWN.",
+            "format": "double",
+            "nullable": true
+          },
+          "classifierVersion": {
+            "type": "string",
+            "description": "Classifier that decided.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentResultExtractionResponse": {
+        "type": "object",
+        "properties": {
+          "ocrProvider": {
+            "type": "string",
+            "description": "Provider that produced the text."
+          },
+          "ocrModelVersion": {
+            "type": "string",
+            "description": "Pipeline and library versions."
+          },
+          "extractorVersion": {
+            "type": "string",
+            "description": "Version of the extraction rules; null when the type has no extractor.",
+            "nullable": true
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "description": "Version of the schema of the fields; null when the type has no extractor.",
+            "format": "int32",
+            "nullable": true
+          },
+          "overallConfidence": {
+            "type": "number",
+            "description": "Aggregated confidence between 0 and 1.",
+            "format": "double",
+            "nullable": true
+          },
+          "extractedAt": {
+            "type": "string",
+            "description": "Instant the result was persisted, in UTC.",
+            "format": "date-time"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ExtractedFieldResponse"
+            },
+            "description": "Fields by name; empty when the document type has no extractor."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentResultResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/DocumentResultUploadResponse"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/DocumentResultClassificationResponse"
+          },
+          "extraction": {
+            "$ref": "#/components/schemas/DocumentResultExtractionResponse"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Canonical result of PRD section 15: what was received, what the document was identified as and\nthe fields read from it, each with its raw and normalized value, confidence, validation status\nand evidence.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "status": "COMPLETED",
+          "upload": {
+            "fileName": "cartao-cpf.png",
+            "channel": "API",
+            "uploadedAt": "2026-09-24T22:00:00Z",
+            "externalReference": "CLIENTE-123"
+          },
+          "classification": {
+            "detectedType": "BR_CPF_CARD",
+            "confidence": 1,
+            "classifierVersion": "rules-1.0.0"
+          },
+          "extraction": {
+            "ocrProvider": "paddleocr",
+            "ocrModelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.3.1, mkldnn=off)",
+            "extractorVersion": "br-cpf-card-1.0.0",
+            "schemaVersion": 1,
+            "overallConfidence": 0.9957,
+            "extractedAt": "2026-09-24T22:00:00Z",
+            "fields": {
+              "cpf": {
+                "raw": "111.444.777-35",
+                "normalized": "11144477735",
+                "confidence": 1,
+                "validationStatus": "VALID",
+                "validationMessages": [
+                  "CHECK_DIGIT_VALID"
+                ],
+                "evidence": {
+                  "page": 1,
+                  "boundingBox": [
+                    110,
+                    332,
+                    470,
+                    332,
+                    470,
+                    380,
+                    110,
+                    380
+                  ]
+                }
+              },
+              "name": {
+                "raw": "MARIA APARECIDA DA SILVA SOUZA",
+                "normalized": "MARIA APARECIDA DA SILVA SOUZA",
+                "confidence": 0.9871,
+                "validationStatus": "VALID",
+                "validationMessages": [ ],
+                "evidence": {
+                  "page": 1,
+                  "boundingBox": [
+                    110,
+                    332,
+                    470,
+                    332,
+                    470,
+                    380,
+                    110,
+                    380
+                  ]
+                }
+              },
+              "birthDate": {
+                "raw": "14/03/1985",
+                "normalized": "1985-03-14",
+                "confidence": 1,
+                "validationStatus": "VALID",
+                "validationMessages": [
+                  "DATE_VALID"
+                ],
+                "evidence": {
+                  "page": 1,
+                  "boundingBox": [
+                    110,
+                    332,
+                    470,
+                    332,
+                    470,
+                    380,
+                    110,
+                    380
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "DocumentResultUploadResponse": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "Original file name as sent by the client."
+          },
+          "channel": {
+            "$ref": "#/components/schemas/UploadChannel"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "description": "Upload instant in UTC.",
+            "format": "date-time"
+          },
+          "externalReference": {
+            "type": "string",
+            "description": "Caller reference sent at upload time.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentStatus": {
+        "enum": [
+          "RECEIVED",
+          "STORED",
+          "QUEUED",
+          "PREPROCESSING",
+          "OCR_RUNNING",
+          "CLASSIFYING",
+          "EXTRACTING",
+          "COMPLETED",
+          "FAILED",
+          "REJECTED"
+        ],
+        "type": "string",
+        "description": "Lifecycle of a document, as defined by RF-007 of the PRD."
+      },
+      "DocumentStatusResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "detectedDocumentType": {
+            "type": "string",
+            "description": "Type identified by the classifier, when available.",
+            "nullable": true
+          },
+          "classificationConfidence": {
+            "type": "number",
+            "description": "Confidence between 0 and 1, when available.",
+            "format": "double",
+            "nullable": true
+          },
+          "uploadedAt": {
+            "type": "string",
+            "description": "Upload instant in UTC.",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "Instant processing finished, in UTC.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastError": {
+            "$ref": "#/components/schemas/DocumentErrorResponse"
+          },
+          "processing": {
+            "$ref": "#/components/schemas/DocumentProcessingResponse"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Lightweight payload for polling, cheap enough to be called every couple of seconds.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "status": "QUEUED",
+          "detectedDocumentType": null,
+          "classificationConfidence": null,
+          "uploadedAt": "2026-09-24T22:00:00Z",
+          "completedAt": null,
+          "lastError": null,
+          "processing": {
+            "jobStatus": "RUNNING",
+            "attempt": 1,
+            "maxAttempts": 3,
+            "pagesCompleted": 0,
+            "pageCount": 1,
+            "nextAttemptAt": null
+          }
+        }
+      },
+      "DocumentSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol."
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Original file name as sent by the client."
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type detected from the file signature."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "description": "Size in bytes.",
+            "format": "int64"
+          },
+          "pageCount": {
+            "type": "integer",
+            "description": "Number of pages.",
+            "format": "int32"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/UploadChannel"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "expectedDocumentType": {
+            "type": "string",
+            "description": "Type hint sent at upload time, when any.",
+            "nullable": true
+          },
+          "detectedDocumentType": {
+            "type": "string",
+            "description": "Type identified by the classifier, null until stage 3.",
+            "nullable": true
+          },
+          "classificationConfidence": {
+            "type": "number",
+            "description": "Confidence between 0 and 1, when available.",
+            "format": "double",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "string",
+            "description": "Caller reference sent at upload time, when any.",
+            "nullable": true
+          },
+          "uploadedAt": {
+            "type": "string",
+            "description": "Upload instant in UTC.",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "Instant processing finished, in UTC.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "links": {
+            "$ref": "#/components/schemas/DocumentLinks"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One row of the listing.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "fileName": "cartao-cnpj.pdf",
+          "mimeType": "application/pdf",
+          "sizeBytes": 184320,
+          "pageCount": 1,
+          "channel": "API",
+          "status": "QUEUED",
+          "expectedDocumentType": null,
+          "detectedDocumentType": null,
+          "classificationConfidence": null,
+          "externalReference": "CLIENTE-123",
+          "uploadedAt": "2026-09-24T22:00:00Z",
+          "completedAt": null,
+          "links": {
+            "self": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+            "status": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/status",
+            "content": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/content",
+            "download": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/content?download=true",
+            "text": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/text",
+            "result": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/result",
+            "reprocess": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/reprocess"
+          }
+        }
+      },
+      "DocumentSummaryResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummaryResponse"
+            },
+            "description": "Items of the current page, newest first."
+          },
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of items matching the filters.",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Number of pages for the current page size.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope of every paginated listing.",
+        "example": {
+          "items": [
+            {
+              "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+              "protocol": "DOC-20260924-000001",
+              "fileName": "cartao-cnpj.pdf",
+              "mimeType": "application/pdf",
+              "sizeBytes": 184320,
+              "pageCount": 1,
+              "channel": "API",
+              "status": "QUEUED",
+              "expectedDocumentType": null,
+              "detectedDocumentType": null,
+              "classificationConfidence": null,
+              "externalReference": "CLIENTE-123",
+              "uploadedAt": "2026-09-24T22:00:00Z",
+              "completedAt": null,
+              "links": {
+                "self": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+                "status": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/status",
+                "content": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/content",
+                "download": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/content?download=true",
+                "text": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/text",
+                "result": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/result",
+                "reprocess": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/reprocess"
+              }
+            }
+          ],
+          "page": 1,
+          "pageSize": 20,
+          "totalCount": 1,
+          "totalPages": 1
+        }
+      },
+      "DocumentTextPageResponse": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string",
+            "description": "Text of the page, one recognized line per line."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentTextResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "ocrProvider": {
+            "type": "string",
+            "description": "Provider that produced the text."
+          },
+          "ocrModelVersion": {
+            "type": "string",
+            "description": "Pipeline and library versions."
+          },
+          "extractedAt": {
+            "type": "string",
+            "description": "Instant the text was persisted, in UTC.",
+            "format": "date-time"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentTextPageResponse"
+            },
+            "description": "One entry per page."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The raw text the OCR read, page by page, in reading order. Nothing was interpreted or corrected.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "status": "COMPLETED",
+          "ocrProvider": "paddleocr",
+          "ocrModelVersion": "PP-OCRv5 PP-OCRv5_mobile_det + latin_PP-OCRv5_mobile_rec (paddleocr 3.7.0, paddlepaddle 3.3.1, mkldnn=off)",
+          "extractedAt": "2026-09-24T22:00:00Z",
+          "pages": [
+            {
+              "page": 1,
+              "text": "REPUBLICA FEDERATIVA DO BRASIL\nCADASTRO DE PESSOAS FISICAS\nNUMERO DE INSCRICAO\n111.444.777-35\nNOME\nMARIA APARECIDA DA SILVA SOUZA\nNASCIMENTO\n14/03/1985"
+            }
+          ]
+        }
+      },
+      "DocumentTimelineEntryResponse": {
+        "type": "object",
+        "properties": {
+          "eventType": {
+            "type": "string",
+            "description": "Event name, for example RECEIVED or QUEUED."
+          },
+          "stage": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "details": {
+            "type": "string",
+            "description": "Extra context, never document content.",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string",
+            "description": "Instant in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentUploadResponse": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "Original file name as sent by the client."
+          },
+          "channel": {
+            "$ref": "#/components/schemas/UploadChannel"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "description": "Upload instant in UTC.",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "Instant processing finished, in UTC.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "externalReference": {
+            "type": "string",
+            "description": "Caller reference sent at upload time.",
+            "nullable": true
+          },
+          "expectedDocumentType": {
+            "type": "string",
+            "description": "Type hint sent at upload time.",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type detected from the file signature."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "description": "Size in bytes.",
+            "format": "int64"
+          },
+          "pageCount": {
+            "type": "integer",
+            "description": "Number of pages.",
+            "format": "int32"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of the stored bytes."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExtractedFieldResponse": {
+        "type": "object",
+        "properties": {
+          "raw": {
+            "type": "string",
+            "description": "Value exactly as read from the document.",
+            "nullable": true
+          },
+          "normalized": {
+            "type": "string",
+            "description": "Normalized value; null when the field was not found or did not validate.",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence between 0 and 1.",
+            "format": "double",
+            "nullable": true
+          },
+          "validationStatus": {
+            "type": "string",
+            "description": "VALID, INVALID, NOT_FOUND or UNCERTAIN."
+          },
+          "validationMessages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Machine readable codes that explain the status, such as CHECK_DIGIT_VALID."
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/FieldEvidenceResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FieldEvidenceResponse": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "One based page of the evidence; null when the field was not found.",
+            "format": "int32",
+            "nullable": true
+          },
+          "boundingBox": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "Flat x/y pairs of the text polygon, in pixels of the analysed page image."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "ProcessingJobStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "type": "string"
+      },
+      "UploadAcceptedResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol, format DOC-yyyyMMdd-NNNNNN."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "statusUrl": {
+            "type": "string",
+            "description": "Lightweight endpoint for polling."
+          },
+          "documentUrl": {
+            "type": "string",
+            "description": "Consolidated detail endpoint."
+          },
+          "contentUrl": {
+            "type": "string",
+            "description": "Endpoint that serves the original file."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of the 202 answered by the upload endpoint. The document is persisted and queued; the OCR\nruns afterwards, outside the request.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "status": "QUEUED",
+          "statusUrl": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/status",
+          "documentUrl": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "contentUrl": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/content"
+        }
+      },
+      "UploadChannel": {
+        "enum": [
+          "API",
+          "WEB"
+        ],
+        "type": "string",
+        "description": "How the document entered the system."
+      },
+      "ValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": { }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Documents",
+      "description": "Ingestion and consultation of documents. Every endpoint is anonymous in this proof of concept:\nthere is no login, no bearer token and no tenant."
+    }
+  ]
+}

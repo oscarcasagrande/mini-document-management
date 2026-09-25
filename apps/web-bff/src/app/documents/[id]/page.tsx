@@ -5,12 +5,23 @@ import { AnonymousAccessBanner } from "@/components/AnonymousAccessBanner";
 import { DeleteDocumentButton } from "@/components/DeleteDocumentButton";
 import { DocumentStatusWatcher } from "@/components/DocumentStatusWatcher";
 import { DocumentViewer } from "@/components/DocumentViewer";
+import { ReprocessButton } from "@/components/ReprocessButton";
 import { StatusChip } from "@/components/StatusChip";
 import { ApiError } from "@/lib/api";
 import { IN_FLIGHT_STATUSES } from "@/lib/contracts";
-import { getDocument } from "@/lib/documents";
+import { getDocument, getDocumentResult, getDocumentText } from "@/lib/documents";
 import { bffRoutes } from "@/lib/routes";
-import { formatBytes, formatConfidence, formatInstant, statusLabel } from "@/lib/format";
+import {
+  fieldLabel,
+  formatBytes,
+  formatConfidence,
+  formatInstant,
+  processingSummary,
+  statusLabel,
+  validationLabel,
+  validationMessage,
+  validationTone,
+} from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +39,15 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
   }
 
   const { upload } = document;
+  const inFlight = IN_FLIGHT_STATUSES.has(document.status);
+
+  // Only ask for the result when the API says there is one: a 409 here would be noise, not news.
+  const [result, text] = document.extraction
+    ? await Promise.all([getDocumentResult(id), getDocumentText(id)])
+    : [null, null];
+
+  const progress = processingSummary(document.status, document.processing);
+  const retryScheduled = document.status === "QUEUED" && document.lastError !== null;
 
   return (
     <>
@@ -40,12 +60,22 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
 
       <AnonymousAccessBanner />
 
-      {document.lastError && (
+      {document.lastError && !retryScheduled && (
         <div className="alert alert--error">
           <strong>Falha no processamento ({document.lastError.code}).</strong>{" "}
           {document.lastError.message} O arquivo original continua disponível abaixo.
         </div>
       )}
+
+      {retryScheduled && document.lastError && (
+        <div className="alert alert--warning">
+          <strong>A última tentativa falhou ({document.lastError.code}).</strong>{" "}
+          {document.lastError.message} O documento voltou para a fila e será processado de novo
+          automaticamente. O arquivo original continua disponível abaixo.
+        </div>
+      )}
+
+      {progress && <p className="progress-line mono">{progress}</p>}
 
       <div className="detail-layout">
         <section className="card">
@@ -65,6 +95,7 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
             <a className="mono" href={bffRoutes.content(document.id)} target="_blank" rel="noreferrer">
               Abrir em nova aba
             </a>
+            <ReprocessButton documentId={document.id} disabled={inFlight} />
             <DeleteDocumentButton
               documentId={document.id}
               protocol={document.protocol}
@@ -74,6 +105,134 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
         </section>
 
         <div>
+          <section className="card">
+            <h2 className="card__title">Leitura</h2>
+
+            {document.classification ? (
+              <dl className="meta">
+                <dt>Tipo identificado</dt>
+                <dd>
+                  <span className="mono">{document.classification.detectedType}</span>
+                </dd>
+                <dt>Confiança da classificação</dt>
+                <dd>{formatConfidence(document.classification.confidence)}</dd>
+                {result && (
+                  <>
+                    <dt>Confiança geral dos campos</dt>
+                    <dd>{formatConfidence(result.extraction.overallConfidence)}</dd>
+                    <dt>Lido em</dt>
+                    <dd>{formatInstant(result.extraction.extractedAt)}</dd>
+                  </>
+                )}
+              </dl>
+            ) : (
+              <p className="card__hint" style={{ marginBottom: 0 }}>
+                {inFlight
+                  ? "Ainda sendo lido."
+                  : "Tipo ainda não identificado: "}
+                {!inFlight && <span className="mono">UNKNOWN</span>}
+              </p>
+            )}
+
+            {result && inFlight && (
+              <p className="stage-note">
+                Mostrando o resultado da leitura anterior; uma nova leitura está em andamento e o
+                resultado só troca quando ela terminar.
+              </p>
+            )}
+
+            {result && Object.keys(result.extraction.fields).length > 0 && (
+              <div className="table-scroll">
+                <table className="fields">
+                  <thead>
+                    <tr>
+                      <th>Campo</th>
+                      <th>Lido</th>
+                      <th>Normalizado</th>
+                      <th>Confiança</th>
+                      <th>Validação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(result.extraction.fields).map(([path, field]) => (
+                      <tr key={path}>
+                        <td>
+                          <strong>{fieldLabel(path)}</strong>
+                          <div className="mono muted">{path}</div>
+                        </td>
+                        <td className="mono">{field.raw ?? "—"}</td>
+                        <td className="mono">{field.normalized ?? "—"}</td>
+                        <td>{formatConfidence(field.confidence)}</td>
+                        <td>
+                          <span className={`chip chip--${validationTone(field.validationStatus)}`}>
+                            {validationLabel(field.validationStatus)}
+                          </span>
+                          {field.validationMessages.map((code) => (
+                            <div key={code} className="muted small">
+                              {validationMessage(code)}
+                            </div>
+                          ))}
+                          {field.evidence.page !== null && (
+                            <div className="muted small">página {field.evidence.page}</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {result && Object.keys(result.extraction.fields).length === 0 && (
+              <p className="stage-note">
+                Este tipo de documento ainda não tem extrator: o texto bruto foi lido e está abaixo, mas
+                não há campos estruturados. Os demais tipos entram na Etapa 3.
+              </p>
+            )}
+
+            {!result && !inFlight && document.status === "COMPLETED" && (
+              <p className="stage-note">Não há resultado gravado para este documento.</p>
+            )}
+          </section>
+
+          <section className="card">
+            <h2 className="card__title">Texto bruto</h2>
+            {text ? (
+              <>
+                <p className="card__hint">
+                  Exatamente o que o OCR leu, na ordem de leitura. Nada foi corrigido ou interpretado.
+                </p>
+                {text.pages.map((page) => (
+                  <details key={page.page} open={text.pages.length === 1}>
+                    <summary>Página {page.page}</summary>
+                    <pre className="raw-text">{page.text}</pre>
+                  </details>
+                ))}
+                <p className="stage-note">
+                  {text.ocrProvider} · <span className="mono">{text.ocrModelVersion}</span>
+                </p>
+              </>
+            ) : (
+              <p className="card__hint" style={{ marginBottom: 0 }}>
+                {inFlight
+                  ? "O texto aparece aqui quando a leitura terminar."
+                  : "Nenhum texto foi lido deste documento."}
+              </p>
+            )}
+          </section>
+
+          <section className="card">
+            <h2 className="card__title">Processamento</h2>
+            <ol className="timeline">
+              {document.timeline.map((entry) => (
+                <li key={`${entry.eventType}-${entry.occurredAt}`}>
+                  <strong className="mono">{entry.eventType}</strong> · {formatInstant(entry.occurredAt)}
+                  {entry.details && <div className="muted small mono">{entry.details}</div>}
+                </li>
+              ))}
+            </ol>
+          </section>
+
           <section className="card">
             <h2 className="card__title">Metadados</h2>
             <dl className="meta">
@@ -106,47 +265,23 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
             </dl>
           </section>
 
-          <section className="card">
-            <h2 className="card__title">Leitura</h2>
-            {document.classification ? (
-              <dl className="meta">
-                <dt>Tipo identificado</dt>
-                <dd>{document.classification.detectedType}</dd>
-                <dt>Confiança</dt>
-                <dd>{formatConfidence(document.classification.confidence)}</dd>
-              </dl>
-            ) : (
-              <p className="card__hint" style={{ marginBottom: 0 }}>
-                Tipo ainda não identificado: <span className="mono">UNKNOWN</span>.
-              </p>
-            )}
-            <p className="stage-note">
-              Texto bruto, campos estruturados e confiança por campo entram nas Etapas 2 e 3 do plano
-              de execução. Nesta etapa o worker e o serviço de OCR sobem como stubs, então o documento
-              permanece na fila.
-            </p>
-          </section>
-
-          <section className="card">
-            <h2 className="card__title">Processamento</h2>
-            <ol className="timeline">
-              {document.timeline.map((entry) => (
-                <li key={`${entry.eventType}-${entry.occurredAt}`}>
-                  <strong className="mono">{entry.eventType}</strong> · {formatInstant(entry.occurredAt)}
-                  {entry.details && <div style={{ color: "var(--text-muted)" }}>{entry.details}</div>}
-                </li>
-              ))}
-            </ol>
-          </section>
-
           <p>
             <Link href="/documents">Voltar para a lista</Link>
           </p>
         </div>
       </div>
 
-      {IN_FLIGHT_STATUSES.has(document.status) && (
-        <DocumentStatusWatcher documentId={document.id} currentStatus={document.status} />
+      {inFlight && (
+        <DocumentStatusWatcher
+          documentId={document.id}
+          initial={{
+            id: document.id,
+            protocol: document.protocol,
+            status: document.status,
+            lastError: document.lastError,
+            processing: document.processing,
+          }}
+        />
       )}
     </>
   );

@@ -401,3 +401,71 @@ dl.meta dd {
   padding-left: 12px;
   margin: 12px 0 0;
 }
+
+.alert--warning {
+  background: var(--pending-surface);
+  border-color: var(--pending);
+  color: var(--pending);
+}
+
+.progress-line {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 16px;
+}
+
+table.fields {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+table.fields th,
+table.fields td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+table.fields th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+table.fields tr:last-child td {
+  border-bottom: none;
+}
+
+details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin: 8px 0;
+}
+
+pre.raw-text {
+  margin: 0 0 12px;
+  padding: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 360px;
+  overflow: auto;
+}

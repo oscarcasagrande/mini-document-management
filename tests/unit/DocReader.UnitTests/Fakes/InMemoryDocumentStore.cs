@@ -17,6 +17,9 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
 
     public List<ProcessingJob> Jobs { get; } = [];
 
+    /// <summary>Latest extraction per document, as the read side of the repository would return it.</summary>
+    public Dictionary<Guid, (ExtractionResultView Result, ExtractionTextView Text)> Extractions { get; } = [];
+
     public IReadOnlyCollection<Document> Documents => _documents.Values;
 
     public IReadOnlyDictionary<string, IdempotencyRecord> Keys => _keys;
@@ -66,6 +69,40 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
             .ToArray();
 
         return Task.FromResult(new PagedResult<Document>(page, filter.Page, filter.PageSize, ordered.Length));
+    }
+
+    public Task<ProcessingJob?> FindLatestJobAsync(Guid documentId, CancellationToken ct) =>
+        Task.FromResult(Jobs.LastOrDefault(job => job.DocumentId == documentId));
+
+    public Task<ExtractionSummary?> FindLatestExtractionSummaryAsync(Guid documentId, CancellationToken ct) =>
+        Task.FromResult(Extractions.TryGetValue(documentId, out var entry) ? entry.Result.Summary : null);
+
+    public Task<ExtractionResultView?> FindLatestExtractionResultAsync(Guid documentId, CancellationToken ct) =>
+        Task.FromResult(Extractions.TryGetValue(documentId, out var entry) ? entry.Result : null);
+
+    public Task<ExtractionTextView?> FindLatestExtractionTextAsync(Guid documentId, CancellationToken ct) =>
+        Task.FromResult(Extractions.TryGetValue(documentId, out var entry) ? entry.Text : null);
+
+    public Task<ReprocessOutcome> QueueReprocessingAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
+    {
+        if (!_documents.TryGetValue(documentId, out var document))
+        {
+            return Task.FromResult(ReprocessOutcome.NotFound);
+        }
+
+        var hasActiveJob = Jobs.Any(job =>
+            job.DocumentId == documentId &&
+            job.Status is ProcessingJobStatus.Pending or ProcessingJobStatus.Running);
+
+        if (hasActiveJob || document.Status is not (DocumentStatus.Stored or DocumentStatus.Failed or DocumentStatus.Completed))
+        {
+            return Task.FromResult(ReprocessOutcome.Conflict);
+        }
+
+        document.MarkQueued(now, "REPROCESS_REQUESTED");
+        Jobs.Add(ProcessingJob.CreateForDocument(documentId, now));
+
+        return Task.FromResult(ReprocessOutcome.Queued);
     }
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct)
