@@ -69,6 +69,11 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
             return BuildText();
         }
 
+        if (type == typeof(ClassificationDiagnosticsResponse))
+        {
+            return BuildClassificationDiagnostics();
+        }
+
         if (type == typeof(DocumentResultResponse))
         {
             return BuildResult();
@@ -188,6 +193,59 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
             ["page"] = 1,
             ["text"] = "REPUBLICA FEDERATIVA DO BRASIL\nCADASTRO DE PESSOAS FISICAS\nNUMERO DE INSCRICAO\n111.444.777-35\nNOME\nMARIA APARECIDA DA SILVA SOUZA\nNASCIMENTO\n14/03/1985"
         })
+    };
+
+    private static JsonObject BuildClassificationDiagnostics() => new()
+    {
+        ["id"] = SampleId,
+        ["protocol"] = SampleProtocol,
+        ["status"] = "COMPLETED",
+        ["extractedAt"] = SampleInstant,
+        ["recorded"] = new JsonObject
+        {
+            ["detectedType"] = "UNKNOWN",
+            ["confidence"] = null,
+            ["classifierVersion"] = "rules-1.0.0"
+        },
+        ["current"] = new JsonObject
+        {
+            ["classifierVersion"] = "rules-2.0.0",
+            ["documentType"] = "BR_CIN",
+            ["confidence"] = 0.85,
+            ["reason"] = "BR_CIN chosen with score 0.85 (threshold 0.60), best of 7 types tried.",
+            ["minimumScoreOverride"] = null,
+            ["textLength"] = 612
+        },
+        ["candidates"] = new JsonArray(
+            new JsonObject
+            {
+                ["documentType"] = "BR_CIN",
+                ["score"] = 0.85,
+                ["threshold"] = 0.6,
+                ["accepted"] = true,
+                ["reason"] = "Score 0.85 reached the threshold 0.60. Found: title, republic, registration-number, birth-date, parentage, issue-date.",
+                ["evidence"] = new JsonArray(
+                    BuildEvidence("title", 0.45, true, "REGISTRO DE IDENTIDADE CIVIL", "EXACT", 0),
+                    BuildEvidence("parentage", 0.10, true, "FILIACAO", "FUZZY", 1),
+                    BuildEvidence("place-of-birth", 0.05, false, null, null, null)),
+                ["counterEvidence"] = new JsonArray(
+                    BuildEvidence("cnh-title", 0.60, false, null, null, null))
+            }),
+        ["pages"] = new JsonArray(new JsonObject
+        {
+            ["page"] = 1,
+            ["text"] = "REPUBLICA FEDERATIVA DO BRASIL\nREGISTRO DE IDENTIDADE CIVIL\nDATA DE NASC / DATE OF BIRTH\nFILUACAO"
+        })
+    };
+
+    private static JsonObject BuildEvidence(string name, double weight, bool matched, string? pattern, string? kind, int? edits) => new()
+    {
+        ["name"] = name,
+        ["weight"] = weight,
+        ["matched"] = matched,
+        ["matchedPattern"] = pattern,
+        ["matchKind"] = kind,
+        ["edits"] = edits
     };
 
     private static JsonObject BuildResult() => new()

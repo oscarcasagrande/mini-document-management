@@ -1,3 +1,4 @@
+using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
 using DocReader.Domain.Documents;
@@ -56,7 +57,7 @@ public sealed class ResultQueriesAndReprocessTests
     }
 
     private static DocumentQueryService QueryService(InMemoryDocumentStore store) =>
-        new(store, new InMemoryFileStorage(), NullLogger<DocumentQueryService>.Instance);
+        new(store, new InMemoryFileStorage(), new RulesDocumentClassifier(), NullLogger<DocumentQueryService>.Instance);
 
     private static DocumentReprocessingService ReprocessService(InMemoryDocumentStore store) =>
         new(store, new FakeTimeProvider(Now.AddHours(1)), NullLogger<DocumentReprocessingService>.Instance);
@@ -104,6 +105,45 @@ public sealed class ResultQueriesAndReprocessTests
 
         Assert.Equal(DocumentStatus.Queued, result.Document.Status);
         Assert.Equal(Summary.ExtractionId, result.Result.Summary.ExtractionId);
+    }
+
+    [Fact]
+    public async Task Diagnostico_de_documento_sem_extracao_e_conflito_com_o_status_atual()
+    {
+        var (store, document) = StoreWithDocument(DocumentStatus.Queued);
+
+        var error = await Assert.ThrowsAsync<ResultNotReadyException>(() =>
+            QueryService(store).GetClassificationDiagnosticsAsync(document.Id, TestContext.Current.CancellationToken));
+
+        Assert.Equal(DocumentStatus.Queued, error.Status);
+    }
+
+    [Fact]
+    public async Task Diagnostico_de_documento_inexistente_e_not_found()
+    {
+        await Assert.ThrowsAsync<DocumentNotFoundException>(() =>
+            QueryService(new InMemoryDocumentStore())
+                .GetClassificationDiagnosticsAsync(Guid.NewGuid(), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Diagnostico_reclassifica_o_texto_da_ultima_extracao_com_as_regras_atuais()
+    {
+        var (store, document) = StoreWithDocument(DocumentStatus.Completed);
+        store.Extractions[document.Id] = (
+            new ExtractionResultView(Summary, []),
+            new ExtractionTextView(
+                Summary,
+                "[{\"pageNumber\":1,\"text\":\"CADASTRO DE PESSOAS FISICAS\\nNASCIMENTO\"},{\"pageNumber\":2,\"text\":\"NUMERO DE INSCRICAO\"}]"));
+
+        var diagnostics = await QueryService(store)
+            .GetClassificationDiagnosticsAsync(document.Id, TestContext.Current.CancellationToken);
+
+        Assert.Equal("BR_CPF_CARD", diagnostics.Diagnostics.DocumentType);
+        Assert.Equal(2, diagnostics.Pages.Count);
+        Assert.Equal("NUMERO DE INSCRICAO", diagnostics.Pages[1].Text);
+        Assert.Equal(Summary.ClassifierVersion, diagnostics.Extraction.ClassifierVersion);
+        Assert.Equal(RulesDocumentClassifier.ClassifierVersion, diagnostics.Diagnostics.ClassifierVersion);
     }
 
     [Fact]

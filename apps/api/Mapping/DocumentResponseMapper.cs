@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DocReader.Api.Contracts.V1;
+using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Processing;
@@ -121,6 +122,50 @@ public static class DocumentResponseMapper
             text.Text.Summary.CreatedAt,
             pages.Select(page => new DocumentTextPageResponse(page.PageNumber, page.Text)).ToArray());
     }
+
+    public static ClassificationDiagnosticsResponse ToClassificationDiagnostics(
+        DocumentClassificationDiagnostics diagnostics,
+        bool includeText)
+    {
+        var document = diagnostics.Document;
+        var current = diagnostics.Diagnostics;
+
+        return new ClassificationDiagnosticsResponse(
+            document.Id,
+            document.Protocol,
+            document.Status,
+            diagnostics.Extraction.CreatedAt,
+            new RecordedClassificationResponse(
+                document.DetectedDocumentType,
+                document.ClassificationConfidence,
+                diagnostics.Extraction.ClassifierVersion),
+            new ClassificationDecisionResponse(
+                current.ClassifierVersion,
+                current.DocumentType,
+                current.Confidence,
+                current.Reason,
+                current.ThresholdOverride,
+                current.TextLength),
+            [.. current.Candidates.Select(candidate => new ClassificationCandidateResponse(
+                candidate.DocumentType,
+                candidate.Score,
+                candidate.Threshold,
+                candidate.Accepted,
+                candidate.Reason,
+                [.. candidate.Evidence.Select(ToEvidence)],
+                [.. candidate.CounterEvidence.Select(ToEvidence)]))],
+            includeText
+                ? [.. diagnostics.Pages.Select(page => new DocumentTextPageResponse(page.PageNumber, page.Text))]
+                : null);
+    }
+
+    private static ClassificationEvidenceResponse ToEvidence(EvidenceDiagnostics evidence) => new(
+        evidence.Name,
+        evidence.Weight,
+        evidence.Matched,
+        evidence.MatchedPattern,
+        evidence.MatchKind,
+        evidence.Edits);
 
     public static DocumentResultResponse ToResult(DocumentResult result)
     {

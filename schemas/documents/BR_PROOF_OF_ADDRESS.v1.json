@@ -136,31 +136,126 @@
     "supportLevel": "STRUCTURED",
     "schemaVersion": 1,
     "classification": {
-      "requiredSignals": [
-        "CEP"
+      "evidence": [
+        {
+          "name": "postal-code",
+          "weight": 0.15,
+          "patterns": [
+            "CEP"
+          ]
+        },
+        {
+          "name": "bill",
+          "weight": 0.15,
+          "patterns": [
+            "FATURA",
+            "NOTA FISCAL",
+            "CONTA DE ENERGIA",
+            "CONTA DE AGUA",
+            "BOLETO",
+            "DEMONSTRATIVO"
+          ]
+        },
+        {
+          "name": "utility",
+          "weight": 0.2,
+          "patterns": [
+            "ENERGIA ELETRICA",
+            "AGUA E ESGOTO",
+            "GAS NATURAL",
+            "TELEFONIA",
+            "TELEFONE",
+            "INTERNET",
+            "SANEAMENTO",
+            "DISTRIBUIDORA"
+          ]
+        },
+        {
+          "name": "customer-code",
+          "weight": 0.15,
+          "patterns": [
+            "UNIDADE CONSUMIDORA",
+            "CODIGO DO CLIENTE",
+            "NUMERO DO CLIENTE",
+            "N DO CLIENTE",
+            "INSTALACAO"
+          ]
+        },
+        {
+          "name": "due-date",
+          "weight": 0.15,
+          "patterns": [
+            "VENCIMENTO",
+            "DATA DE VENCIMENTO"
+          ]
+        },
+        {
+          "name": "amount-due",
+          "weight": 0.15,
+          "patterns": [
+            "TOTAL A PAGAR",
+            "VALOR A PAGAR",
+            "VALOR TOTAL",
+            "VALOR DO DOCUMENTO"
+          ]
+        },
+        {
+          "name": "consumption",
+          "weight": 0.05,
+          "patterns": [
+            "CONSUMO",
+            "LEITURA"
+          ]
+        },
+        {
+          "name": "reference-period",
+          "weight": 0.05,
+          "patterns": [
+            "MES DE REFERENCIA",
+            "REFERENCIA",
+            "COMPETENCIA"
+          ]
+        }
       ],
-      "optionalSignals": [
-        "FATURA",
-        "NOTA FISCAL",
-        "ENERGIA ELETRICA",
-        "AGUA E ESGOTO",
-        "GAS NATURAL",
-        "TELEFONE",
-        "INTERNET",
-        "UNIDADE CONSUMIDORA",
-        "VENCIMENTO",
-        "TOTAL A PAGAR",
-        "CONSUMO",
-        "REFERENCIA"
+      "counterEvidence": [
+        {
+          "name": "cnpj-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO NACIONAL DA PESSOA JURIDICA"
+          ]
+        },
+        {
+          "name": "ccmei-title",
+          "weight": 0.6,
+          "patterns": [
+            "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+          ]
+        },
+        {
+          "name": "cnh-title",
+          "weight": 0.6,
+          "patterns": [
+            "CARTEIRA NACIONAL DE HABILITACAO"
+          ]
+        },
+        {
+          "name": "identity-title",
+          "weight": 0.6,
+          "patterns": [
+            "CARTEIRA DE IDENTIDADE",
+            "REGISTRO DE IDENTIDADE CIVIL"
+          ]
+        },
+        {
+          "name": "contract-clause",
+          "weight": 0.6,
+          "patterns": [
+            "CLAUSULA"
+          ]
+        }
       ],
-      "negativeSignals": [
-        "CADASTRO NACIONAL DA PESSOA JURIDICA",
-        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL",
-        "CARTEIRA NACIONAL DE HABILITACAO",
-        "CARTEIRA DE IDENTIDADE",
-        "CLAUSULA"
-      ],
-      "threshold": 0.7
+      "threshold": 0.6
     },
     "validation": {
       "holderDocument": "CPF ou CNPJ com dígito verificador (RF-012), inclusive CNPJ alfanumérico.",

@@ -1,3 +1,4 @@
+using DocReader.Application.Classification;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Processing;
 
@@ -69,3 +70,17 @@ public enum ReprocessOutcome
     /// <summary>A job is already pending or running, or the document is in a status that cannot be reprocessed.</summary>
     Conflict = 2
 }
+
+/// <param name="PageNumber">One based page number.</param>
+/// <param name="Text">Text of the page, one recognized line per line.</param>
+public sealed record DocumentTextPage(int PageNumber, string Text);
+
+/// <summary>
+/// The classifier run again, with today's rules, over the text of the latest extraction, next to what was
+/// recorded when the document was processed. They differ after the rules changed and before a reprocess.
+/// </summary>
+public sealed record DocumentClassificationDiagnostics(
+    Document Document,
+    ExtractionSummary Extraction,
+    IReadOnlyList<DocumentTextPage> Pages,
+    ClassificationDiagnostics Diagnostics);

@@ -1,4 +1,6 @@
+using System.Text.Json;
 using DocReader.Application.Abstractions;
+using DocReader.Application.Classification;
 using DocReader.Application.Errors;
 using DocReader.Domain.Documents;
 using Microsoft.Extensions.Logging;
@@ -12,8 +14,11 @@ namespace DocReader.Application.Documents;
 public sealed class DocumentQueryService(
     IDocumentRepository repository,
     IFileStorage storage,
+    IDocumentClassifier classifier,
     ILogger<DocumentQueryService> logger)
 {
+    private static readonly JsonSerializerOptions StoredJson = new(JsonSerializerDefaults.Web);
+
     public Task<PagedResult<Document>> ListAsync(DocumentListFilter filter, CancellationToken ct) =>
         repository.ListAsync(filter, ct);
 
@@ -75,6 +80,27 @@ public sealed class DocumentQueryService(
     }
 
     /// <summary>
+    /// Explains the classification of the latest extraction: the text as the OCR read it and, for every
+    /// document type, the score and the evidence found or missing, using the rules currently in force.
+    /// </summary>
+    /// <exception cref="ResultNotReadyException">There is no extraction yet, or every attempt failed.</exception>
+    public async Task<DocumentClassificationDiagnostics> GetClassificationDiagnosticsAsync(
+        Guid id,
+        CancellationToken ct)
+    {
+        var text = await GetTextAsync(id, ct).ConfigureAwait(false);
+
+        var pages = JsonSerializer.Deserialize<List<StoredPage>>(text.Text.PageTextsJson, StoredJson) ?? [];
+        var diagnostics = classifier.Diagnose(string.Join('\n', pages.Select(page => page.Text)));
+
+        return new DocumentClassificationDiagnostics(
+            text.Document,
+            text.Text.Summary,
+            [.. pages.Select(page => new DocumentTextPage(page.PageNumber, page.Text))],
+            diagnostics);
+    }
+
+    /// <summary>
     /// Opens the original bytes. The metadata is authoritative for the content type, so a renamed
     /// or mislabeled upload is still served as what it really is.
     /// </summary>
@@ -103,4 +129,6 @@ public sealed class DocumentQueryService(
             document.SizeBytes,
             document.Sha256);
     }
+
+    private sealed record StoredPage(int PageNumber, string Text);
 }

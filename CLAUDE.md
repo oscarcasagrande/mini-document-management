@@ -25,6 +25,17 @@ classificação, extrator e testes. A extração é por rótulo e geometria (`Li
 
 **Etapa 4 — avaliação e hardening: framework pronto, medição em documento real pendente.** Aguarda aprovação.
 
+- **Classificação por evidência** (`rules-2.0.0`): cada tipo soma o peso das evidências achadas, subtrai a
+  contra-evidência e é aceito no limiar (0,6; `DocReader:Classification:MinimumScore` / `CLASSIFICATION_MIN_SCORE`
+  o substitui para todos). Nenhuma frase é obrigatória; `SearchableText` casa sem acento e caixa, com palavras
+  coladas ou partidas e com um erro de letra a cada oito. Os pesos vivem em `DocumentTypeProfile` e no bloco
+  `x-docreader.classification` de cada schema, e um teste exige que sejam iguais. Nasceu de documento real: o
+  PP-OCRv5 devolve `REPUBLICAFEDERATIVADOBRASIL` e o RG antigo é "REGISTRO DE IDENTIDADE CIVIL" (RIC), que cai em
+  `BR_CIN`.
+- **Diagnóstico**: `GET /api/v1/documents/{id}/classification-diagnostics` refaz a decisão com as regras de agora
+  (mesmo código do `Classify`) e devolve texto, pontuação por tipo, evidência achada e faltante e a razão. Sempre
+  o primeiro passo diante de um `UNKNOWN`. Não grava nada e não loga conteúdo.
+
 - DV do número de registro da CNH (`CnhRegistration`, algoritmo do DENATRAN como o `brdoc` o reproduz) e
   sinalização de validade vencida (`DOCUMENT_EXPIRED`, sem reprovar o campo) em CIN e CNH.
 - `scripts/evaluate.py` avalia o sistema contra uma pasta **fora do repositório** de documentos anotados:
@@ -32,7 +43,7 @@ classificação, extrator e testes. A extração é por rótulo e geometria (`Li
   indicadores do PRD §3. Formato do ground truth e métricas em `docs/evaluation.md`; testes em `tests/accuracy`.
   Recusa pasta dentro do repo, não escreve valor de campo no relatório sem `--include-values`, apaga da API o
   que enviou. Smoke test com `samples/synthetic/documents` (`--truth-suffix .expected.json`).
-- Testes: 487 unitários (as sete amostras rodam sobre **OCR real** capturado em
+- Testes: 522 unitários (as sete amostras rodam sobre **OCR real** capturado em
   `tests/unit/DocReader.UnitTests/Fixtures/ocr`), 21 de integração, 29 do `pytest` do OCR, 49 do avaliador.
   Ponta a ponta: `tests/e2e/stage3_acceptance.py`.
 - Latência de A4 fechada no ADR 0002: o alvo (≤ 18 s/página) é atingido **sem limite de CPU** (pior caso
@@ -219,6 +230,13 @@ Vêm do PRD (§16, §20, §21) e valem para todo código novo.
 ## Armadilhas conhecidas
 
 Coisas que já custaram tempo e não se enxergam no código.
+
+- **Amostra sintética aprova o que documento real reprova.** As regras da Etapa 3 exigiam frases inteiras que só as
+  amostras traziam e deram `UNKNOWN` em CNH e RG reais. Ao mexer em classificação, rode o diagnóstico em um documento
+  real, não só os testes. A **extração** ainda não foi calibrada assim: nos dois documentos reais de exemplo a CNH
+  perde `name`, `registrationNumber`, `category` e `firstLicenseDate`, e o RIC perde quase tudo.
+- **Resultado gravado não muda sozinho.** Depois de mudar regras, `recorded` e `current` do diagnóstico divergem até o
+  `POST .../reprocess`; o `/result` continua mostrando a classificação antiga.
 
 - **Disco cheio derruba o Docker.** O disco virtual do Docker Desktop (`docker_data.vhdx`) fica somente leitura
   quando o `C:` chega a zero, e sem Docker não há build .NET (`scripts/dotnet.sh` também roda em contêiner).

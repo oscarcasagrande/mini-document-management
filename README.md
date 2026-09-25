@@ -101,7 +101,34 @@ Todas em `.env` (ver `.env.example`, que explica cada uma):
 | `OCR_MEMORY_LIMIT` | `3g` | Teto de memória do `ocr-service` |
 | `UPLOAD_MAX_SIZE_BYTES`, `UPLOAD_MAX_PAGE_COUNT` | 25 MB, 50 | Limites de upload |
 | `QUEUE_MAX_ATTEMPTS` | `3` | Tentativas por documento antes de `FAILED` |
+| `CLASSIFICATION_MIN_SCORE` | `0` | Pontuação mínima para aceitar um tipo. `0` usa o limiar de cada tipo (0,6); ver [Depurar uma classificação](#depurar-uma-classificação) |
 | `ALLOW_ANONYMOUS_ACCESS` | `true` | `false` fecha a API |
+
+### Depurar uma classificação
+
+Um documento que saiu `UNKNOWN`, ou com o tipo errado, se explica em uma chamada. O endpoint refaz a decisão, com as
+regras em vigor, sobre o texto da última extração e mostra ao lado o que foi gravado no processamento:
+
+```bash
+curl -s "http://localhost:8080/api/v1/documents/$ID/classification-diagnostics"                   # com o texto bruto
+curl -s "http://localhost:8080/api/v1/documents/$ID/classification-diagnostics?includeText=false" # só a decisão
+```
+
+- `recorded`: tipo, confiança e versão das regras gravados quando o documento foi processado.
+- `current`: a decisão das regras de agora e `reason`, a frase que a explica ("No type reached its threshold.
+  Closest: BR_CIN with score 0.55 of 0.60"). Os dois diferem depois de uma mudança de regras e até o
+  `POST .../reprocess`.
+- `candidates`: todos os tipos tentados, do melhor para o pior. Cada um traz `score`, `threshold`, `accepted` e
+  a lista completa de `evidence` e `counterEvidence`, achadas ou não, com o padrão que casou e se o OCR errou
+  (`matchKind: FUZZY`, `edits`). O que faltou para o limiar está na `reason` do candidato.
+- `pages`: o texto bruto do OCR, o mesmo de `/text`. `includeText=false` o omite.
+
+A classificação soma pontos por evidência (cada tipo tem as suas, em `schemas/documents/*.json`), subtrai a
+contra-evidência e aceita o tipo que atinge o limiar. Nenhum termo é obrigatório, o casamento tolera palavras
+coladas e erros de letra do OCR, e o título sozinho não basta nos tipos ambíguos. Se o diagnóstico mostrar um
+documento legítimo perto do limiar, há duas saídas: acrescentar o rótulo que faltou como padrão alternativo do
+tipo (`DocumentTypeProfile.cs` e o schema, que um teste mantém iguais) ou baixar `CLASSIFICATION_MIN_SCORE` em
+`.env` (afeta todos os tipos; reprocesse para aplicar).
 
 **Latência.** Uma página A4 densa leva ~16 s de OCR com o contêiner sem limite de CPU e ~28 s limitado a 4 CPUs
 (ADR 0002). O alvo do PRD (cinco páginas em 90 s) vale para o primeiro caso. Não imponha limite de CPU ao

@@ -822,6 +822,105 @@
         }
       }
     },
+    "/api/v1/documents/{id}/classification-diagnostics": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Explains how the document was classified, for debugging a document that came out UNKNOWN.",
+        "description": "Runs the classifier again, with the rules in force now, over the text of the latest extraction. For\nevery document type it tried, it reports the score, the threshold, each evidence found or missing\n(with the rule pattern that matched and whether OCR errors had to be tolerated) and a sentence\nsaying why the type was or was not accepted. `recorded` is what was stored when the document\nwas processed; it differs from `current` after the rules changed, until the document is\nreprocessed. Nothing is written. The raw text is included by default because it is the first thing\nto look at; it is the same content as `/text`, and `includeText=false` leaves it out.\nAnswers 409 while there is nothing to return yet, or when every attempt failed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "includeText",
+            "in": "query",
+            "description": "Whether to include the raw OCR text. Defaults to true.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/classification-diagnostics",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The classification, explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationDiagnosticsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/classification-diagnostics",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The document has no result yet, or its processing failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Result not available",
+                  "status": 409,
+                  "detail": "The document is OCR_RUNNING and has no result yet. Poll the status endpoint and try again when it is COMPLETED.",
+                  "instance": "/api/v1/documents/{id}/classification-diagnostics",
+                  "errorCode": "RESULT_NOT_READY",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/{id}/result": {
       "get": {
         "tags": [
@@ -1005,6 +1104,233 @@
   },
   "components": {
     "schemas": {
+      "ClassificationCandidateResponse": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "description": "Type this candidate would classify the document as."
+          },
+          "score": {
+            "type": "number",
+            "description": "Evidence found minus counter-evidence, between 0 and 1.",
+            "format": "double"
+          },
+          "threshold": {
+            "type": "number",
+            "description": "Score needed to accept the type.",
+            "format": "double"
+          },
+          "accepted": {
+            "type": "boolean",
+            "description": "Whether the score reached the threshold."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the score is what it is."
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassificationEvidenceResponse"
+            },
+            "description": "Every evidence of the type, found or not."
+          },
+          "counterEvidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassificationEvidenceResponse"
+            },
+            "description": "Every counter-evidence of the type, found or not."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClassificationDecisionResponse": {
+        "type": "object",
+        "properties": {
+          "classifierVersion": {
+            "type": "string",
+            "description": "Version of the rules that ran now."
+          },
+          "documentType": {
+            "type": "string",
+            "description": "The decision, UNKNOWN when no type reached its threshold."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Score of the chosen type; null when UNKNOWN.",
+            "format": "double",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "description": "The decision in a sentence."
+          },
+          "minimumScoreOverride": {
+            "type": "number",
+            "description": "Global minimum score in force, null when each type uses its own threshold.",
+            "format": "double",
+            "nullable": true
+          },
+          "textLength": {
+            "type": "integer",
+            "description": "Letters and digits the matcher worked with.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClassificationDiagnosticsResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the document.",
+            "format": "uuid"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Human readable protocol."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "extractedAt": {
+            "type": "string",
+            "description": "Instant the text was persisted, in UTC.",
+            "format": "date-time"
+          },
+          "recorded": {
+            "$ref": "#/components/schemas/RecordedClassificationResponse"
+          },
+          "current": {
+            "$ref": "#/components/schemas/ClassificationDecisionResponse"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassificationCandidateResponse"
+            },
+            "description": "Every document type tried, best score first."
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentTextPageResponse"
+            },
+            "description": "Raw OCR text, page by page. Omitted with `includeText=false`.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Why a document was classified as it was: the classification recorded at processing time, the same\ndecision recomputed with the rules in force now, every document type that was tried with its score and\nevidence, and the raw text of the latest extraction.",
+        "example": {
+          "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "protocol": "DOC-20260924-000001",
+          "status": "COMPLETED",
+          "extractedAt": "2026-09-24T22:00:00Z",
+          "recorded": {
+            "detectedType": "UNKNOWN",
+            "confidence": null,
+            "classifierVersion": "rules-1.0.0"
+          },
+          "current": {
+            "classifierVersion": "rules-2.0.0",
+            "documentType": "BR_CIN",
+            "confidence": 0.85,
+            "reason": "BR_CIN chosen with score 0.85 (threshold 0.60), best of 7 types tried.",
+            "minimumScoreOverride": null,
+            "textLength": 612
+          },
+          "candidates": [
+            {
+              "documentType": "BR_CIN",
+              "score": 0.85,
+              "threshold": 0.6,
+              "accepted": true,
+              "reason": "Score 0.85 reached the threshold 0.60. Found: title, republic, registration-number, birth-date, parentage, issue-date.",
+              "evidence": [
+                {
+                  "name": "title",
+                  "weight": 0.45,
+                  "matched": true,
+                  "matchedPattern": "REGISTRO DE IDENTIDADE CIVIL",
+                  "matchKind": "EXACT",
+                  "edits": 0
+                },
+                {
+                  "name": "parentage",
+                  "weight": 0.1,
+                  "matched": true,
+                  "matchedPattern": "FILIACAO",
+                  "matchKind": "FUZZY",
+                  "edits": 1
+                },
+                {
+                  "name": "place-of-birth",
+                  "weight": 0.05,
+                  "matched": false,
+                  "matchedPattern": null,
+                  "matchKind": null,
+                  "edits": null
+                }
+              ],
+              "counterEvidence": [
+                {
+                  "name": "cnh-title",
+                  "weight": 0.6,
+                  "matched": false,
+                  "matchedPattern": null,
+                  "matchKind": null,
+                  "edits": null
+                }
+              ]
+            }
+          ],
+          "pages": [
+            {
+              "page": 1,
+              "text": "REPUBLICA FEDERATIVA DO BRASIL\nREGISTRO DE IDENTIDADE CIVIL\nDATA DE NASC / DATE OF BIRTH\nFILUACAO"
+            }
+          ]
+        }
+      },
+      "ClassificationEvidenceResponse": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Evidence identifier."
+          },
+          "weight": {
+            "type": "number",
+            "description": "Points added, or removed for counter-evidence.",
+            "format": "double"
+          },
+          "matched": {
+            "type": "boolean",
+            "description": "Whether it was found in the text."
+          },
+          "matchedPattern": {
+            "type": "string",
+            "description": "Rule pattern that matched; not document content.",
+            "nullable": true
+          },
+          "matchKind": {
+            "type": "string",
+            "description": "EXACT, or FUZZY when OCR errors were tolerated.",
+            "nullable": true
+          },
+          "edits": {
+            "type": "integer",
+            "description": "Errors tolerated for a FUZZY match.",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "DocumentClassificationResponse": {
         "type": "object",
         "properties": {
@@ -1568,7 +1894,7 @@
           },
           "detectedDocumentType": {
             "type": "string",
-            "description": "Type identified by the classifier, null until stage 3.",
+            "description": "Type identified by the classifier, null until the document is classified.",
             "nullable": true
           },
           "classificationConfidence": {
@@ -1926,6 +2252,28 @@
           "FAILED"
         ],
         "type": "string"
+      },
+      "RecordedClassificationResponse": {
+        "type": "object",
+        "properties": {
+          "detectedType": {
+            "type": "string",
+            "description": "Type stored with the document; UNKNOWN or null when none was found.",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Score stored with the document.",
+            "format": "double",
+            "nullable": true
+          },
+          "classifierVersion": {
+            "type": "string",
+            "description": "Rules version of the latest extraction.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "UploadAcceptedResponse": {
         "type": "object",

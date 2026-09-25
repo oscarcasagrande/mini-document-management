@@ -18,7 +18,8 @@ Endpoints da v1:
 | `GET` | `/api/v1/documents/{id}/text` | 2 |
 | `GET` | `/api/v1/documents/{id}/result` | 2 |
 | `POST` | `/api/v1/documents/{id}/reprocess` | 2 |
+| `GET` | `/api/v1/documents/{id}/classification-diagnostics` | 4 |
 
-`/text` e `/result` respondem `409` (`RESULT_NOT_READY`) enquanto não há extração; `/reprocess`
+`/text`, `/result` e `/classification-diagnostics` respondem `409` (`RESULT_NOT_READY`) enquanto não há extração; `/reprocess`
 responde `202`, `404` se o documento não existe e `409` (`REPROCESS_CONFLICT`) se o documento está na
 fila ou em processamento, ou foi rejeitado. Todo erro é `application/problem+json`.

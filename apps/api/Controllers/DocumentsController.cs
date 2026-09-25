@@ -268,6 +268,39 @@ public sealed class DocumentsController(
     }
 
     /// <summary>
+    /// Explains how the document was classified, for debugging a document that came out UNKNOWN.
+    /// </summary>
+    /// <remarks>
+    /// Runs the classifier again, with the rules in force now, over the text of the latest extraction. For
+    /// every document type it tried, it reports the score, the threshold, each evidence found or missing
+    /// (with the rule pattern that matched and whether OCR errors had to be tolerated) and a sentence
+    /// saying why the type was or was not accepted. <c>recorded</c> is what was stored when the document
+    /// was processed; it differs from <c>current</c> after the rules changed, until the document is
+    /// reprocessed. Nothing is written. The raw text is included by default because it is the first thing
+    /// to look at; it is the same content as <c>/text</c>, and <c>includeText=false</c> leaves it out.
+    /// Answers 409 while there is nothing to return yet, or when every attempt failed.
+    /// </remarks>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="includeText">Whether to include the raw OCR text. Defaults to true.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="200">The classification, explained.</response>
+    /// <response code="404">No document with this id.</response>
+    /// <response code="409">The document has no result yet, or its processing failed.</response>
+    [HttpGet("{id:guid}/classification-diagnostics")]
+    [ProducesResponseType(typeof(ClassificationDiagnosticsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
+    public async Task<ActionResult<ClassificationDiagnosticsResponse>> GetClassificationDiagnosticsAsync(
+        Guid id,
+        [FromQuery] bool includeText = true,
+        CancellationToken ct = default)
+    {
+        var diagnostics = await queryService.GetClassificationDiagnosticsAsync(id, ct);
+
+        return Ok(DocumentResponseMapper.ToClassificationDiagnostics(diagnostics, includeText));
+    }
+
+    /// <summary>
     /// Returns the canonical structured result.
     /// </summary>
     /// <remarks>

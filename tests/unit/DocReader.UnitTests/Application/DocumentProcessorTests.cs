@@ -113,7 +113,7 @@ public sealed class DocumentProcessorTests
         var completed = Assert.Single(rig.Store.Completed);
 
         Assert.Equal("BR_CPF_CARD", completed.DetectedType);
-        Assert.Equal(1.0m, completed.Confidence);
+        Assert.Equal(0.95m, completed.Confidence);
 
         var fields = completed.Extraction.Fields.ToDictionary(field => field.FieldPath);
         Assert.Equal("11144477735", fields["cpf"].NormalizedValue);

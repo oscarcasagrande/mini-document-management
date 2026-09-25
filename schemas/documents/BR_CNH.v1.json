@@ -118,24 +118,107 @@
     "supportLevel": "STRUCTURED",
     "schemaVersion": 1,
     "classification": {
-      "requiredSignals": [
-        "CARTEIRA NACIONAL DE HABILITACAO"
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.45,
+          "patterns": [
+            "CARTEIRA NACIONAL DE HABILITACAO",
+            "DRIVER LICENSE",
+            "PERMISO DE CONDUCCION"
+          ]
+        },
+        {
+          "name": "republic",
+          "weight": 0.05,
+          "patterns": [
+            "REPUBLICA FEDERATIVA DO BRASIL"
+          ]
+        },
+        {
+          "name": "issuing-authority",
+          "weight": 0.15,
+          "patterns": [
+            "SECRETARIA NACIONAL DE TRANSITO",
+            "SENATRAN",
+            "DENATRAN",
+            "MINISTERIO DOS TRANSPORTES",
+            "MINISTERIO DA INFRAESTRUTURA",
+            "MINISTERIO DAS CIDADES"
+          ]
+        },
+        {
+          "name": "category",
+          "weight": 0.1,
+          "patterns": [
+            "CAT HAB",
+            "CATEGORIA DE HABILITACAO"
+          ]
+        },
+        {
+          "name": "validity",
+          "weight": 0.05,
+          "patterns": [
+            "VALIDADE"
+          ]
+        },
+        {
+          "name": "parentage",
+          "weight": 0.05,
+          "patterns": [
+            "FILIACAO"
+          ]
+        },
+        {
+          "name": "registration-number",
+          "weight": 0.05,
+          "patterns": [
+            "N REGISTRO",
+            "NUMERO DE REGISTRO",
+            "REGISTRO"
+          ]
+        },
+        {
+          "name": "identity-document",
+          "weight": 0.05,
+          "patterns": [
+            "DOC IDENTIDADE",
+            "ORG EMISSOR"
+          ]
+        },
+        {
+          "name": "first-license",
+          "weight": 0.05,
+          "patterns": [
+            "1 HABILITACAO",
+            "PRIMEIRA HABILITACAO"
+          ]
+        },
+        {
+          "name": "cpf",
+          "weight": 0.05,
+          "patterns": [
+            "CPF"
+          ]
+        }
       ],
-      "optionalSignals": [
-        "REPUBLICA FEDERATIVA DO BRASIL",
-        "MINISTERIO DOS TRANSPORTES",
-        "SECRETARIA NACIONAL DE TRANSITO",
-        "CAT. HAB.",
-        "VALIDADE",
-        "FILIACAO",
-        "REGISTRO",
-        "CPF"
+      "counterEvidence": [
+        {
+          "name": "cnpj-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO NACIONAL DA PESSOA JURIDICA"
+          ]
+        },
+        {
+          "name": "ccmei-title",
+          "weight": 0.6,
+          "patterns": [
+            "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+          ]
+        }
       ],
-      "negativeSignals": [
-        "CADASTRO NACIONAL DA PESSOA JURIDICA",
-        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
-      ],
-      "threshold": 0.7
+      "threshold": 0.6
     },
     "validation": {
       "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",

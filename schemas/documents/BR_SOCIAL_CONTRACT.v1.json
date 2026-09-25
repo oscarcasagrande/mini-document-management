@@ -128,25 +128,104 @@
     "supportLevel": "STRUCTURED",
     "schemaVersion": 1,
     "classification": {
-      "requiredSignals": [
-        "CONTRATO SOCIAL"
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.35,
+          "patterns": [
+            "CONTRATO SOCIAL",
+            "ALTERACAO CONTRATUAL",
+            "CONSOLIDACAO CONTRATUAL",
+            "INSTRUMENTO PARTICULAR DE CONSTITUICAO"
+          ]
+        },
+        {
+          "name": "clause",
+          "weight": 0.2,
+          "patterns": [
+            "CLAUSULA"
+          ]
+        },
+        {
+          "name": "partners",
+          "weight": 0.1,
+          "patterns": [
+            "SOCIOS",
+            "SOCIO",
+            "SOCIA"
+          ]
+        },
+        {
+          "name": "quotas",
+          "weight": 0.1,
+          "patterns": [
+            "QUOTAS",
+            "QUOTA",
+            "COTAS"
+          ]
+        },
+        {
+          "name": "share-capital",
+          "weight": 0.1,
+          "patterns": [
+            "CAPITAL SOCIAL"
+          ]
+        },
+        {
+          "name": "corporate-purpose",
+          "weight": 0.05,
+          "patterns": [
+            "OBJETO SOCIAL"
+          ]
+        },
+        {
+          "name": "registered-office",
+          "weight": 0.05,
+          "patterns": [
+            "SEDE"
+          ]
+        },
+        {
+          "name": "administration",
+          "weight": 0.05,
+          "patterns": [
+            "ADMINISTRACAO"
+          ]
+        },
+        {
+          "name": "jurisdiction",
+          "weight": 0.05,
+          "patterns": [
+            "FORO"
+          ]
+        },
+        {
+          "name": "company-type",
+          "weight": 0.05,
+          "patterns": [
+            "SOCIEDADE",
+            "LTDA",
+            "EIRELI"
+          ]
+        }
       ],
-      "optionalSignals": [
-        "CLAUSULA",
-        "SOCIOS",
-        "QUOTAS",
-        "CAPITAL SOCIAL",
-        "OBJETO SOCIAL",
-        "SEDE",
-        "ADMINISTRACAO",
-        "FORO",
-        "SOCIEDADE"
+      "counterEvidence": [
+        {
+          "name": "cnpj-receipt-title",
+          "weight": 0.6,
+          "patterns": [
+            "COMPROVANTE DE INSCRICAO E DE SITUACAO CADASTRAL"
+          ]
+        },
+        {
+          "name": "ccmei-title",
+          "weight": 0.6,
+          "patterns": [
+            "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+          ]
+        }
       ],
-      "negativeSignals": [
-        "COMPROVANTE DE INSCRICAO E DE SITUACAO CADASTRAL",
-        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
-      ],
-      "threshold": 0.7
+      "threshold": 0.6
     },
     "validation": {
       "cnpj": "Dígitos verificadores por módulo 11, procurado perto da palavra CNPJ; sem essa âncora a confiança é rebaixada (RF-012).",

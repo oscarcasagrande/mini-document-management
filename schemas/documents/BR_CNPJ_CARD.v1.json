@@ -202,23 +202,89 @@
     "supportLevel": "STRUCTURED",
     "schemaVersion": 1,
     "classification": {
-      "requiredSignals": [
-        "CADASTRO NACIONAL DA PESSOA JURIDICA"
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.4,
+          "patterns": [
+            "CADASTRO NACIONAL DA PESSOA JURIDICA",
+            "CADASTRO NACIONAL DE PESSOA JURIDICA"
+          ]
+        },
+        {
+          "name": "receipt-title",
+          "weight": 0.2,
+          "patterns": [
+            "COMPROVANTE DE INSCRICAO E DE SITUACAO CADASTRAL"
+          ]
+        },
+        {
+          "name": "registration-number",
+          "weight": 0.1,
+          "patterns": [
+            "NUMERO DE INSCRICAO"
+          ]
+        },
+        {
+          "name": "opening-date",
+          "weight": 0.1,
+          "patterns": [
+            "DATA DE ABERTURA"
+          ]
+        },
+        {
+          "name": "company-name",
+          "weight": 0.1,
+          "patterns": [
+            "NOME EMPRESARIAL"
+          ]
+        },
+        {
+          "name": "legal-nature",
+          "weight": 0.05,
+          "patterns": [
+            "NATUREZA JURIDICA"
+          ]
+        },
+        {
+          "name": "registration-status",
+          "weight": 0.05,
+          "patterns": [
+            "SITUACAO CADASTRAL"
+          ]
+        },
+        {
+          "name": "main-activity",
+          "weight": 0.05,
+          "patterns": [
+            "ATIVIDADE ECONOMICA PRINCIPAL"
+          ]
+        },
+        {
+          "name": "republic",
+          "weight": 0.05,
+          "patterns": [
+            "REPUBLICA FEDERATIVA DO BRASIL"
+          ]
+        }
       ],
-      "optionalSignals": [
-        "COMPROVANTE DE INSCRICAO E DE SITUACAO CADASTRAL",
-        "NUMERO DE INSCRICAO",
-        "DATA DE ABERTURA",
-        "NOME EMPRESARIAL",
-        "NATUREZA JURIDICA",
-        "SITUACAO CADASTRAL",
-        "ATIVIDADE ECONOMICA PRINCIPAL"
+      "counterEvidence": [
+        {
+          "name": "ccmei-title",
+          "weight": 0.6,
+          "patterns": [
+            "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+          ]
+        },
+        {
+          "name": "contract-clause",
+          "weight": 0.4,
+          "patterns": [
+            "CLAUSULA"
+          ]
+        }
       ],
-      "negativeSignals": [
-        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL",
-        "CLAUSULA"
-      ],
-      "threshold": 0.7
+      "threshold": 0.6
     },
     "validation": {
       "cnpj": "Dígitos verificadores por módulo 11 sobre valores derivados do ASCII; 12 primeiras posições iguais são rejeitadas (RF-012).",

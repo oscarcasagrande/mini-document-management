@@ -121,15 +121,30 @@ public sealed class Stage3ClassificationTests
 
         var classification = schema.RootElement.GetProperty("x-docreader").GetProperty("classification");
 
-        static string[] Read(JsonElement parent, string name) =>
-            [.. parent.GetProperty(name).EnumerateArray().Select(item => item.GetString()!)];
-
         var profile = DocumentTypeProfile.All.Single(candidate => candidate.DocumentType == documentType);
 
-        Assert.Equal(Read(classification, "requiredSignals").Order(), profile.RequiredSignals.Order());
-        Assert.Equal(Read(classification, "optionalSignals").Order(), profile.OptionalSignals.Order());
-        Assert.Equal(Read(classification, "negativeSignals").Order(), profile.NegativeSignals.Order());
         Assert.Equal(classification.GetProperty("threshold").GetDecimal(), profile.Threshold);
+        AssertSameEvidence(classification.GetProperty("evidence"), profile.Evidence);
+        AssertSameEvidence(classification.GetProperty("counterEvidence"), profile.CounterEvidence);
+    }
+
+    private static void AssertSameEvidence(JsonElement schemaEvidence, IReadOnlyList<ClassificationEvidence> profileEvidence)
+    {
+        var fromSchema = schemaEvidence.EnumerateArray()
+            .Select(item => (
+                Name: item.GetProperty("name").GetString()!,
+                Weight: item.GetProperty("weight").GetDecimal(),
+                Patterns: item.GetProperty("patterns").EnumerateArray().Select(pattern => pattern.GetString()!).ToArray()))
+            .ToArray();
+
+        Assert.Equal(profileEvidence.Count, fromSchema.Length);
+
+        for (var index = 0; index < fromSchema.Length; index++)
+        {
+            Assert.Equal(profileEvidence[index].Name, fromSchema[index].Name);
+            Assert.Equal(profileEvidence[index].Weight, fromSchema[index].Weight);
+            Assert.Equal(profileEvidence[index].Patterns, fromSchema[index].Patterns);
+        }
     }
 
     private static string RepositoryRoot()

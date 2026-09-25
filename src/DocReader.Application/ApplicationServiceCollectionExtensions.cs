@@ -44,7 +44,14 @@ public static class ApplicationServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<ClassificationOptions>()
+            .Bind(configuration.GetSection(ClassificationOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.TryAddTimeProvider();
+
+        services.AddSingleton<IDocumentClassifier, RulesDocumentClassifier>();
 
         services.AddScoped<IDocumentExtractor, BrCpfCardExtractor>();
         services.AddScoped<IDocumentExtractor, BrCinExtractor>();
@@ -63,8 +70,8 @@ public static class ApplicationServiceCollectionExtensions
     }
 
     /// <summary>
-    /// What only the worker needs: the pipeline, the classifier and the option checks that keep
-    /// healthy workers from taking each other's jobs.
+    /// What only the worker needs: the pipeline and the option checks that keep healthy workers from
+    /// taking each other's jobs.
     /// </summary>
     public static IServiceCollection AddDocReaderProcessing(
         this IServiceCollection services,
@@ -77,7 +84,6 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddSingleton<IValidateOptions<ProcessingQueueOptions>, ProcessingOptionsValidator>();
 
-        services.AddSingleton<IDocumentClassifier, RulesDocumentClassifier>();
         services.AddScoped<DocumentProcessor>();
 
         return services;

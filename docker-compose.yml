@@ -56,6 +56,8 @@ services:
       DocReader__Ocr__BaseUrl: http://ocr-service:8000
       # The status endpoint reports "attempt N of M", so the API needs the same limit as the worker.
       DocReader__Queue__MaxAttempts: ${QUEUE_MAX_ATTEMPTS:-3}
+      # The classification diagnostics endpoint replays the decision, so it needs the worker's setting.
+      DocReader__Classification__MinimumScore: ${CLASSIFICATION_MIN_SCORE:-0}
     ports:
       - "${API_PORT:-8080}:8080"
     networks:
@@ -94,6 +96,7 @@ services:
       # Silence after which a job is taken from its worker. The worker renews it after every page, so this
       # is not a limit on the document; it must stay above the page timeout (checked at startup).
       DocReader__Queue__JobLockTimeout: ${QUEUE_JOB_LOCK_TIMEOUT:-00:05:00}
+      DocReader__Classification__MinimumScore: ${CLASSIFICATION_MIN_SCORE:-0}
     networks:
       - internal
     volumes:

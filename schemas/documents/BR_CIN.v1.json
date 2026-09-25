@@ -129,24 +129,103 @@
     "supportLevel": "STRUCTURED",
     "schemaVersion": 1,
     "classification": {
-      "requiredSignals": [
-        "CARTEIRA DE IDENTIDADE"
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.45,
+          "patterns": [
+            "CARTEIRA DE IDENTIDADE",
+            "REGISTRO DE IDENTIDADE CIVIL",
+            "CEDULA DE IDENTIDADE"
+          ]
+        },
+        {
+          "name": "republic",
+          "weight": 0.1,
+          "patterns": [
+            "REPUBLICA FEDERATIVA DO BRASIL"
+          ]
+        },
+        {
+          "name": "registration-number",
+          "weight": 0.1,
+          "patterns": [
+            "REGISTRO GERAL",
+            "NUMERO RIC",
+            "NUMERO DO REGISTRO GERAL"
+          ]
+        },
+        {
+          "name": "birth-date",
+          "weight": 0.1,
+          "patterns": [
+            "DATA DE NASCIMENTO",
+            "DATA DE NASC",
+            "DATE OF BIRTH"
+          ]
+        },
+        {
+          "name": "parentage",
+          "weight": 0.1,
+          "patterns": [
+            "FILIACAO"
+          ]
+        },
+        {
+          "name": "place-of-birth",
+          "weight": 0.05,
+          "patterns": [
+            "NATURALIDADE"
+          ]
+        },
+        {
+          "name": "issue-date",
+          "weight": 0.05,
+          "patterns": [
+            "DATA DE EXPEDICAO",
+            "DATA DA EXPEDICAO"
+          ]
+        },
+        {
+          "name": "issuing-body",
+          "weight": 0.05,
+          "patterns": [
+            "ORGAO EMISSOR",
+            "ORGAO EXPEDIDOR"
+          ]
+        },
+        {
+          "name": "cpf",
+          "weight": 0.05,
+          "patterns": [
+            "CPF"
+          ]
+        }
       ],
-      "optionalSignals": [
-        "REPUBLICA FEDERATIVA DO BRASIL",
-        "REGISTRO GERAL",
-        "DATA DE NASCIMENTO",
-        "FILIACAO",
-        "NATURALIDADE",
-        "DATA DE EXPEDICAO",
-        "CPF"
+      "counterEvidence": [
+        {
+          "name": "cnh-title",
+          "weight": 0.6,
+          "patterns": [
+            "CARTEIRA NACIONAL DE HABILITACAO"
+          ]
+        },
+        {
+          "name": "cnpj-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO NACIONAL DA PESSOA JURIDICA"
+          ]
+        },
+        {
+          "name": "cpf-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO DE PESSOAS FISICAS"
+          ]
+        }
       ],
-      "negativeSignals": [
-        "CARTEIRA NACIONAL DE HABILITACAO",
-        "CADASTRO NACIONAL DA PESSOA JURIDICA",
-        "CADASTRO DE PESSOAS FISICAS"
-      ],
-      "threshold": 0.7
+      "threshold": 0.6
     },
     "validation": {
       "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",

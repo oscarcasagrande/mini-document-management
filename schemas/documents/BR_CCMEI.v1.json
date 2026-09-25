@@ -187,22 +187,81 @@
     "supportLevel": "STRUCTURED",
     "schemaVersion": 1,
     "classification": {
-      "requiredSignals": [
-        "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.4,
+          "patterns": [
+            "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+          ]
+        },
+        {
+          "name": "micro-entrepreneur",
+          "weight": 0.2,
+          "patterns": [
+            "MICROEMPREENDEDOR INDIVIDUAL"
+          ]
+        },
+        {
+          "name": "acronym",
+          "weight": 0.1,
+          "patterns": [
+            "CCMEI"
+          ]
+        },
+        {
+          "name": "portal",
+          "weight": 0.1,
+          "patterns": [
+            "PORTAL DO EMPREENDEDOR"
+          ]
+        },
+        {
+          "name": "company-name",
+          "weight": 0.05,
+          "patterns": [
+            "NOME EMPRESARIAL"
+          ]
+        },
+        {
+          "name": "trade-name",
+          "weight": 0.05,
+          "patterns": [
+            "NOME FANTASIA"
+          ]
+        },
+        {
+          "name": "share-capital",
+          "weight": 0.05,
+          "patterns": [
+            "CAPITAL SOCIAL"
+          ]
+        },
+        {
+          "name": "main-occupation",
+          "weight": 0.05,
+          "patterns": [
+            "OCUPACAO PRINCIPAL"
+          ]
+        },
+        {
+          "name": "business-address",
+          "weight": 0.05,
+          "patterns": [
+            "ENDERECO COMERCIAL"
+          ]
+        }
       ],
-      "optionalSignals": [
-        "CCMEI",
-        "PORTAL DO EMPREENDEDOR",
-        "NOME EMPRESARIAL",
-        "NOME FANTASIA",
-        "CAPITAL SOCIAL",
-        "OCUPACAO PRINCIPAL",
-        "ENDERECO COMERCIAL"
+      "counterEvidence": [
+        {
+          "name": "contract-clause",
+          "weight": 0.4,
+          "patterns": [
+            "CLAUSULA"
+          ]
+        }
       ],
-      "negativeSignals": [
-        "CLAUSULA"
-      ],
-      "threshold": 0.7
+      "threshold": 0.6
     },
     "validation": {
       "cnpj": "Dígitos verificadores por módulo 11 sobre valores derivados do ASCII (RF-012).",

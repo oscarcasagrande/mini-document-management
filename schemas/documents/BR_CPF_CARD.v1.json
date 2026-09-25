@@ -31,15 +31,70 @@
     "supportLevel": "STRUCTURED",
     "schemaVersion": 1,
     "classification": {
-      "requiredSignals": ["CADASTRO DE PESSOAS FISICAS"],
-      "optionalSignals": [
-        "NUMERO DE INSCRICAO",
-        "MINISTERIO DA FAZENDA",
-        "SECRETARIA DA RECEITA FEDERAL",
-        "NASCIMENTO"
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.5,
+          "patterns": [
+            "CADASTRO DE PESSOAS FISICAS"
+          ]
+        },
+        {
+          "name": "registration-number",
+          "weight": 0.15,
+          "patterns": [
+            "NUMERO DE INSCRICAO",
+            "N DE INSCRICAO"
+          ]
+        },
+        {
+          "name": "finance-ministry",
+          "weight": 0.1,
+          "patterns": [
+            "MINISTERIO DA FAZENDA"
+          ]
+        },
+        {
+          "name": "revenue-service",
+          "weight": 0.1,
+          "patterns": [
+            "SECRETARIA DA RECEITA FEDERAL",
+            "RECEITA FEDERAL"
+          ]
+        },
+        {
+          "name": "birth-date",
+          "weight": 0.1,
+          "patterns": [
+            "DATA DE NASCIMENTO",
+            "NASCIMENTO"
+          ]
+        },
+        {
+          "name": "cpf",
+          "weight": 0.05,
+          "patterns": [
+            "CPF"
+          ]
+        }
       ],
-      "negativeSignals": ["CADASTRO NACIONAL DA PESSOA JURIDICA", "CARTEIRA NACIONAL DE HABILITACAO"],
-      "threshold": 0.7
+      "counterEvidence": [
+        {
+          "name": "cnpj-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO NACIONAL DA PESSOA JURIDICA"
+          ]
+        },
+        {
+          "name": "cnh-title",
+          "weight": 0.6,
+          "patterns": [
+            "CARTEIRA NACIONAL DE HABILITACAO"
+          ]
+        }
+      ],
+      "threshold": 0.6
     },
     "validation": {
       "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",

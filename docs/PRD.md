@@ -934,15 +934,22 @@ Regras versionadas em YAML ou JSON:
 
 ```yaml
 documentType: BR_CNH
-version: 1
-requiredSignals:
-  - "CARTEIRA NACIONAL DE HABILITAÇÃO"
-optionalSignals:
-  - "Nº REGISTRO"
-  - "VALIDADE"
-negativeSignals:
-  - "CADASTRO NACIONAL DA PESSOA JURÍDICA"
-threshold: 0.75
+version: 2
+evidence:                       # cada uma soma o seu peso; a pontuação vai de 0 a 1
+  - name: title
+    weight: 0.45
+    patterns: ["CARTEIRA NACIONAL DE HABILITAÇÃO", "DRIVER LICENSE"]
+  - name: registration-number
+    weight: 0.05
+    patterns: ["Nº REGISTRO", "REGISTRO"]
+  - name: validity
+    weight: 0.05
+    patterns: ["VALIDADE"]
+counterEvidence:                # cada uma subtrai o seu peso
+  - name: cnpj-title
+    weight: 0.60
+    patterns: ["CADASTRO NACIONAL DA PESSOA JURÍDICA"]
+threshold: 0.6                  # aceita o tipo quando a pontuação o atinge
 ```
 
 ### Extração

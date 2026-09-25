@@ -16,8 +16,14 @@ nunca inventa valor (RF-011).
 
 ## Como cada tipo é escrito
 
-- **Classificação** (`x-docreader.classification`): sinais obrigatórios, opcionais e negativos, mais o limiar,
-  espelhando `DocumentTypeProfile`. `Stage3ClassificationTests` falha se o schema e o código divergirem.
+- **Classificação** (`x-docreader.classification`): pontuação por evidência, espelhando `DocumentTypeProfile`.
+  Cada evidência (`evidence`) tem um nome, um peso e padrões alternativos (qualquer um vale, uma vez); a
+  contra-evidência (`counterEvidence`) subtrai o seu peso. A pontuação é a soma, entre 0 e 1, e o tipo é aceito
+  quando atinge o `threshold`. Nenhuma evidência é obrigatória: um título cortado ainda deixa o documento ser
+  reconhecido pelos campos ao redor, e o título sozinho não basta nos tipos ambíguos. O casamento ignora
+  acento e caixa, aceita palavras coladas ou partidas pelo OCR e tolera um erro de letra a cada oito (até
+  três); termos curtos como `CEP` e `CPF` só valem como palavra inteira. `Stage3ClassificationTests` falha se o
+  schema e o código divergirem em nomes, pesos, padrões ou limiar.
 - **Extração**: rótulo e vizinhança. `LineSearch` procura o valor na mesma linha (`Rótulo: valor`), à direita
   ou abaixo do rótulo pela geometria das caixas do OCR, e na ordem de leitura só quando o provedor não
   mandou coordenadas. Blocos partidos na mesma linha visual são juntos, e uma linha que é outro rótulo
