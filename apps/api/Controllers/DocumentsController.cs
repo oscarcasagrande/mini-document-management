@@ -285,7 +285,9 @@ public sealed class DocumentsController(
     /// <response code="200">Text of the latest extraction.</response>
     /// <response code="404">No document with this id.</response>
     /// <response code="409">The document has no result yet, or its processing failed.</response>
+    /// <response code="410">The document was purged: its text and fields were removed at the end of the retention period.</response>
     [HttpGet("{id:guid}/text")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(DocumentTextResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -315,7 +317,9 @@ public sealed class DocumentsController(
     /// <response code="200">The classification, explained.</response>
     /// <response code="404">No document with this id.</response>
     /// <response code="409">The document has no result yet, or its processing failed.</response>
+    /// <response code="410">The document was purged: its text and fields were removed at the end of the retention period.</response>
     [HttpGet("{id:guid}/classification-diagnostics")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ClassificationDiagnosticsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -351,7 +355,9 @@ public sealed class DocumentsController(
     /// <response code="200">The extraction, explained.</response>
     /// <response code="404">No document with this id.</response>
     /// <response code="409">The document has no result yet, or its processing failed.</response>
+    /// <response code="410">The document was purged: its text and fields were removed at the end of the retention period.</response>
     [HttpGet("{id:guid}/extraction-diagnostics")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ExtractionDiagnosticsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -381,7 +387,9 @@ public sealed class DocumentsController(
     /// <response code="200">Result of the latest extraction.</response>
     /// <response code="404">No document with this id.</response>
     /// <response code="409">The document has no result yet, or its processing failed.</response>
+    /// <response code="410">The document was purged: its text and fields were removed at the end of the retention period.</response>
     [HttpGet("{id:guid}/result")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(DocumentResultResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]

@@ -163,7 +163,18 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
             return Task.FromResult(false);
         }
 
-        document.MarkPurged(now);
+        var deleted = new List<string> { PurgedContent.File };
+        if (Extractions.Remove(documentId, out var extraction))
+        {
+            RawOcr.Remove(documentId);
+            deleted.Add(PurgedContent.OcrText);
+            if (extraction.Result.Fields.Count > 0)
+            {
+                deleted.Add(PurgedContent.ExtractedFields);
+            }
+        }
+
+        document.MarkPurged(now, deleted);
 
         return Task.FromResult(true);
     }

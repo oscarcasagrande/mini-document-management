@@ -70,8 +70,10 @@ public interface IDocumentRepository
         CancellationToken ct);
 
     /// <summary>
-    /// Marks a document PURGED if it is still eligible at that moment. Returns false when it no longer is
-    /// (already purged, or reprocessed since it was listed), which is not an error.
+    /// Marks a document PURGED if it is still eligible at that moment and, in the same transaction, deletes its
+    /// extractions (OCR text, fields and structured result), recording what was deleted on the timeline. The document
+    /// row stays. Returns false when it is no longer eligible (already purged, or reprocessed since it was listed),
+    /// which is not an error.
     /// </summary>
     Task<bool> MarkPurgedAsync(Guid documentId, DateTimeOffset now, CancellationToken ct);
 

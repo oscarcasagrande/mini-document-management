@@ -124,7 +124,7 @@ public sealed class ApiExceptionHandler(
             "Document was purged",
             ProblemTypes.ContentUnavailable,
             "DOCUMENT_PURGED",
-            "The retention period of this document ended and its original file was removed. The metadata and the history are kept."),
+            "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept."),
 
         RequestValidationException invalid => new ErrorDescriptor(
             StatusCodes.Status400BadRequest,

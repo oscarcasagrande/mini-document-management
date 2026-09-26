@@ -41,6 +41,7 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
 
   const { upload } = document;
   const inFlight = IN_FLIGHT_STATUSES.has(document.status);
+  const purged = document.status === "PURGED";
 
   // Only ask for the result when the API says there is one: a 409 here would be noise, not news.
   const [result, text] = document.extraction
@@ -84,19 +85,30 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
           <p className="card__hint">
             {upload.mimeType} · {formatBytes(upload.sizeBytes)} · {upload.pageCount} página(s)
           </p>
-          <DocumentViewer
-            documentId={document.id}
-            fileName={upload.fileName}
-            mimeType={upload.mimeType}
-          />
+          {purged ? (
+            <div className="alert alert--warning">
+              Documento expurgado: terminado o prazo de retenção, o arquivo original, o texto lido pelo OCR e os campos extraídos
+              foram removidos. Ficam o protocolo, o tipo, as datas, o status e a linha do tempo.
+            </div>
+          ) : (
+            <DocumentViewer
+              documentId={document.id}
+              fileName={upload.fileName}
+              mimeType={upload.mimeType}
+            />
+          )}
           <div className="actions" style={{ marginTop: 14 }}>
-            <a className="mono" href={bffRoutes.download(document.id)}>
-              Baixar original
-            </a>
-            <a className="mono" href={bffRoutes.content(document.id)} target="_blank" rel="noreferrer">
-              Abrir em nova aba
-            </a>
-            <ReprocessButton documentId={document.id} disabled={inFlight} />
+            {!purged && (
+              <>
+                <a className="mono" href={bffRoutes.download(document.id)}>
+                  Baixar original
+                </a>
+                <a className="mono" href={bffRoutes.content(document.id)} target="_blank" rel="noreferrer">
+                  Abrir em nova aba
+                </a>
+                <ReprocessButton documentId={document.id} disabled={inFlight} />
+              </>
+            )}
             <DeleteDocumentButton
               documentId={document.id}
               protocol={document.protocol}
@@ -218,7 +230,9 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
               <p className="card__hint" style={{ marginBottom: 0 }}>
                 {inFlight
                   ? "O texto aparece aqui quando a leitura terminar."
-                  : "Nenhum texto foi lido deste documento."}
+                  : purged
+                    ? "O texto foi removido no expurgo."
+                    : "Nenhum texto foi lido deste documento."}
               </p>
             )}
           </section>

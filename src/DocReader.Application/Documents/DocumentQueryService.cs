@@ -84,6 +84,7 @@ public sealed class DocumentQueryService(
     public async Task<DocumentResult> GetResultAsync(Guid id, CancellationToken ct)
     {
         var document = await GetByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
+        EnsureNotPurged(document);
         var result = await repository.FindLatestExtractionResultAsync(id, ct).ConfigureAwait(false);
 
         return result is null
@@ -96,6 +97,7 @@ public sealed class DocumentQueryService(
     public async Task<DocumentText> GetTextAsync(Guid id, CancellationToken ct)
     {
         var document = await GetByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
+        EnsureNotPurged(document);
         var text = await repository.FindLatestExtractionTextAsync(id, ct).ConfigureAwait(false);
 
         return text is null
@@ -133,6 +135,7 @@ public sealed class DocumentQueryService(
     public async Task<DocumentExtractionDiagnostics> GetExtractionDiagnosticsAsync(Guid id, CancellationToken ct)
     {
         var document = await GetByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
+        EnsureNotPurged(document);
         var stored = await repository.FindLatestExtractionOcrAsync(id, ct).ConfigureAwait(false)
             ?? throw new ResultNotReadyException(id, document.Status);
         var recorded = await repository.FindLatestExtractionResultAsync(id, ct).ConfigureAwait(false);
@@ -190,6 +193,15 @@ public sealed class DocumentQueryService(
             : (current.DocumentType, "CURRENT_CLASSIFICATION");
     }
 
+    /// <summary>A purged document keeps its record but no longer has a file, text or fields: 410, not 409.</summary>
+    private static void EnsureNotPurged(Document document)
+    {
+        if (document.Status == DocumentStatus.Purged)
+        {
+            throw new DocumentPurgedException(document.Id);
+        }
+    }
+
     /// <summary>
     /// Opens the original bytes. The metadata is authoritative for the content type, so a renamed
     /// or mislabeled upload is still served as what it really is.
@@ -198,10 +210,7 @@ public sealed class DocumentQueryService(
     {
         var document = await GetByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
 
-        if (document.Status == DocumentStatus.Purged)
-        {
-            throw new DocumentPurgedException(id);
-        }
+        EnsureNotPurged(document);
 
         Stream content;
         try

@@ -836,7 +836,7 @@
                   "type": "https://docreader.local/problems/document-content-unavailable",
                   "title": "Document was purged",
                   "status": 410,
-                  "detail": "The retention period of this document ended and its original file was removed. The metadata and the history are kept.",
+                  "detail": "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept.",
                   "instance": "/api/v1/documents/{id}/content",
                   "errorCode": "DOCUMENT_PURGED",
                   "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
@@ -881,6 +881,25 @@
                   "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
                   "instance": "/api/v1/documents/{id}/text",
                   "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The document was purged: its text and fields were removed at the end of the retention period.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-content-unavailable",
+                  "title": "Document was purged",
+                  "status": 410,
+                  "detail": "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept.",
+                  "instance": "/api/v1/documents/{id}/text",
+                  "errorCode": "DOCUMENT_PURGED",
                   "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
                 }
               }
@@ -985,6 +1004,25 @@
               }
             }
           },
+          "410": {
+            "description": "The document was purged: its text and fields were removed at the end of the retention period.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-content-unavailable",
+                  "title": "Document was purged",
+                  "status": 410,
+                  "detail": "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept.",
+                  "instance": "/api/v1/documents/{id}/classification-diagnostics",
+                  "errorCode": "DOCUMENT_PURGED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
           "200": {
             "description": "The classification, explained.",
             "content": {
@@ -1084,6 +1122,25 @@
               }
             }
           },
+          "410": {
+            "description": "The document was purged: its text and fields were removed at the end of the retention period.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-content-unavailable",
+                  "title": "Document was purged",
+                  "status": 410,
+                  "detail": "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept.",
+                  "instance": "/api/v1/documents/{id}/extraction-diagnostics",
+                  "errorCode": "DOCUMENT_PURGED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
           "200": {
             "description": "The extraction, explained.",
             "content": {
@@ -1169,6 +1226,25 @@
                   "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
                   "instance": "/api/v1/documents/{id}/result",
                   "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The document was purged: its text and fields were removed at the end of the retention period.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-content-unavailable",
+                  "title": "Document was purged",
+                  "status": 410,
+                  "detail": "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept.",
+                  "instance": "/api/v1/documents/{id}/result",
+                  "errorCode": "DOCUMENT_PURGED",
                   "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
                 }
               }

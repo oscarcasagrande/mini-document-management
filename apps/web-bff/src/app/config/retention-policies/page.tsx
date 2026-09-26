@@ -38,7 +38,7 @@ export default async function RetentionPoliciesPage() {
     <>
       <h1>Políticas de retenção</h1>
       <p className="subtitle">
-        Por quanto tempo os documentos são guardados antes de o arquivo original ser removido (expurgo). Vale a política
+        Por quanto tempo os documentos são guardados antes de o conteúdo ser removido (expurgo): o arquivo original, o texto lido pelo OCR e os campos extraídos. Vale a política
         mais específica: <strong>tipo + produto</strong>, depois <strong>produto</strong>, depois <strong>tipo</strong>,
         depois a <strong>global</strong>, que sempre existe.
       </p>
@@ -47,7 +47,7 @@ export default async function RetentionPoliciesPage() {
 
       <div className="alert alert--warning">
         Criar ou alterar uma política <strong>não recalcula</strong> a data de expurgo dos documentos que já existem: eles a
-        recebem ao serem reprocessados. Só o arquivo original é removido no expurgo; o histórico do documento fica.
+        recebem ao serem reprocessados. O expurgo remove o arquivo, o texto do OCR e os campos; o registro do documento (protocolo, tipo, datas, status e linha do tempo) fica.
       </div>
 
       {failure && <div className="alert alert--error">{failure}</div>}

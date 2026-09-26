@@ -71,8 +71,11 @@ medidos em documento real.**
 - **RetentionPolicy** (`Domain/Retention`): escopo tipo/produto; precedência tipo+produto > produto > tipo > global. Uma global
   (id fixo `…0001`, 365 dias, semeada na migration) que não se apaga. `expiresAt` é calculado no upload, na classificação
   e no reprocessamento; **mudar a política não recalcula** o que já existe. `PurgeExpiredDocumentsJob` no worker
-  (`PURGE_SCHEDULE_CRON`, Cronos, UTC) apaga só o **arquivo** de documentos em estado final vencidos e marca `PURGED` (410 em
-  `/content` e `/reprocess`). Texto do OCR e campos extraídos permanecem: decisão em aberto.
+  (`PURGE_SCHEDULE_CRON`, Cronos, UTC) apaga de documentos em estado final vencidos o **arquivo**, o **texto do OCR** e os **campos extraídos**
+  (`extractions` inteira, com `extracted_fields` em cascata, na mesma transação que marca `PURGED`; `PurgedContent` nomeia
+  o que saiu no evento `PURGED`: `reason=RETENTION_EXPIRED deleted=file,ocr_text,extracted_fields`). O documento, a linha do
+  tempo e os jobs ficam como tombstone. `/content`, `/text`, `/result`, `/reprocess` e os `*-diagnostics` dão 410
+  (`EnsureNotPurged` no `DocumentQueryService`); o `GET` do documento continua 200 com `PURGED`.
 - **StorageRepository** (`Domain/Storage`): `IFileStorage` virou fachada que escolhe o adaptador pelo `repositoryId` do documento
   (herdado do produto ou do padrão). FileSystem e Database (`document_blobs`) implementados; Azure e S3 devolvem
   `NotImplementedException` (501). A configuração é cifrada por `ISecretProtector` (AES-256-GCM, chave em
@@ -84,7 +87,7 @@ medidos em documento real.**
   (`WEBHOOK_ALLOW_PRIVATE_NETWORKS`).
 - **Referência externa**: `GET /api/v1/documents/by-external-reference/{reference}` devolve o documento mais recente (exato, com
   diferença de caixa) ou 404; a lista filtra por `externalReference` (parcial). Índice parcial em `external_reference`.
-- Testes: 878 unitários, 82 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
+- Testes: 884 unitários, 84 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
 
 **O que não foi feito, e por quê:** nenhuma medição em documento real (não há dataset; o framework existe para
 isso); a comparação opcional com Tesseract/Docling do PRD §26; e a decisão de continuidade e produção, que
@@ -295,7 +298,7 @@ Coisas que já custaram tempo e não se enxergam no código.
   Não imponha `cpus:` ao `ocr-service` sem reler o ADR.
 - **Heredoc com interpolação C# (`$"..."`) quebra o Bash tool**: escreva o arquivo com a ferramenta de escrita
   ou rode `node arquivo.js`.
-- **Integração precisa de PostgreSQL alcançável.** Sem banco os 82 testes são pulados e o resumo diz "Zero tests ran". Rode dentro da rede do compose (`docker run --network docreader_internal ... -e DOCREADER_TEST_CONNECTION=...`, comando no README).
+- **Integração precisa de PostgreSQL alcançável.** Sem banco os 84 testes são pulados e o resumo diz "Zero tests ran". Rode dentro da rede do compose (`docker run --network docreader_internal ... -e DOCREADER_TEST_CONNECTION=...`, comando no README).
 - **Toda migration nova exige `-c Release` limpo.** O Docker compila com warnings-as-errors e doc XML: um `<param>` faltando (CS1573) só aparece no build de Release.
 - **A chave de cifra não pode mudar** depois de haver repositórios de armazenamento com configuração: o AES-GCM não decifra com outra chave, e a configuração cifrada se perde.
 - **Fixtures de OCR são texto real, não fabricado.** Depois de mudar engine, pré-processamento ou amostras,

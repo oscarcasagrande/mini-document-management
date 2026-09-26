@@ -3,6 +3,8 @@ using DocReader.Application.Documents;
 using DocReader.Application.Retention;
 using DocReader.Domain.Catalog;
 using DocReader.Domain.Documents;
+using DocReader.Domain.Extractions;
+using DocReader.Domain.Processing;
 using DocReader.Domain.Retention;
 using DocReader.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -419,5 +421,81 @@ public sealed class RetentionPersistenceTests(PostgresFixture fixture) : IAsyncL
         await using var read = fixture.CreateContext();
         var loaded = await new DocumentRepository(read).FindByIdAsync(document.Id, includeEvents: true, Ct);
         Assert.Single(loaded!.Events, entry => entry.EventType == DocumentEventTypes.Purged);
+    }
+
+    private async Task AddExtractionsAsync(Document document, int count = 1)
+    {
+        var job = ProcessingJob.CreateForDocument(document.Id, Now);
+        var extractions = Enumerable.Range(0, count).Select(_ => DocumentExtraction.Create(
+            document.Id, job.Id, "paddleocr", "PP-OCRv5 test", "rules-2.0.0", "br-cnh-1.1.0", 1,
+            "CPF 111.444.777-35",
+            "[{\"pageNumber\":1,\"text\":\"CPF 111.444.777-35\"}]",
+            "{\"pages\":[{\"page\":1,\"raw\":{}}]}",
+            "{\"cpf\":\"11144477735\"}",
+            0.99m,
+            Now,
+            [
+                ExtractedField.Create("cpf", "111.444.777-35", "11144477735", 1.0m, 1, "[]", "VALID", "[]"),
+                ExtractedField.Create("name", null, null, null, null, "[]", "NOT_FOUND", "[]")
+            ])).ToList();
+
+        await using var write = fixture.CreateContext();
+        write.ProcessingJobs.Add(job);
+        write.Extractions.AddRange(extractions);
+        await write.SaveChangesAsync(Ct);
+    }
+
+    [Fact]
+    public async Task Expurgar_apaga_extracoes_e_campos_mas_mantem_o_documento_o_historico_e_os_outros_documentos()
+    {
+        RequireDatabase(fixture);
+
+        var global = await GlobalAsync();
+        var expired = await StoreAsync(global, DocumentStatus.Completed, Now.AddDays(-400));
+        var untouched = await StoreAsync(global, DocumentStatus.Completed, Now);
+        await AddExtractionsAsync(expired, count: 2);
+        await AddExtractionsAsync(untouched);
+
+        await using (var context = fixture.CreateContext())
+        {
+            Assert.True(await new DocumentRepository(context).MarkPurgedAsync(expired.Id, Now, Ct));
+        }
+
+        await using var read = fixture.CreateContext();
+        Assert.Equal(0, await read.Extractions.CountAsync(item => item.DocumentId == expired.Id, Ct));
+        Assert.Equal(0, await read.ExtractedFields.CountAsync(field => read.Extractions.All(item => item.Id != field.ExtractionId), Ct));
+        Assert.Equal(1, await read.Extractions.CountAsync(item => item.DocumentId == untouched.Id, Ct));
+        Assert.Equal(2, await read.ExtractedFields.CountAsync(Ct));
+
+        var loaded = await new DocumentRepository(read).FindByIdAsync(expired.Id, includeEvents: true, Ct);
+        Assert.Equal(DocumentStatus.Purged, loaded!.Status);
+        Assert.Equal(expired.Protocol, loaded.Protocol);
+        Assert.Equal(expired.UploadedAt, loaded.UploadedAt);
+        Assert.Equal(expired.OriginalFileName, loaded.OriginalFileName);
+        Assert.Equal(1, await read.ProcessingJobs.CountAsync(job => job.DocumentId == expired.Id, Ct));
+
+        var purged = Assert.Single(loaded.Events, entry => entry.EventType == DocumentEventTypes.Purged);
+        Assert.Equal("reason=RETENTION_EXPIRED deleted=file,ocr_text,extracted_fields", purged.Details);
+        Assert.Contains(loaded.Events, entry => entry.EventType != DocumentEventTypes.Purged);
+    }
+
+    [Fact]
+    public async Task Expurgar_documento_sem_extracao_registra_so_o_arquivo()
+    {
+        RequireDatabase(fixture);
+
+        var document = await StoreAsync(await GlobalAsync(), DocumentStatus.Failed, Now.AddDays(-400));
+
+        await using (var context = fixture.CreateContext())
+        {
+            Assert.True(await new DocumentRepository(context).MarkPurgedAsync(document.Id, Now, Ct));
+        }
+
+        await using var read = fixture.CreateContext();
+        var loaded = await new DocumentRepository(read).FindByIdAsync(document.Id, includeEvents: true, Ct);
+
+        Assert.Equal(
+            "reason=RETENTION_EXPIRED deleted=file",
+            Assert.Single(loaded!.Events, entry => entry.EventType == DocumentEventTypes.Purged).Details);
     }
 }

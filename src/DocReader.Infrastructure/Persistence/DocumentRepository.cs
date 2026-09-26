@@ -320,7 +320,32 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
                 return false;
             }
 
-            document.MarkPurged(now);
+            var extractions = await dbContext.Extractions
+                .AsNoTracking()
+                .Where(extraction => extraction.DocumentId == documentId)
+                .Select(extraction => new { HasContent = extraction.Fields.Any() || extraction.StructuredResultJson != null })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            // The file was removed by the caller; the extraction rows go here, with their fields (cascade), so the
+            // text read from the document cannot outlive the file.
+            var deleted = new List<string> { PurgedContent.File };
+            if (extractions.Count > 0)
+            {
+                deleted.Add(PurgedContent.OcrText);
+            }
+
+            if (extractions.Any(extraction => extraction.HasContent))
+            {
+                deleted.Add(PurgedContent.ExtractedFields);
+            }
+
+            await dbContext.Extractions
+                .Where(extraction => extraction.DocumentId == documentId)
+                .ExecuteDeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            document.MarkPurged(now, deleted);
             await WebhookOutbox.EnqueueAsync(dbContext, document, now, cancellationToken).ConfigureAwait(false);
 
             await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

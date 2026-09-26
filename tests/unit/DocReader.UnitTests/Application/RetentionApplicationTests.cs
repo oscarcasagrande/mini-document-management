@@ -1,4 +1,5 @@
 using DocReader.Application.Catalog;
+using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
 using DocReader.Application.Options;
@@ -465,6 +466,137 @@ public sealed class RetentionApplicationTests
         Assert.Contains("purged=1", text, StringComparison.Ordinal);
         Assert.DoesNotContain(document.OriginalFileName, text, StringComparison.Ordinal);
         Assert.DoesNotContain(document.Sha256, text, StringComparison.Ordinal);
+    }
+
+    // ---- o que o expurgo apaga e o que fica ---------------------------------------------------------------------
+
+    private static readonly ExtractionSummary Summary = new(
+        Guid.NewGuid(), "paddleocr", "PP-OCRv5 test", "rules-2.0.0", "br-cnh-1.1.0", 1, 0.9m, Now);
+
+    private DocumentQueryService Queries() =>
+        new(_documents, _storage, new RulesDocumentClassifier(), [], NullLogger<DocumentQueryService>.Instance);
+
+    private async Task<Document> CompletedWithExtractionAsync(bool withFields = true, bool withExtraction = true)
+    {
+        await Service().UpdateAsync(RetentionPolicy.GlobalPolicyId, 10, Ct);
+        var document = await UploadAsync();
+        document.RecordClassification("BR_CNH", 0.9m, Now);
+        document.MarkCompleted(Now);
+        _documents.Jobs.Clear();
+
+        if (withExtraction)
+        {
+            ExtractedFieldView[] fields = withFields
+                ? [new ExtractedFieldView("cpf", "123.456.789-09", "12345678909", 0.99m, 1, "{}", "VALID", "[]")]
+                : [];
+            _documents.Extractions[document.Id] = (
+                new ExtractionResultView(Summary, fields),
+                new ExtractionTextView(Summary, "[{\"pageNumber\":1,\"text\":\"CPF 123.456.789-09\"}]"));
+            _documents.RawOcr[document.Id] = "{\"raw\":\"CPF 123.456.789-09\"}";
+        }
+
+        return document;
+    }
+
+    private Task<PurgeResult> PurgeAllAsync() => Purge(clock: new FakeTimeProvider(Now.AddDays(11))).PurgeExpiredAsync(Ct);
+
+    [Fact]
+    public async Task Expurgo_apaga_arquivo_texto_e_campos_e_o_evento_diz_o_que_foi_apagado()
+    {
+        var document = await CompletedWithExtractionAsync();
+        var key = document.StorageKey;
+
+        await PurgeAllAsync();
+
+        Assert.DoesNotContain(key, _storage.Blobs.Keys);
+        Assert.False(_documents.Extractions.ContainsKey(document.Id));
+        Assert.False(_documents.RawOcr.ContainsKey(document.Id));
+
+        var purged = Assert.Single(document.Events, entry => entry.EventType == DocumentEventTypes.Purged);
+        Assert.Equal(DocumentStatus.Purged, purged.Stage);
+        Assert.Equal("reason=RETENTION_EXPIRED deleted=file,ocr_text,extracted_fields", purged.Details);
+    }
+
+    [Fact]
+    public async Task Extracao_sem_campos_apaga_o_texto_e_nao_diz_que_apagou_campos()
+    {
+        var document = await CompletedWithExtractionAsync(withFields: false);
+
+        await PurgeAllAsync();
+
+        Assert.Equal(
+            "reason=RETENTION_EXPIRED deleted=file,ocr_text",
+            Assert.Single(document.Events, entry => entry.EventType == DocumentEventTypes.Purged).Details);
+    }
+
+    [Fact]
+    public async Task Documento_sem_extracao_so_perde_o_arquivo()
+    {
+        var document = await CompletedWithExtractionAsync(withExtraction: false);
+
+        await PurgeAllAsync();
+
+        Assert.Equal(
+            "reason=RETENTION_EXPIRED deleted=file",
+            Assert.Single(document.Events, entry => entry.EventType == DocumentEventTypes.Purged).Details);
+    }
+
+    [Fact]
+    public async Task Expurgo_repetido_nao_repete_o_evento_nem_o_que_foi_apagado()
+    {
+        var document = await CompletedWithExtractionAsync();
+
+        await PurgeAllAsync();
+        var second = await PurgeAllAsync();
+
+        Assert.Equal(new PurgeResult(0, 0), second);
+        Assert.Single(document.Events, entry => entry.EventType == DocumentEventTypes.Purged);
+    }
+
+    [Fact]
+    public async Task Depois_do_expurgo_conteudo_texto_e_resultado_respondem_gone_e_os_diagnosticos_tambem()
+    {
+        var document = await CompletedWithExtractionAsync();
+        await PurgeAllAsync();
+        var queries = Queries();
+
+        await Assert.ThrowsAsync<DocumentPurgedException>(() => queries.OpenContentAsync(document.Id, Ct));
+        await Assert.ThrowsAsync<DocumentPurgedException>(() => queries.GetTextAsync(document.Id, Ct));
+        await Assert.ThrowsAsync<DocumentPurgedException>(() => queries.GetResultAsync(document.Id, Ct));
+        await Assert.ThrowsAsync<DocumentPurgedException>(() => queries.GetClassificationDiagnosticsAsync(document.Id, Ct));
+        await Assert.ThrowsAsync<DocumentPurgedException>(() => queries.GetExtractionDiagnosticsAsync(document.Id, Ct));
+    }
+
+    [Fact]
+    public async Task Depois_do_expurgo_o_documento_continua_consultavel_como_purged_com_os_metadados()
+    {
+        var document = await CompletedWithExtractionAsync();
+        var (protocol, fileName, mimeType, size, sha, uploadedAt, expiresAt) =
+            (document.Protocol, document.OriginalFileName, document.MimeType, document.SizeBytes, document.Sha256, document.UploadedAt, document.ExpiresAt);
+        var eventsBefore = document.Events.Count;
+
+        await PurgeAllAsync();
+        var queries = Queries();
+
+        var byId = await queries.GetByIdAsync(document.Id, includeEvents: true, Ct);
+        var byProtocol = await queries.GetByProtocolAsync(protocol, includeEvents: false, Ct);
+        var snapshot = await queries.GetSnapshotAsync(document.Id, includeEvents: true, Ct);
+
+        Assert.Same(byId, byProtocol);
+        Assert.Equal(DocumentStatus.Purged, byId.Status);
+        Assert.Equal(Now.AddDays(11), byId.PurgedAt);
+        Assert.Equal(protocol, byId.Protocol);
+        Assert.Equal(fileName, byId.OriginalFileName);
+        Assert.Equal(mimeType, byId.MimeType);
+        Assert.Equal(size, byId.SizeBytes);
+        Assert.Equal(sha, byId.Sha256);
+        Assert.Equal(uploadedAt, byId.UploadedAt);
+        Assert.Equal(expiresAt, byId.ExpiresAt);
+        Assert.Equal("BR_CNH", byId.DetectedDocumentType);
+        Assert.NotNull(byId.CompletedAt);
+        Assert.Equal(eventsBefore + 1, byId.Events.Count);
+        Assert.Contains(byId.Events, entry => entry.EventType == DocumentEventTypes.Purged);
+        Assert.Null(snapshot.LatestExtraction);
     }
 
     private sealed class FailingStorage(InMemoryFileStorage inner, string failingKey) : DocReader.Application.Abstractions.IFileStorage

@@ -182,10 +182,14 @@ Produtos, Retenção, Repositórios, Webhooks). Nenhum guarda conteúdo document
   no upload, de novo quando o tipo é identificado e no reprocessamento; **mudar uma política não recalcula os documentos
   existentes**. O detalhe mostra `expiresAt` e a política aplicada.
 - **Expurgo.** O worker roda `PurgeExpiredDocumentsJob` conforme `PURGE_SCHEDULE_CRON` (cron de cinco campos, UTC; padrão
-  `0 2 * * *`). Só documentos em estado final (COMPLETED, FAILED, REJECTED) e vencidos: apaga o **arquivo**, marca o
-  documento `PURGED`, registra o evento e o webhook `document.purged`. É idempotente e loga só contagens. Depois disso,
-  `/content` e `/reprocess` respondem `410` (`DOCUMENT_PURGED`). **O texto do OCR e os campos extraídos continuam no
-  banco**: o expurgo remove o original, não as linhas de extração.
+  `0 2 * * *`). Só documentos em estado final (COMPLETED, FAILED, REJECTED) e vencidos: apaga o **arquivo original**, o **texto do
+  OCR** (texto bruto, texto por página e payload do OCR) e os **campos extraídos** com o resultado estruturado, marca o
+  documento `PURGED`, registra o evento `PURGED` com o que foi apagado (`reason=RETENTION_EXPIRED
+  deleted=file,ocr_text,extracted_fields`; só entram os itens que existiam) e o webhook `document.purged`. É idempotente e
+  loga só contagens. O registro fica como marco (tombstone): protocolo, tipo, datas, status, linha do tempo e jobs. Depois
+  disso, `/content`, `/text`, `/result`, `/reprocess` e os dois `*-diagnostics` respondem `410` (`DOCUMENT_PURGED`), e
+  `GET /documents/{id}` continua `200` com `status: PURGED`. Documentos expurgados por versões anteriores, que tinham
+  perdido só o arquivo, têm o texto e os campos removidos por uma migration.
 - **Repositório de armazenamento** (`/api/v1/storage-repositories`). Provedor `FileSystem` ou `Database` (implementados),
   `AzureBlobStorage` e `AwsS3` (cadastráveis, mas o adaptador responde `501` `STORAGE_PROVIDER_NOT_IMPLEMENTED`; há um TODO
   no código). Exatamente um é o padrão. A configuração de conexão é cifrada (AES-256-GCM, chave em
@@ -221,7 +225,7 @@ repositório; no Windows, use `powershell -File scripts/dotnet.ps1 ...` no lugar
 bash scripts/dotnet.sh build DocReader.slnx
 
 # integração: precisa do PostgreSQL do compose (docker compose up -d postgres) e da rede dele.
-# Sem banco alcançável os testes são PULADOS, não falham: confira que rodaram (82 hoje).
+# Sem banco alcançável os testes são PULADOS, não falham: confira que rodaram (84 hoje).
 docker run --rm --network docreader_internal -v "$PWD:/src" -v docreader-nuget:/root/.nuget/packages -w /src \
   -e "DOCREADER_TEST_CONNECTION=Host=postgres;Port=5432;Database=postgres;Username=docreader;Password=docreader" \
   mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/integration/DocReader.IntegrationTests

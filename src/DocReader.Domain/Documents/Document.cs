@@ -168,8 +168,11 @@ public sealed class Document
         && expires <= now
         && Status is DocumentStatus.Completed or DocumentStatus.Failed or DocumentStatus.Rejected;
 
-    /// <summary>Records that the original file was removed at the end of the retention period. Idempotent.</summary>
-    public void MarkPurged(DateTimeOffset occurredAt)
+    /// <summary>
+    /// Records that the content was removed at the end of the retention period, and what was removed (see
+    /// <see cref="PurgedContent"/>; the file alone when omitted). Idempotent.
+    /// </summary>
+    public void MarkPurged(DateTimeOffset occurredAt, IReadOnlyCollection<string>? deleted = null)
     {
         if (Status == DocumentStatus.Purged)
         {
@@ -178,7 +181,8 @@ public sealed class Document
 
         Status = DocumentStatus.Purged;
         PurgedAt = occurredAt;
-        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.Purged, DocumentStatus.Purged, occurredAt, "RETENTION_EXPIRED"));
+        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.Purged, DocumentStatus.Purged, occurredAt,
+            $"reason=RETENTION_EXPIRED deleted={string.Join(',', deleted ?? [PurgedContent.File])}"));
     }
 
     /// <summary>
