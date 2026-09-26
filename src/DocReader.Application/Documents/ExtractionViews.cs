@@ -74,17 +74,16 @@ public enum ReprocessOutcome
     NotFound = 1,
 
     /// <summary>A job is already pending or running, or the document is in a status that cannot be reprocessed.</summary>
-    Conflict = 2
+    Conflict = 2,
+
+    /// <summary>The original file was purged at the end of the retention period, so there is nothing to read again.</summary>
+    Purged = 3
 }
 
 /// <param name="PageNumber">One based page number.</param>
 /// <param name="Text">Text of the page, one recognized line per line.</param>
 public sealed record DocumentTextPage(int PageNumber, string Text);
 
-/// <summary>
-/// The classifier run again, with today's rules, over the text of the latest extraction, next to what was
-/// recorded when the document was processed. They differ after the rules changed and before a reprocess.
-/// </summary>
 /// <summary>
 /// The extraction run again over the stored OCR of the latest extraction, with the rules in force now, and what it
 /// tried for each field. The recorded field statuses travel inside so a stale result is visible.
@@ -94,6 +93,10 @@ public sealed record DocumentExtractionDiagnostics(
     ExtractionSummary Extraction,
     ExtractionDiagnostics Diagnostics);
 
+/// <summary>
+/// The classifier run again, with today's rules, over the text of the latest extraction, next to what was
+/// recorded when the document was processed. They differ after the rules changed and before a reprocess.
+/// </summary>
 public sealed record DocumentClassificationDiagnostics(
     Document Document,
     ExtractionSummary Extraction,

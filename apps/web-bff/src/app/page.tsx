@@ -2,13 +2,28 @@ import Link from "next/link";
 
 import { AnonymousAccessBanner } from "@/components/AnonymousAccessBanner";
 import { UploadForm } from "@/components/UploadForm";
+import { listConfig } from "@/lib/config";
+import type { ProductService } from "@/lib/contracts";
 
 const swaggerUrl = process.env.DOCREADER_PUBLIC_SWAGGER_URL ?? "http://localhost:8080/swagger";
 
 const maxSizeBytes = Number(process.env.DOCREADER_MAX_UPLOAD_BYTES ?? 26_214_400);
 const maxPageCount = Number(process.env.DOCREADER_MAX_PAGE_COUNT ?? 50);
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+/** The registry is only a convenience for the form: without it the upload still works, just with no product to pick. */
+async function activeProducts(): Promise<ProductService[]> {
+  try {
+    return (await listConfig<ProductService>("product-services")).filter((product) => product.active);
+  } catch {
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const products = await activeProducts();
+
   return (
     <>
       <h1>Leitura de documentos</h1>
@@ -19,7 +34,7 @@ export default function HomePage() {
 
       <AnonymousAccessBanner />
 
-      <UploadForm maxSizeBytes={maxSizeBytes} maxPageCount={maxPageCount} />
+      <UploadForm maxSizeBytes={maxSizeBytes} maxPageCount={maxPageCount} products={products} />
 
       <section className="card">
         <h2 className="card__title">Onde continuar</h2>

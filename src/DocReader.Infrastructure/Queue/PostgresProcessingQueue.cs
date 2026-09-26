@@ -246,6 +246,7 @@ public sealed class PostgresProcessingQueue(
                 else
                 {
                     document.MarkFailed(error.Code, error.Message, now);
+                    await WebhookOutbox.EnqueueAsync(dbContext, document, now, cancellationToken).ConfigureAwait(false);
                 }
 
                 await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

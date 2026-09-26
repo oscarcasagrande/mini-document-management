@@ -6,6 +6,8 @@ export interface DocumentFilters {
   protocol?: string;
   fileName?: string;
   documentType?: string;
+  productServiceCode?: string;
+  externalReference?: string;
   channel?: string;
   status?: string;
   uploadedFrom?: string;
@@ -27,6 +29,8 @@ export function toQueryString(filters: DocumentFilters): string {
   append("protocol", filters.protocol);
   append("fileName", filters.fileName);
   append("documentType", filters.documentType);
+  append("productServiceCode", filters.productServiceCode);
+  append("externalReference", filters.externalReference);
   append("channel", filters.channel);
   append("status", filters.status);
   // The API expects instants; a date picker gives a day, so the bounds cover the whole day in UTC.

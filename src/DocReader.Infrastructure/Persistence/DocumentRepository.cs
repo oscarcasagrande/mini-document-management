@@ -4,6 +4,7 @@ using DocReader.Domain.Documents;
 using DocReader.Domain.Extractions;
 using DocReader.Domain.Idempotency;
 using DocReader.Domain.Processing;
+using DocReader.Domain.Retention;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocReader.Infrastructure.Persistence;
@@ -48,20 +49,40 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
     public Task<Document?> FindByProtocolAsync(string protocol, bool includeEvents, CancellationToken ct) =>
         BaseQuery(includeEvents).FirstOrDefaultAsync(document => document.Protocol == protocol, ct);
 
+    public Task<Document?> FindLatestByExternalReferenceAsync(string externalReference, CancellationToken ct) =>
+        BaseQuery(includeEvents: false)
+            .Where(document => document.ExternalReference == externalReference)
+            .OrderByDescending(document => document.UploadedAt)
+            .ThenByDescending(document => document.Id)
+            .FirstOrDefaultAsync(ct);
+
     public async Task<PagedResult<Document>> ListAsync(DocumentListFilter filter, CancellationToken ct)
     {
-        var query = dbContext.Documents.AsNoTracking();
+        var query = dbContext.Documents.AsNoTracking().Include(document => document.ProductService).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Protocol))
         {
-            var pattern = ToContainsPattern(filter.Protocol);
-            query = query.Where(document => EF.Functions.ILike(document.Protocol, pattern, EscapeCharacter));
+            var pattern = Like.Contains(filter.Protocol);
+            query = query.Where(document => EF.Functions.ILike(document.Protocol, pattern, Like.Escape));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ExternalReference))
+        {
+            var pattern = Like.Contains(filter.ExternalReference.Trim());
+            query = query.Where(document => document.ExternalReference != null
+                && EF.Functions.ILike(document.ExternalReference, pattern, Like.Escape));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ProductServiceCode))
+        {
+            var code = filter.ProductServiceCode.Trim().ToUpperInvariant();
+            query = query.Where(document => document.ProductService!.Code == code);
         }
 
         if (!string.IsNullOrWhiteSpace(filter.FileName))
         {
-            var pattern = ToContainsPattern(filter.FileName);
-            query = query.Where(document => EF.Functions.ILike(document.OriginalFileName, pattern, EscapeCharacter));
+            var pattern = Like.Contains(filter.FileName);
+            query = query.Where(document => EF.Functions.ILike(document.OriginalFileName, pattern, Like.Escape));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.DocumentType))
@@ -179,7 +200,11 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
         return new ExtractionOcrView(summary, stored.RawOcrResultJson, stored.PageTextsJson);
     }
 
-    public async Task<ReprocessOutcome> QueueReprocessingAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
+    public async Task<ReprocessOutcome> QueueReprocessingAsync(
+        Guid documentId,
+        DateTimeOffset now,
+        RetentionPolicy? retentionPolicy,
+        CancellationToken ct)
     {
         var strategy = dbContext.Database.CreateExecutionStrategy();
 
@@ -214,18 +239,94 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
                 .FirstAsync(candidate => candidate.Id == documentId, cancellationToken)
                 .ConfigureAwait(false);
 
+            if (document.Status == DocumentStatus.Purged)
+            {
+                return ReprocessOutcome.Purged;
+            }
+
             if (hasActiveJob || document.Status is not (DocumentStatus.Stored or DocumentStatus.Failed or DocumentStatus.Completed))
             {
                 return ReprocessOutcome.Conflict;
             }
 
             document.MarkQueued(now, "REPROCESS_REQUESTED");
+
+            // A new cycle starts: the retention period counts again from now, by the policy that fits the document today.
+            if (retentionPolicy is not null)
+            {
+                document.ApplyRetention(retentionPolicy, now);
+            }
             dbContext.ProcessingJobs.Add(ProcessingJob.CreateForDocument(documentId, now));
 
             await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
             return ReprocessOutcome.Queued;
+        }, ct).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<PurgeCandidate>> FindPurgeableAsync(
+        DateTimeOffset now,
+        int limit,
+        IReadOnlyCollection<Guid> exclude,
+        CancellationToken ct)
+    {
+        var excluded = exclude.ToArray();
+
+        return await dbContext.Documents
+            .AsNoTracking()
+            .Where(document => document.ExpiresAt != null && document.ExpiresAt <= now)
+            .Where(document => document.Status == DocumentStatus.Completed
+                || document.Status == DocumentStatus.Failed
+                || document.Status == DocumentStatus.Rejected)
+            .Where(document => !excluded.Contains(document.Id))
+            .OrderBy(document => document.ExpiresAt)
+            .ThenBy(document => document.Id)
+            .Take(limit)
+            .Select(document => new PurgeCandidate(document.Id, document.Protocol, document.StorageRepositoryId, document.StorageKey))
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<bool> MarkPurgedAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
+    {
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async cancellationToken =>
+        {
+            dbContext.ChangeTracker.Clear();
+
+            await using var transaction = await dbContext.Database
+                .BeginTransactionAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            // Lock the row so a reprocess request and the purge cannot both win.
+            var locked = await dbContext.Database
+                .SqlQuery<Guid>($"SELECT id AS \"Value\" FROM documents WHERE id = {documentId} FOR UPDATE")
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (locked.Count == 0)
+            {
+                return false;
+            }
+
+            var document = await dbContext.Documents
+                .FirstAsync(candidate => candidate.Id == documentId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!document.IsPurgeable(now))
+            {
+                return false;
+            }
+
+            document.MarkPurged(now);
+            await WebhookOutbox.EnqueueAsync(dbContext, document, now, cancellationToken).ConfigureAwait(false);
+
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+            return true;
         }, ct).ConfigureAwait(false);
     }
 
@@ -257,23 +358,10 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
 
     private IQueryable<Document> BaseQuery(bool includeEvents)
     {
-        var query = dbContext.Documents.AsNoTracking();
+        var query = dbContext.Documents.AsNoTracking()
+            .Include(document => document.ProductService)
+            .Include(document => document.RetentionPolicy!).ThenInclude(policy => policy.ProductService)
+            .AsQueryable();
         return includeEvents ? query.Include(document => document.Events) : query;
-    }
-
-    private const string EscapeCharacter = "\\";
-
-    /// <summary>
-    /// Builds a contains pattern with the wildcard characters of LIKE escaped, so a value such as
-    /// <c>100%</c> is matched literally instead of turning into a wildcard.
-    /// </summary>
-    private static string ToContainsPattern(string value)
-    {
-        var escaped = value.Trim()
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal);
-
-        return $"%{escaped}%";
     }
 }

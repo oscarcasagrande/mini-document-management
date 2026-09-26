@@ -53,6 +53,8 @@ public static class DocumentResponseMapper
         document.DetectedDocumentType,
         document.ClassificationConfidence,
         document.ExternalReference,
+        ConfigurationResponseMapper.ToReference(document.ProductService),
+        document.ExpiresAt,
         document.UploadedAt,
         document.CompletedAt,
         LinksFor(document.Id));
@@ -81,6 +83,8 @@ public static class DocumentResponseMapper
         document.Id,
         document.Protocol,
         document.Status,
+        ConfigurationResponseMapper.ToReference(document.ProductService),
+        ConfigurationResponseMapper.ToRetention(document),
         new DocumentUploadResponse(
             document.OriginalFileName,
             document.UploadChannel,

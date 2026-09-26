@@ -13,6 +13,7 @@ namespace DocReader.Application.Documents;
 /// <param name="ExternalReference">Optional caller reference.</param>
 /// <param name="Channel">WEB when it came from the interface, API otherwise.</param>
 /// <param name="IdempotencyKey">Optional value of the Idempotency-Key header.</param>
+/// <param name="ProductServiceCode">Optional code of the product or service the document is for.</param>
 public sealed record UploadDocumentCommand(
     Stream Content,
     string? OriginalFileName,
@@ -20,4 +21,5 @@ public sealed record UploadDocumentCommand(
     string? ExpectedDocumentType,
     string? ExternalReference,
     UploadChannel Channel,
-    string? IdempotencyKey);
+    string? IdempotencyKey,
+    string? ProductServiceCode = null);

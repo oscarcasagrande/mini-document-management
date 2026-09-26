@@ -13,9 +13,80 @@ export type DocumentStatus =
   | "EXTRACTING"
   | "COMPLETED"
   | "FAILED"
-  | "REJECTED";
+  | "REJECTED"
+  | "PURGED";
 
 export type UploadChannel = "WEB" | "API";
+
+/** Product or service a document is linked to. */
+export interface ProductServiceReference {
+  id: string;
+  code: string;
+  name: string;
+}
+
+/** What a retention policy covers, from the most general to the most specific. */
+export type RetentionScope = "GLOBAL" | "DOCUMENT_TYPE" | "PRODUCT_SERVICE" | "DOCUMENT_TYPE_AND_PRODUCT_SERVICE";
+
+export interface RetentionPolicy {
+  id: string;
+  documentType: string | null;
+  productService: ProductServiceReference | null;
+  retentionDays: number;
+  scope: RetentionScope;
+  isGlobal: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The purge date of a document and the policy that set it. */
+export interface DocumentRetention {
+  expiresAt: string;
+  retentionDays: number;
+  policy: {
+    id: string;
+    scope: RetentionScope;
+    documentType: string | null;
+    productServiceCode: string | null;
+    retentionDays: number;
+  } | null;
+  purgedAt: string | null;
+}
+
+/** A webhook subscription. The signing secret is never returned by the API. */
+export interface WebhookSubscription {
+  id: string;
+  url: string;
+  events: string[];
+  productService: ProductServiceReference | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type StorageProvider = "FILE_SYSTEM" | "DATABASE" | "AZURE_BLOB_STORAGE" | "AWS_S3";
+
+/** A storage repository. The connection settings are secrets and never come from the API. */
+export interface StorageRepository {
+  id: string;
+  code: string;
+  name: string;
+  provider: StorageProvider;
+  isDefault: boolean;
+  active: boolean;
+  hasConnectionConfig: boolean;
+  isImplemented: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A product or service as administered in the registry. */
+export interface ProductService extends ProductServiceReference {
+  active: boolean;
+  storageRepository: { id: string; code: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface DocumentLinks {
   self: string;
@@ -61,6 +132,8 @@ export interface DocumentSummary {
   detectedDocumentType: string | null;
   classificationConfidence: number | null;
   externalReference: string | null;
+  productService: ProductServiceReference | null;
+  expiresAt: string | null;
   uploadedAt: string;
   completedAt: string | null;
   links: DocumentLinks;
@@ -77,6 +150,8 @@ export interface DocumentDetail {
   id: string;
   protocol: string;
   status: DocumentStatus;
+  productService: ProductServiceReference | null;
+  retention: DocumentRetention | null;
   upload: {
     fileName: string;
     channel: UploadChannel;
@@ -182,6 +257,7 @@ export const DOCUMENT_STATUSES: DocumentStatus[] = [
   "COMPLETED",
   "FAILED",
   "REJECTED",
+  "PURGED",
 ];
 
 /** Statuses whose document is still moving, so the interface keeps polling. */

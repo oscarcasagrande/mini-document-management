@@ -57,12 +57,34 @@ medidos em documento real.**
   indicadores do PRD §3. Formato do ground truth e métricas em `docs/evaluation.md`; testes em `tests/accuracy`.
   Recusa pasta dentro do repo, não escreve valor de campo no relatório sem `--include-values`, apaga da API o
   que enviou. Smoke test com `samples/synthetic/documents` (`--truth-suffix .expected.json`).
-- Testes: 559 unitários (as sete amostras rodam sobre **OCR real** capturado em
-  `tests/unit/DocReader.UnitTests/Fixtures/ocr`), 21 de integração, 29 do `pytest` do OCR, 49 do avaliador.
+- Testes (na etapa 4): as sete amostras rodam sobre **OCR real** capturado em
+  `tests/unit/DocReader.UnitTests/Fixtures/ocr`; 29 do `pytest` do OCR, 49 do avaliador. Contagens atuais na seção acima.
   Ponta a ponta: `tests/e2e/stage3_acceptance.py`.
 - Latência de A4 fechada no ADR 0002: o alvo (≤ 18 s/página) é atingido **sem limite de CPU** (pior caso
   15,8 s) e não com 4 CPUs (28 s). `OCR_MODEL_PROFILE` troca o modelo; os menores são mais rápidos e menos
   exatos, e não foram adotados.
+
+**Funcionalidades de produção (pós-etapa 4).** Cinco itens sobre o pipeline, todos com migration, testes e tela no BFF:
+
+- **ProductService** (`Domain/Catalog`): código único em maiúsculas; o upload aceita `productServiceCode` (desconhecido ou
+  inativo = 422). `/api/v1/product-services`.
+- **RetentionPolicy** (`Domain/Retention`): escopo tipo/produto; precedência tipo+produto > produto > tipo > global. Uma global
+  (id fixo `…0001`, 365 dias, semeada na migration) que não se apaga. `expiresAt` é calculado no upload, na classificação
+  e no reprocessamento; **mudar a política não recalcula** o que já existe. `PurgeExpiredDocumentsJob` no worker
+  (`PURGE_SCHEDULE_CRON`, Cronos, UTC) apaga só o **arquivo** de documentos em estado final vencidos e marca `PURGED` (410 em
+  `/content` e `/reprocess`). Texto do OCR e campos extraídos permanecem: decisão em aberto.
+- **StorageRepository** (`Domain/Storage`): `IFileStorage` virou fachada que escolhe o adaptador pelo `repositoryId` do documento
+  (herdado do produto ou do padrão). FileSystem e Database (`document_blobs`) implementados; Azure e S3 devolvem
+  `NotImplementedException` (501). A configuração é cifrada por `ISecretProtector` (AES-256-GCM, chave em
+  `STORAGE_CONFIG_ENCRYPTION_KEY`) e nunca sai numa resposta. Exatamente um repositório padrão (índice único parcial).
+- **Webhooks** (`Domain/Webhooks`, `Application/Webhooks`): outbox transacional (`webhook_deliveries`, payload em `text`, **não**
+  `jsonb`, para os bytes assinados não mudarem). O `WebhookDispatcher` do worker reivindica com `FOR UPDATE SKIP LOCKED`,
+  com fencing; assinatura `sha256=<hex>` sobre o corpo exato; 4 tentativas (10 s/30 s/90 s); falha final vira o evento
+  `WEBHOOK_DELIVERY_FAILED` no documento. Bloqueio de rede privada por padrão, no cadastro e no `ConnectCallback`
+  (`WEBHOOK_ALLOW_PRIVATE_NETWORKS`).
+- **Referência externa**: `GET /api/v1/documents/by-external-reference/{reference}` devolve o documento mais recente (exato, com
+  diferença de caixa) ou 404; a lista filtra por `externalReference` (parcial). Índice parcial em `external_reference`.
+- Testes: 878 unitários, 82 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
 
 **O que não foi feito, e por quê:** nenhuma medição em documento real (não há dataset; o framework existe para
 isso); a comparação opcional com Tesseract/Docling do PRD §26; e a decisão de continuidade e produção, que
@@ -273,5 +295,8 @@ Coisas que já custaram tempo e não se enxergam no código.
   Não imponha `cpus:` ao `ocr-service` sem reler o ADR.
 - **Heredoc com interpolação C# (`$"..."`) quebra o Bash tool**: escreva o arquivo com a ferramenta de escrita
   ou rode `node arquivo.js`.
+- **Integração precisa de PostgreSQL alcançável.** Sem banco os 82 testes são pulados e o resumo diz "Zero tests ran". Rode dentro da rede do compose (`docker run --network docreader_internal ... -e DOCREADER_TEST_CONNECTION=...`, comando no README).
+- **Toda migration nova exige `-c Release` limpo.** O Docker compila com warnings-as-errors e doc XML: um `<param>` faltando (CS1573) só aparece no build de Release.
+- **A chave de cifra não pode mudar** depois de haver repositórios de armazenamento com configuração: o AES-GCM não decifra com outra chave, e a configuração cifrada se perde.
 - **Fixtures de OCR são texto real, não fabricado.** Depois de mudar engine, pré-processamento ou amostras,
   recapture com `scripts/capture-ocr-fixtures.py` antes de mexer nos extratores.

@@ -9,6 +9,8 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="Id">Identity of the document.</param>
 /// <param name="Protocol">Human readable protocol.</param>
 /// <param name="Status">Current status.</param>
+/// <param name="ProductService">Product or service the document is linked to, when it was uploaded for one.</param>
+/// <param name="Retention">When the document is purged and the policy that decided it; null when no retention was applied.</param>
 /// <param name="Upload">What was received.</param>
 /// <param name="Classification">Identified type, when the classifier already ran.</param>
 /// <param name="Extraction">Identity of the latest result, when the pipeline already produced one.</param>
@@ -20,6 +22,8 @@ public sealed record DocumentDetailResponse(
     Guid Id,
     string Protocol,
     DocumentStatus Status,
+    ProductServiceReferenceResponse? ProductService,
+    DocumentRetentionResponse? Retention,
     DocumentUploadResponse Upload,
     DocumentClassificationResponse? Classification,
     DocumentExtractionResponse? Extraction,

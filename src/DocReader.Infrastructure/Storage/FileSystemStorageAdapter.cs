@@ -1,28 +1,29 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using DocReader.Application.Abstractions;
-using DocReader.Application.Options;
+using DocReader.Domain.Storage;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace DocReader.Infrastructure.Storage;
 
 /// <summary>
-/// Stores originals on a local filesystem, which is a Docker volume in the PoC. Keys are derived
-/// from the document UUID and the detected extension, never from the name sent by the client, and
-/// every read resolves strictly under the configured root (PRD section 21).
+/// The <see cref="StorageProvider.FileSystem"/> adapter: stores originals in a directory of the local filesystem, which is
+/// a Docker volume in the PoC. Keys are derived from the document UUID and the detected extension, never from the name
+/// sent by the client, and every read resolves strictly under the root of the adapter (PRD section 21).
 /// </summary>
-public sealed partial class LocalFileStorage : IFileStorage
+public sealed partial class FileSystemStorageAdapter : IStorageAdapter
 {
     private const string OriginalFileName = "original";
 
     private readonly string _root;
-    private readonly ILogger<LocalFileStorage> _logger;
+    private readonly ILogger<FileSystemStorageAdapter> _logger;
 
-    public LocalFileStorage(IOptions<StorageOptions> options, ILogger<LocalFileStorage> logger)
+    /// <param name="rootPath">The directory the adapter stores under. Created if it does not exist.</param>
+    /// <param name="logger">Logger.</param>
+    public FileSystemStorageAdapter(string rootPath, ILogger<FileSystemStorageAdapter> logger)
     {
         _logger = logger;
-        _root = Path.GetFullPath(options.Value.RootPath);
+        _root = Path.GetFullPath(rootPath);
         Directory.CreateDirectory(_root);
     }
 

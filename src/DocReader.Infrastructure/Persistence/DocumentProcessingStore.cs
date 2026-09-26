@@ -2,6 +2,7 @@ using DocReader.Application.Abstractions;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Extractions;
 using DocReader.Domain.Processing;
+using DocReader.Domain.Retention;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocReader.Infrastructure.Persistence;
@@ -47,6 +48,7 @@ public sealed class DocumentProcessingStore(DocReaderDbContext dbContext, TimePr
         string detectedDocumentType,
         decimal? classificationConfidence,
         string? classificationDetails,
+        RetentionPolicy? retentionPolicy,
         CancellationToken ct)
     {
         var now = timeProvider.GetUtcNow();
@@ -89,7 +91,17 @@ public sealed class DocumentProcessingStore(DocReaderDbContext dbContext, TimePr
 
             var document = await LoadForUpdateAsync(job.DocumentId, cancellationToken).ConfigureAwait(false);
             document.RecordClassification(detectedDocumentType, classificationConfidence, now, classificationDetails);
+
+            // The type is only known now, so a policy for this type takes over from the one chosen at upload.
+            if (retentionPolicy is not null && retentionPolicy.Id != document.RetentionPolicyId)
+            {
+                document.ReapplyRetention(retentionPolicy);
+            }
+
             document.MarkCompleted(now);
+
+            // The notification is queued in this same transaction: the document is COMPLETED if and only if it will be told.
+            await WebhookOutbox.EnqueueAsync(dbContext, document, now, cancellationToken).ConfigureAwait(false);
 
             dbContext.Extractions.Add(extraction);
 

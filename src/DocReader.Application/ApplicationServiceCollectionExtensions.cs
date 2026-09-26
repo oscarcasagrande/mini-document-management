@@ -1,9 +1,13 @@
 using DocReader.Application.Abstractions;
+using DocReader.Application.Catalog;
 using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Extraction;
 using DocReader.Application.Options;
 using DocReader.Application.Processing;
+using DocReader.Application.Retention;
+using DocReader.Application.Storage;
+using DocReader.Application.Webhooks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -44,6 +48,22 @@ public static class ApplicationServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<SecretsOptions>()
+            .Bind(configuration.GetSection(SecretsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<SecretsOptions>, SecretsOptionsValidator>();
+
+        services.AddOptions<WebhookOptions>()
+            .Bind(configuration.GetSection(WebhookOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<PurgeOptions>()
+            .Bind(configuration.GetSection(PurgeOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddOptions<ClassificationOptions>()
             .Bind(configuration.GetSection(ClassificationOptions.SectionName))
             .ValidateDataAnnotations()
@@ -61,6 +81,15 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IDocumentExtractor, BrCcmeiExtractor>();
         services.AddScoped<IDocumentExtractor, BrSocialContractExtractor>();
 
+        services.AddScoped<ProductServiceService>();
+        services.AddScoped<RetentionService>();
+        services.AddScoped<StorageRepositoryService>();
+        services.AddScoped<WebhookSubscriptionService>();
+        services.AddScoped<WebhookDispatchService>();
+        services.AddScoped<StorageRepositoryResolver>();
+        services.AddScoped<IFileStorage, RepositoryFileStorage>();
+        services.AddScoped<RetentionPolicyService>();
+        services.AddScoped<DocumentPurgeService>();
         services.AddScoped<DocumentUploadService>();
         services.AddScoped<DocumentQueryService>();
         services.AddScoped<DocumentDeletionService>();

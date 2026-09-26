@@ -54,7 +54,7 @@ public sealed class DocumentsController(
     /// <response code="409">The Idempotency-Key was already used with a different file.</response>
     /// <response code="413">The file is above the configured size limit.</response>
     /// <response code="415">The real signature is not an accepted format, or contradicts the declared type.</response>
-    /// <response code="422">The file is an accepted format but unreadable or above the page limit.</response>
+    /// <response code="422">The file is an accepted format but unreadable or above the page limit, or <c>productServiceCode</c> is unknown or inactive.</response>
     [HttpPost]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(UploadAcceptedResponse), StatusCodes.Status202Accepted)]
@@ -97,7 +97,8 @@ public sealed class DocumentsController(
             request.ExpectedDocumentType,
             request.ExternalReference,
             ParseChannel(channel),
-            idempotencyKey);
+            idempotencyKey,
+            request.ProductServiceCode);
 
         var result = await uploadService.UploadAsync(command, ct);
         var response = DocumentResponseMapper.ToAcceptedResponse(result);
@@ -141,7 +142,9 @@ public sealed class DocumentsController(
             request.UploadedFrom,
             request.UploadedTo,
             Math.Max(1, request.Page),
-            pageSize);
+            pageSize,
+            request.ProductServiceCode,
+            request.ExternalReference);
 
         var page = await queryService.ListAsync(filter, ct);
 
@@ -180,6 +183,32 @@ public sealed class DocumentsController(
         CancellationToken ct)
     {
         var document = await queryService.GetByProtocolAsync(protocol, includeEvents: false, ct);
+        var snapshot = await queryService.GetSnapshotAsync(document.Id, includeEvents: true, ct);
+
+        return Ok(DocumentResponseMapper.ToDetail(snapshot, queueOptions.Value.MaxAttempts));
+    }
+
+    /// <summary>
+    /// Returns the consolidated view of the most recent document uploaded with this external reference.
+    /// </summary>
+    /// <remarks>
+    /// The external reference is the caller's own key and is not unique. When several documents share it, the latest upload
+    /// is returned. The match is exact and case sensitive; reserved characters must be URL encoded.
+    /// </remarks>
+    /// <param name="reference">External reference sent at upload time.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="200">Most recent document with this reference.</response>
+    /// <response code="400">The reference is blank.</response>
+    /// <response code="404">No document was uploaded with this reference.</response>
+    [HttpGet("by-external-reference/{reference}")]
+    [ProducesResponseType(typeof(DocumentDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    public async Task<ActionResult<DocumentDetailResponse>> GetByExternalReferenceAsync(
+        string reference,
+        CancellationToken ct)
+    {
+        var document = await queryService.GetLatestByExternalReferenceAsync(reference, ct);
         var snapshot = await queryService.GetSnapshotAsync(document.Id, includeEvents: true, ct);
 
         return Ok(DocumentResponseMapper.ToDetail(snapshot, queueOptions.Value.MaxAttempts));

@@ -22,6 +22,51 @@ namespace DocReader.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("DocReader.Domain.Catalog.ProductService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("StorageRepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("storage_repository_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_product_services_code");
+
+                    b.HasIndex("StorageRepositoryId");
+
+                    b.ToTable("product_services", (string)null);
+                });
+
             modelBuilder.Entity("DocReader.Domain.Documents.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -47,6 +92,10 @@ namespace DocReader.Infrastructure.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("expected_document_type");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
 
                     b.Property<string>("ExternalReference")
                         .HasMaxLength(256)
@@ -79,11 +128,27 @@ namespace DocReader.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("page_count");
 
+                    b.Property<Guid?>("ProductServiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_service_id");
+
                     b.Property<string>("Protocol")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("protocol");
+
+                    b.Property<DateTimeOffset?>("PurgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("purged_at");
+
+                    b.Property<int?>("RetentionDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("retention_days");
+
+                    b.Property<Guid?>("RetentionPolicyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("retention_policy_id");
 
                     b.Property<string>("Sha256")
                         .IsRequired()
@@ -107,6 +172,10 @@ namespace DocReader.Infrastructure.Migrations
                         .HasColumnType("character varying(512)")
                         .HasColumnName("storage_key");
 
+                    b.Property<Guid>("StorageRepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("storage_repository_id");
+
                     b.Property<string>("UploadChannel")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -122,9 +191,18 @@ namespace DocReader.Infrastructure.Migrations
                     b.HasIndex("DetectedDocumentType")
                         .HasDatabaseName("ix_documents_detected_document_type");
 
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_documents_expires_at_pending")
+                        .HasFilter("status <> 'PURGED' AND expires_at IS NOT NULL");
+
+                    b.HasIndex("ProductServiceId")
+                        .HasDatabaseName("ix_documents_product_service_id");
+
                     b.HasIndex("Protocol")
                         .IsUnique()
                         .HasDatabaseName("ix_documents_protocol");
+
+                    b.HasIndex("RetentionPolicyId");
 
                     b.HasIndex("Sha256")
                         .HasDatabaseName("ix_documents_sha256");
@@ -132,12 +210,19 @@ namespace DocReader.Infrastructure.Migrations
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_documents_status");
 
+                    b.HasIndex("StorageRepositoryId")
+                        .HasDatabaseName("ix_documents_storage_repository_id");
+
                     b.HasIndex("UploadChannel")
                         .HasDatabaseName("ix_documents_upload_channel");
 
                     b.HasIndex("UploadedAt")
                         .IsDescending()
                         .HasDatabaseName("ix_documents_uploaded_at");
+
+                    b.HasIndex("ExternalReference", "UploadedAt")
+                        .HasDatabaseName("ix_documents_external_reference_uploaded_at")
+                        .HasFilter("external_reference IS NOT NULL");
 
                     b.ToTable("documents", (string)null);
                 });
@@ -452,6 +537,237 @@ namespace DocReader.Infrastructure.Migrations
                     b.ToTable("processing_jobs", (string)null);
                 });
 
+            modelBuilder.Entity("DocReader.Domain.Retention.RetentionPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DocumentType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("document_type");
+
+                    b.Property<Guid?>("ProductServiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_service_id");
+
+                    b.Property<int>("RetentionDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("retention_days");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductServiceId");
+
+                    b.HasIndex("DocumentType", "ProductServiceId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_retention_policies_scope");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("DocumentType", "ProductServiceId"), false);
+
+                    b.ToTable("retention_policies", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_retention_policies_days", "retention_days >= 1 AND retention_days <= 36500");
+                        });
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Storage.StorageRepository", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EncryptedConnectionConfig")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("connection_config");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_default");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("provider");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_storage_repositories_code");
+
+                    b.HasIndex("IsDefault")
+                        .IsUnique()
+                        .HasDatabaseName("ux_storage_repositories_default")
+                        .HasFilter("is_default");
+
+                    b.ToTable("storage_repositories", (string)null);
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Webhooks.WebhookDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Event")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_attempt_at");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("last_error");
+
+                    b.Property<int?>("LastStatusCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_status_code");
+
+                    b.Property<DateTimeOffset?>("LockedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("locked_at");
+
+                    b.Property<string>("LockedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("locked_by");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subscription_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId")
+                        .HasDatabaseName("ix_webhook_deliveries_document");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("ix_webhook_deliveries_pending_due")
+                        .HasFilter("status = 'PENDING'");
+
+                    b.HasIndex("SubscriptionId", "CreatedAt")
+                        .HasDatabaseName("ix_webhook_deliveries_subscription");
+
+                    b.ToTable("webhook_deliveries", (string)null);
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Webhooks.WebhookSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EncryptedSecret")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("secret");
+
+                    b.PrimitiveCollection<string[]>("Events")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("events");
+
+                    b.Property<Guid?>("ProductServiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_service_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductServiceId")
+                        .HasDatabaseName("ix_webhook_subscriptions_product_service_id");
+
+                    b.ToTable("webhook_subscriptions", (string)null);
+                });
+
             modelBuilder.Entity("DocReader.Infrastructure.Persistence.ProtocolSequence", b =>
                 {
                     b.Property<DateOnly>("Day")
@@ -465,6 +781,67 @@ namespace DocReader.Infrastructure.Migrations
                     b.HasKey("Day");
 
                     b.ToTable("protocol_sequences", (string)null);
+                });
+
+            modelBuilder.Entity("DocReader.Infrastructure.Storage.DocumentBlob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_document_blobs_document_id");
+
+                    b.ToTable("document_blobs", (string)null);
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Catalog.ProductService", b =>
+                {
+                    b.HasOne("DocReader.Domain.Storage.StorageRepository", "StorageRepository")
+                        .WithMany()
+                        .HasForeignKey("StorageRepositoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("StorageRepository");
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Documents.Document", b =>
+                {
+                    b.HasOne("DocReader.Domain.Catalog.ProductService", "ProductService")
+                        .WithMany()
+                        .HasForeignKey("ProductServiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DocReader.Domain.Retention.RetentionPolicy", "RetentionPolicy")
+                        .WithMany()
+                        .HasForeignKey("RetentionPolicyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DocReader.Domain.Storage.StorageRepository", null)
+                        .WithMany()
+                        .HasForeignKey("StorageRepositoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ProductService");
+
+                    b.Navigation("RetentionPolicy");
                 });
 
             modelBuilder.Entity("DocReader.Domain.Documents.DocumentEvent", b =>
@@ -516,6 +893,43 @@ namespace DocReader.Infrastructure.Migrations
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Retention.RetentionPolicy", b =>
+                {
+                    b.HasOne("DocReader.Domain.Catalog.ProductService", "ProductService")
+                        .WithMany()
+                        .HasForeignKey("ProductServiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ProductService");
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Webhooks.WebhookDelivery", b =>
+                {
+                    b.HasOne("DocReader.Domain.Documents.Document", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DocReader.Domain.Webhooks.WebhookSubscription", "Subscription")
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("DocReader.Domain.Webhooks.WebhookSubscription", b =>
+                {
+                    b.HasOne("DocReader.Domain.Catalog.ProductService", "ProductService")
+                        .WithMany()
+                        .HasForeignKey("ProductServiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ProductService");
                 });
 
             modelBuilder.Entity("DocReader.Domain.Documents.Document", b =>

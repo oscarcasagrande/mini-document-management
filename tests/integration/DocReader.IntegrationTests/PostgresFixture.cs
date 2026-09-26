@@ -75,6 +75,17 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         await using var context = CreateContext();
         await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE documents CASCADE;");
+
+        // Configuration goes too, except what the migration seeds: the global retention policy stays, at its default.
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM retention_policies WHERE id <> '00000000-0000-7000-8000-000000000001';");
+        await context.Database.ExecuteSqlRawAsync("UPDATE retention_policies SET retention_days = 365 WHERE id = '00000000-0000-7000-8000-000000000001';");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM webhook_subscriptions;");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM product_services;");
+
+        // Same for the storage: the default repository the migration creates stays, back to its original state.
+        await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE document_blobs;");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM storage_repositories WHERE id <> '00000000-0000-7000-8000-0000000000d1';");
+        await context.Database.ExecuteSqlRawAsync("UPDATE storage_repositories SET is_default = true, active = true, connection_config = NULL WHERE id = '00000000-0000-7000-8000-0000000000d1';");
     }
 
     public DocReaderDbContext CreateContext()

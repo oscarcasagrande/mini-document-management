@@ -1,10 +1,12 @@
 using System.Text.Json;
 using DocReader.Application;
+using DocReader.Application.Options;
 using DocReader.Infrastructure;
 using DocReader.Infrastructure.Persistence;
 using DocReader.Worker;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 // O worker consome a fila (ADR 0001) e processa cada documento pelo ocr-service, renovando a reserva
 // do job a cada página (ADR 0002).
@@ -24,7 +26,10 @@ builder.Services.AddDocReaderInfrastructure(builder.Configuration);
 builder.Services.AddDocReaderProcessing(builder.Configuration);
 builder.Services.AddDocReaderOcrProvider();
 
+builder.Services.AddSingleton<IValidateOptions<PurgeOptions>, PurgeOptionsValidator>();
 builder.Services.AddHostedService<ProcessingWorker>();
+builder.Services.AddHostedService<PurgeExpiredDocumentsJob>();
+builder.Services.AddHostedService<WebhookDispatcher>();
 builder.Services.AddHostedService<QueueDepthReporter>();
 
 builder.Services.AddHealthChecks()

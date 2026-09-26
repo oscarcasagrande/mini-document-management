@@ -286,6 +286,11 @@ tbody tr:hover {
   color: var(--pending);
 }
 
+.chip--muted {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+
 .chip--done {
   background: var(--done-surface);
   color: var(--done);

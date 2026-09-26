@@ -103,6 +103,9 @@ Todas em `.env` (ver `.env.example`, que explica cada uma):
 | `QUEUE_MAX_ATTEMPTS` | `3` | Tentativas por documento antes de `FAILED` |
 | `CLASSIFICATION_MIN_SCORE` | `0` | Pontuação mínima para aceitar um tipo. `0` usa o limiar de cada tipo (0,6); ver [Depurar uma classificação](#depurar-uma-classificação) |
 | `ALLOW_ANONYMOUS_ACCESS` | `true` | `false` fecha a API |
+| `PURGE_SCHEDULE_CRON` | `0 2 * * *` | Quando o worker expurga documentos vencidos (cron de cinco campos, UTC) |
+| `STORAGE_CONFIG_ENCRYPTION_KEY` | chave de demonstração | Base64 de 32 bytes; cifra a configuração dos repositórios. **Troque fora da demonstração**; perdê-la perde a configuração |
+| `WEBHOOK_ALLOW_PRIVATE_NETWORKS` | `false` | `true` permite webhook para localhost e redes privadas (só para teste) |
 
 ### Depurar uma classificação
 
@@ -165,6 +168,41 @@ real entra como rótulo alternativo na lista do extrator e como caso em `RealDoc
 (ADR 0002). O alvo do PRD (cinco páginas em 90 s) vale para o primeiro caso. Não imponha limite de CPU ao
 `ocr-service` sem reler o ADR.
 
+### Produtos, retenção, repositórios e webhooks
+
+Quatro cadastros aproximam a PoC de um uso real. Todos têm API em `/api/v1` (Swagger) e tela na interface (menu:
+Produtos, Retenção, Repositórios, Webhooks). Nenhum guarda conteúdo documental em log.
+
+- **Produto ou serviço** (`/api/v1/product-services`). Código único (guardado em maiúsculas), nome, ativo. O upload aceita
+  `productServiceCode`: código desconhecido ou inativo responde `422`. O detalhe e a lista devolvem o produto, e a lista
+  filtra por `productServiceCode`. Um produto com documentos, políticas ou webhooks não é apagado (`409`).
+- **Política de retenção** (`/api/v1/retention-policies`). Escopo por tipo documental e/ou produto; vence a mais
+  específica: **tipo + produto > produto > tipo > global**. Há exatamente uma política global (365 dias, criada pela
+  migration), que não pode ser apagada; dois cadastros com o mesmo escopo são recusados (`409`). `expiresAt` é calculado
+  no upload, de novo quando o tipo é identificado e no reprocessamento; **mudar uma política não recalcula os documentos
+  existentes**. O detalhe mostra `expiresAt` e a política aplicada.
+- **Expurgo.** O worker roda `PurgeExpiredDocumentsJob` conforme `PURGE_SCHEDULE_CRON` (cron de cinco campos, UTC; padrão
+  `0 2 * * *`). Só documentos em estado final (COMPLETED, FAILED, REJECTED) e vencidos: apaga o **arquivo**, marca o
+  documento `PURGED`, registra o evento e o webhook `document.purged`. É idempotente e loga só contagens. Depois disso,
+  `/content` e `/reprocess` respondem `410` (`DOCUMENT_PURGED`). **O texto do OCR e os campos extraídos continuam no
+  banco**: o expurgo remove o original, não as linhas de extração.
+- **Repositório de armazenamento** (`/api/v1/storage-repositories`). Provedor `FileSystem` ou `Database` (implementados),
+  `AzureBlobStorage` e `AwsS3` (cadastráveis, mas o adaptador responde `501` `STORAGE_PROVIDER_NOT_IMPLEMENTED`; há um TODO
+  no código). Exatamente um é o padrão. A configuração de conexão é cifrada (AES-256-GCM, chave em
+  `STORAGE_CONFIG_ENCRYPTION_KEY`), **nunca** volta num GET, e o PUT altera só as chaves enviadas. O produto pode apontar
+  para um repositório; o documento herda no upload e guarda o repositório de origem.
+- **Webhook** (`/api/v1/webhook-subscriptions`). Eventos `document.completed`, `document.failed` e `document.purged`,
+  com filtro opcional por produto. O worker envia por POST `{event, documentId, protocol, status, detectedDocumentType,
+  productServiceCode, occurredAt}`; o cabeçalho `X-Webhook-Signature` é `sha256=` + HMAC-SHA256 (hex minúsculo) do corpo
+  exato com o segredo da assinatura, que só é mostrado na criação (gerado se você não informar). Falhou? Novas tentativas
+  após 10 s, 30 s e 90 s (4 no total); esgotadas, o documento ganha o evento `WEBHOOK_DELIVERY_FAILED` na linha do tempo.
+  `GET /webhook-subscriptions/{id}/deliveries` mostra as entregas. Por segurança (SSRF), URL de rede privada, localhost e
+  metadados de nuvem são recusadas, no cadastro e na conexão, a menos que `WEBHOOK_ALLOW_PRIVATE_NETWORKS=true`.
+- **Consulta por referência externa.** `GET /api/v1/documents/by-external-reference/{reference}` devolve o detalhe do
+  documento **mais recente** enviado com essa `externalReference` (a referência não é única), ou `404`. A busca é exata e
+  diferencia maiúsculas; codifique na URL o que for reservado (`/` vira `%2F`). A lista aceita `externalReference` como
+  filtro parcial, sem diferenciar maiúsculas, e a tela de lista tem o campo correspondente.
+
 ## Rodar os testes
 
 Cinco suítes, todas em contêiner. Os comandos abaixo funcionam no bash e no PowerShell a partir da raiz do
@@ -183,7 +221,7 @@ repositório; no Windows, use `powershell -File scripts/dotnet.ps1 ...` no lugar
 bash scripts/dotnet.sh build DocReader.slnx
 
 # integração: precisa do PostgreSQL do compose (docker compose up -d postgres) e da rede dele.
-# Sem banco alcançável os testes são PULADOS, não falham: confira que rodaram (21 hoje).
+# Sem banco alcançável os testes são PULADOS, não falham: confira que rodaram (82 hoje).
 docker run --rm --network docreader_internal -v "$PWD:/src" -v docreader-nuget:/root/.nuget/packages -w /src \
   -e "DOCREADER_TEST_CONNECTION=Host=postgres;Port=5432;Database=postgres;Username=docreader;Password=docreader" \
   mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/integration/DocReader.IntegrationTests
@@ -308,6 +346,8 @@ curl -s "http://localhost:8080/api/v1/documents?pageSize=5"
 curl -s "http://localhost:8080/api/v1/documents?status=QUEUED&channel=API&fileName=comprovante"
 curl -s "http://localhost:8080/api/v1/documents/$ID"
 curl -s "http://localhost:8080/api/v1/documents/by-protocol/DOC-20260924-000001"
+curl -s "http://localhost:8080/api/v1/documents/by-external-reference/CLIENTE-123"   # o mais recente; 404 se não há
+curl -s "http://localhost:8080/api/v1/documents?externalReference=cliente"            # filtro parcial
 curl -s "http://localhost:8080/api/v1/documents/$ID/status"
 ```
 

@@ -1,10 +1,12 @@
 using DocReader.Application.Abstractions;
 using DocReader.Application.Options;
+using DocReader.Application.Webhooks;
 using DocReader.Infrastructure.Files;
 using DocReader.Infrastructure.Ocr;
 using DocReader.Infrastructure.Persistence;
 using DocReader.Infrastructure.Queue;
 using DocReader.Infrastructure.Storage;
+using DocReader.Infrastructure.Webhooks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,11 +39,31 @@ public static class InfrastructureServiceCollectionExtensions
         });
 
         services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<IProductServiceRepository, ProductServiceRepository>();
+        services.AddScoped<IRetentionPolicyRepository, RetentionPolicyRepository>();
         services.AddScoped<IIdempotencyStore, PostgresIdempotencyStore>();
         services.AddScoped<IProtocolGenerator, PostgresProtocolGenerator>();
         services.AddScoped<IProcessingQueue, PostgresProcessingQueue>();
         services.AddScoped<IDocumentProcessingStore, DocumentProcessingStore>();
-        services.AddSingleton<IFileStorage, LocalFileStorage>();
+        services.AddScoped<IWebhookSubscriptionRepository, WebhookSubscriptionRepository>();
+        services.AddScoped<IWebhookDeliveryStore, WebhookDeliveryStore>();
+        services.AddSingleton<IWebhookSender, HttpWebhookSender>();
+        services.AddHttpClient(HttpWebhookSender.ClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(provider =>
+            {
+                var webhooks = provider.GetRequiredService<IOptions<WebhookOptions>>();
+
+                return new SocketsHttpHandler
+                {
+                    AllowAutoRedirect = false,
+                    UseCookies = false,
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+                    ConnectCallback = (context, ct) => HttpWebhookSender.ConnectGuardedAsync(context, webhooks.Value.AllowPrivateNetworks, ct)
+                };
+            });
+        services.AddScoped<IStorageRepositoryStore, StorageRepositoryStore>();
+        services.AddScoped<IStorageAdapterFactory, StorageAdapterFactory>();
+        services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
         services.AddSingleton<IPageCounter, DocumentPageCounter>();
 
         return services;

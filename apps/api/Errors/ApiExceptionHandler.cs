@@ -91,6 +91,48 @@ public sealed class ApiExceptionHandler(
             "INVALID_FILTER",
             filter.Message),
 
+        ResourceNotFoundException notFound => new ErrorDescriptor(
+            StatusCodes.Status404NotFound,
+            "Resource not found",
+            ProblemTypes.NotFound,
+            notFound.Resource.ToUpperInvariant().Replace('-', '_') + "_NOT_FOUND",
+            $"No {notFound.Resource.Replace('-', ' ')} matches the requested identifier."),
+
+        ResourceConflictException conflict => new ErrorDescriptor(
+            StatusCodes.Status409Conflict,
+            "Conflict",
+            ProblemTypes.Conflict,
+            conflict.ErrorCode,
+            conflict.Message),
+
+        NotImplementedException => new ErrorDescriptor(
+            StatusCodes.Status501NotImplemented,
+            "Storage provider not implemented",
+            ProblemTypes.Unexpected,
+            "STORAGE_PROVIDER_NOT_IMPLEMENTED",
+            "The storage repository uses a provider whose adapter is not implemented yet (Azure Blob Storage or AWS S3). Use a FILE_SYSTEM or DATABASE repository."),
+
+        UnprocessableRequestException unprocessable => new ErrorDescriptor(
+            StatusCodes.Status422UnprocessableEntity,
+            "Content cannot be processed",
+            ProblemTypes.UnprocessableContent,
+            unprocessable.ErrorCode,
+            unprocessable.Message),
+
+        DocumentPurgedException => new ErrorDescriptor(
+            StatusCodes.Status410Gone,
+            "Document was purged",
+            ProblemTypes.ContentUnavailable,
+            "DOCUMENT_PURGED",
+            "The retention period of this document ended and its original file was removed. The metadata and the history are kept."),
+
+        RequestValidationException invalid => new ErrorDescriptor(
+            StatusCodes.Status400BadRequest,
+            "Invalid request",
+            ProblemTypes.Validation,
+            invalid.ErrorCode,
+            invalid.Message),
+
         DocumentNotFoundException => new ErrorDescriptor(
             StatusCodes.Status404NotFound,
             "Document not found",

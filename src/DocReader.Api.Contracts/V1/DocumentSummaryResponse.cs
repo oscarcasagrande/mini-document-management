@@ -17,6 +17,8 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="DetectedDocumentType">Type identified by the classifier, null until the document is classified.</param>
 /// <param name="ClassificationConfidence">Confidence between 0 and 1, when available.</param>
 /// <param name="ExternalReference">Caller reference sent at upload time, when any.</param>
+/// <param name="ProductService">Product or service the document is linked to, when it was uploaded for one.</param>
+/// <param name="ExpiresAt">When the document becomes eligible for purge, in UTC; null when no retention was applied.</param>
 /// <param name="UploadedAt">Upload instant in UTC.</param>
 /// <param name="CompletedAt">Instant processing finished, in UTC.</param>
 /// <param name="Links">Related endpoints.</param>
@@ -33,6 +35,8 @@ public sealed record DocumentSummaryResponse(
     string? DetectedDocumentType,
     decimal? ClassificationConfidence,
     string? ExternalReference,
+    ProductServiceReferenceResponse? ProductService,
+    DateTimeOffset? ExpiresAt,
     DateTimeOffset UploadedAt,
     DateTimeOffset? CompletedAt,
     DocumentLinks Links);

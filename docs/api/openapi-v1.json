@@ -54,6 +54,11 @@
                     "maxLength": 128,
                     "type": "string",
                     "description": "Optional reference of the calling system, echoed back in every response."
+                  },
+                  "ProductServiceCode": {
+                    "maxLength": 64,
+                    "type": "string",
+                    "description": "Code of the product or service the document is for. Unknown or inactive codes answer 422."
                   }
                 }
               },
@@ -65,6 +70,9 @@
                   "style": "form"
                 },
                 "ExternalReference": {
+                  "style": "form"
+                },
+                "ProductServiceCode": {
                   "style": "form"
                 }
               }
@@ -178,7 +186,7 @@
             }
           },
           "422": {
-            "description": "The file is an accepted format but unreadable or above the page limit.",
+            "description": "The file is an accepted format but unreadable or above the page limit, or `productServiceCode` is unknown or inactive.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -247,6 +255,24 @@
             "description": "Status: RECEIVED, STORED, QUEUED, PREPROCESSING, OCR_RUNNING, CLASSIFYING, EXTRACTING,\nCOMPLETED, FAILED or REJECTED.",
             "schema": {
               "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "productServiceCode",
+            "in": "query",
+            "description": "Code of the product or service the document is linked to, case insensitive.",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "externalReference",
+            "in": "query",
+            "description": "Full or partial external reference sent at upload time, case insensitive.",
+            "schema": {
+              "maxLength": 256,
               "type": "string"
             }
           },
@@ -545,6 +571,95 @@
         }
       }
     },
+    "/api/v1/documents/by-external-reference/{reference}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Returns the consolidated view of the most recent document uploaded with this external reference.",
+        "description": "The external reference is the caller's own key and is not unique. When several documents share it, the latest upload\nis returned. The match is exact and case sensitive; reserved characters must be URL encoded.",
+        "parameters": [
+          {
+            "name": "reference",
+            "in": "path",
+            "description": "External reference sent at upload time.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/by-external-reference/{reference}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Most recent document with this reference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The reference is blank.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/documents/by-external-reference/{reference}",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document was uploaded with this reference.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/by-external-reference/{reference}",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/{id}/status": {
       "get": {
         "tags": [
@@ -719,11 +834,11 @@
                 },
                 "example": {
                   "type": "https://docreader.local/problems/document-content-unavailable",
-                  "title": "Original file is no longer available",
+                  "title": "Document was purged",
                   "status": 410,
-                  "detail": "The document metadata exists but the stored file is gone.",
+                  "detail": "The retention period of this document ended and its original file was removed. The metadata and the history are kept.",
                   "instance": "/api/v1/documents/{id}/content",
-                  "errorCode": "DOCUMENT_CONTENT_MISSING",
+                  "errorCode": "DOCUMENT_PURGED",
                   "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
                 }
               }
@@ -1199,6 +1314,1954 @@
           }
         }
       }
+    },
+    "/api/v1/product-services": {
+      "post": {
+        "tags": [
+          "ProductServices"
+        ],
+        "summary": "Creates a product or service.",
+        "description": "The code is unique without regard to case, is stored in upper case and cannot be changed later.",
+        "requestBody": {
+          "description": "Code, name and active flag.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductServiceRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductServiceRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductServiceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/product-services",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created. The `Location` header points at it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductServiceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The code or the name is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/product-services",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The code is already taken.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "A product or service with the code CONTA-PJ already exists.",
+                  "instance": "/api/v1/product-services",
+                  "errorCode": "PRODUCT_SERVICE_CODE_EXISTS",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The storage repository does not exist or is inactive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "The document has 84 pages and the limit is 50 pages.",
+                  "instance": "/api/v1/product-services",
+                  "errorCode": "PAGE_LIMIT_EXCEEDED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ProductServices"
+        ],
+        "summary": "Lists the products and services, by code.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/product-services",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "One page of products and services.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductServiceResponsePagedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/product-services/{id}": {
+      "get": {
+        "tags": [
+          "ProductServices"
+        ],
+        "summary": "Returns one product or service.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The product or service.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductServiceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No product service matches the requested identifier.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "PRODUCT_SERVICE_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ProductServices"
+        ],
+        "summary": "Changes the name, the active flag and the storage repository of a product or service.",
+        "description": "The code is immutable. `storageRepositoryId` replaces the current one (omit it to go back to the default repository); documents already stored stay where they are. Deactivating a product does not touch its documents; it refuses new uploads.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New name and active flag.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductServiceRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductServiceRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductServiceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductServiceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No product service matches the requested identifier.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "PRODUCT_SERVICE_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The storage repository does not exist or is inactive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "The document has 84 pages and the limit is 50 pages.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "PAGE_LIMIT_EXCEEDED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ProductServices"
+        ],
+        "summary": "DESTRUCTIVE AND IRREVERSIBLE — Deletes a product or service that nothing refers to.",
+        "description": "A product with documents, retention policies or webhook subscriptions cannot be deleted: deactivate it instead.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No product service matches the requested identifier.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "PRODUCT_SERVICE_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Something still refers to it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "Documents, retention policies or webhook subscriptions still refer to this product or service. Deactivate it (active = false) instead of deleting it.",
+                  "instance": "/api/v1/product-services/{id}",
+                  "errorCode": "PRODUCT_SERVICE_IN_USE",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/retention-policies": {
+      "post": {
+        "tags": [
+          "RetentionPolicies"
+        ],
+        "summary": "Creates a retention policy for a document type, a product or service, or both.",
+        "description": "Precedence, most specific first: type and product together, then the product alone, then the type alone,\nthen the global policy (both omitted), which always exists. There is one policy per scope.\nCreating or changing a policy does not recalculate the purge date of documents that already have one:\nthey pick it up when reprocessed.",
+        "requestBody": {
+          "description": "The scope and the retention in days.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRetentionPolicyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRetentionPolicyRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRetentionPolicyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/retention-policies",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created. The `Location` header points at it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The document type is unknown or the days are out of range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/retention-policies",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A policy for this scope already exists (there is exactly one global policy).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "A retention policy for this document type and product or service already exists. Change it instead of creating another.",
+                  "instance": "/api/v1/retention-policies",
+                  "errorCode": "RETENTION_POLICY_EXISTS",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The product or service does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "There is no product or service with the id 0199c1f0-1111-7a10-9c44-2f1d8e6b4a21.",
+                  "instance": "/api/v1/retention-policies",
+                  "errorCode": "PRODUCT_SERVICE_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "RetentionPolicies"
+        ],
+        "summary": "Lists the retention policies, the global one first.",
+        "parameters": [
+          {
+            "name": "documentType",
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "productServiceId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/retention-policies",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "One page of policies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionPolicyResponsePagedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/retention-policies/{id}": {
+      "get": {
+        "tags": [
+          "RetentionPolicies"
+        ],
+        "summary": "Returns one retention policy.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The policy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionPolicyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No retention policy matches the requested identifier.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "RETENTION_POLICY_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "RetentionPolicies"
+        ],
+        "summary": "Changes the number of days of a policy.",
+        "description": "The scope is the identity of a policy and cannot change. Documents that already have a purge date keep it until they are reprocessed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The new retention in days.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRetentionPolicyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRetentionPolicyRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRetentionPolicyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The days are out of range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No retention policy matches the requested identifier.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "RETENTION_POLICY_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "RetentionPolicies"
+        ],
+        "summary": "DESTRUCTIVE AND IRREVERSIBLE — Deletes a retention policy.",
+        "description": "The global policy cannot be deleted. Documents that carried the deleted policy keep their purge date.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No retention policy matches the requested identifier.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "RETENTION_POLICY_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It is the global policy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "The global retention policy cannot be deleted: it is what applies to a document no other policy covers. Change its retentionDays instead.",
+                  "instance": "/api/v1/retention-policies/{id}",
+                  "errorCode": "GLOBAL_RETENTION_POLICY_PROTECTED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/storage-repositories": {
+      "post": {
+        "tags": [
+          "StorageRepositories"
+        ],
+        "summary": "Creates a storage repository.",
+        "description": "FILE_SYSTEM and DATABASE are implemented. AZURE_BLOB_STORAGE and AWS_S3 are registered so a repository can be\nconfigured for them, but their adapters are not implemented yet: uploading to one answers 501, and they cannot be\nthe default. The connection settings are validated per provider, encrypted before they are stored, and never\nreturned by any endpoint.",
+        "requestBody": {
+          "description": "Code, name, provider, settings and flags.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStorageRepositoryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStorageRepositoryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStorageRepositoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/storage-repositories",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created. The `Location` header points at it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageRepositoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The code, the name or the settings are invalid for the provider.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/storage-repositories",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The code is already taken.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "A storage repository with the code ARQUIVO-DB already exists.",
+                  "instance": "/api/v1/storage-repositories",
+                  "errorCode": "STORAGE_REPOSITORY_CODE_EXISTS",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The repository cannot be the default (provider not implemented, or inactive).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "The AwsS3 provider is registered but its adapter is not implemented yet, so it cannot be the default repository.",
+                  "instance": "/api/v1/storage-repositories",
+                  "errorCode": "STORAGE_PROVIDER_NOT_IMPLEMENTED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "StorageRepositories"
+        ],
+        "summary": "Lists the storage repositories, the default first. The settings are never included.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "description": "Where the bytes of a document are kept.",
+            "schema": {
+              "$ref": "#/components/schemas/StorageProvider"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/storage-repositories",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "One page of repositories.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageRepositoryResponsePagedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/storage-repositories/{id}": {
+      "get": {
+        "tags": [
+          "StorageRepositories"
+        ],
+        "summary": "Returns one storage repository. The settings are never included.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The repository.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageRepositoryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No storage repository matches the requested identifier.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "STORAGE_REPOSITORY_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "StorageRepositories"
+        ],
+        "summary": "Changes a storage repository.",
+        "description": "The code and the provider are fixed. `connectionConfig` is a partial update: a key with a string sets it, a key\nwith `null` removes it, the others stay. The `directory` of a FILE_SYSTEM repository cannot change once\ndocuments are stored in it. Exactly one repository is the default: to change it, make another one the default;\nasking the current default to stop being one, or deactivating it, answers 409.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Name, flags and the settings to change.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStorageRepositoryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStorageRepositoryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStorageRepositoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageRepositoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name or the settings are invalid for the provider.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No storage repository matches the requested identifier.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "STORAGE_REPOSITORY_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It is the default, or documents are stored in it and the change would strand them.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "The default storage repository cannot be deleted. Make another repository the default first.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "DEFAULT_STORAGE_REPOSITORY_REQUIRED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The repository cannot be the default (provider not implemented, or inactive).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "The document has 84 pages and the limit is 50 pages.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "PAGE_LIMIT_EXCEEDED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "StorageRepositories"
+        ],
+        "summary": "DESTRUCTIVE AND IRREVERSIBLE — Deletes a storage repository that nothing uses.",
+        "description": "The default repository cannot be deleted. A repository with documents, or that a product or service names, cannot either: deactivate it instead.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No storage repository matches the requested identifier.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "STORAGE_REPOSITORY_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It is the default, or something still uses it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "The default storage repository cannot be deleted. Make another repository the default first.",
+                  "instance": "/api/v1/storage-repositories/{id}",
+                  "errorCode": "DEFAULT_STORAGE_REPOSITORY_REQUIRED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhook-subscriptions": {
+      "post": {
+        "tags": [
+          "WebhookSubscriptions"
+        ],
+        "summary": "Creates a webhook subscription.",
+        "description": "The secret is stored encrypted and no endpoint returns it. Send your own (16 to 256 characters) or omit it: a random one is\ngenerated and returned in this answer, and only in this answer. The URL must be public unless the deployment allows private\nnetworks (`WEBHOOK_ALLOW_PRIVATE_NETWORKS`).",
+        "requestBody": {
+          "description": "URL, events, optional product filter and optional secret.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookSubscriptionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookSubscriptionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/webhook-subscriptions",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created. The `Location` header points at it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscriptionCreatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The URL, the events or the secret are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/webhook-subscriptions",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The product or service does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "There is no product or service with the id 0199c1f0-1111-7a10-9c44-2f1d8e6b4a21.",
+                  "instance": "/api/v1/webhook-subscriptions",
+                  "errorCode": "PRODUCT_SERVICE_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "WebhookSubscriptions"
+        ],
+        "summary": "Lists the webhook subscriptions. The secret is never included.",
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "productServiceId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/webhook-subscriptions",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "One page of subscriptions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscriptionResponsePagedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhook-subscriptions/{id}": {
+      "get": {
+        "tags": [
+          "WebhookSubscriptions"
+        ],
+        "summary": "Returns one webhook subscription. The secret is never included.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscriptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No webhook subscription matches the requested identifier.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "WEBHOOK_SUBSCRIPTION_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "WebhookSubscriptions"
+        ],
+        "summary": "Replaces the URL, the events, the product filter and the active flag of a subscription.",
+        "description": "Send a `secret` to rotate the signing secret; omit it to keep the current one.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The new values.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookSubscriptionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookSubscriptionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscriptionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The URL, the events or the secret are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No webhook subscription matches the requested identifier.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "WEBHOOK_SUBSCRIPTION_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The product or service does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "The document has 84 pages and the limit is 50 pages.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "PAGE_LIMIT_EXCEEDED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "WebhookSubscriptions"
+        ],
+        "summary": "DESTRUCTIVE AND IRREVERSIBLE — Deletes a webhook subscription and what was still queued for it.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No webhook subscription matches the requested identifier.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}",
+                  "errorCode": "WEBHOOK_SUBSCRIPTION_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhook-subscriptions/{id}/deliveries": {
+      "get": {
+        "tags": [
+          "WebhookSubscriptions"
+        ],
+        "summary": "Lists the notifications of a subscription and how their sending went, newest first.",
+        "description": "Read-only, for finding out whether a document's notification arrived and, if not, why: status, attempts, the HTTP status the subscriber answered and the failure code.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the subscription.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "One based page number.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}/deliveries",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "One page of deliveries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDeliveryResponsePagedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no subscription with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No webhook subscription matches the requested identifier.",
+                  "instance": "/api/v1/webhook-subscriptions/{id}/deliveries",
+                  "errorCode": "WEBHOOK_SUBSCRIPTION_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1430,6 +3493,148 @@
         },
         "additionalProperties": false
       },
+      "CreateProductServiceRequest": {
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string",
+            "description": "Unique code: 1 to 64 letters, digits, dots, hyphens or underscores, starting with a letter or digit. Stored in upper case and immutable."
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          },
+          "storageRepositoryId": {
+            "type": "string",
+            "description": "Repository the documents of this product are stored in; omit to use the default repository. Must exist and be active.",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateRetentionPolicyRequest": {
+        "required": [
+          "retentionDays"
+        ],
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "maxLength": 64,
+            "type": "string",
+            "description": "Document type the policy covers (BR_CPF_CARD, BR_CIN, BR_CNH, BR_PROOF_OF_ADDRESS, BR_CNPJ_CARD, BR_CCMEI or BR_SOCIAL_CONTRACT); omit for any type.",
+            "nullable": true
+          },
+          "productServiceId": {
+            "type": "string",
+            "description": "Id of the product or service the policy covers; omit for any.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "retentionDays": {
+            "maximum": 36500,
+            "minimum": 1,
+            "type": "integer",
+            "description": "Days a document is kept, from 1 to 36500.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateStorageRepositoryRequest": {
+        "required": [
+          "code",
+          "name",
+          "provider"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string",
+            "description": "Unique code: 1 to 64 letters, digits, dots, hyphens or underscores. Stored in upper case and immutable."
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/StorageProvider"
+          },
+          "connectionConfig": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Provider settings, a flat object of strings, encrypted before it is stored. FILE_SYSTEM takes an optional\n`directory` (relative to the storage root); DATABASE takes none; AZURE_BLOB_STORAGE needs\n`connectionString` and `container`; AWS_S3 needs `bucket`, `accessKeyId` and\n`secretAccessKey` and takes `region` and `serviceUrl`.",
+            "nullable": true
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Makes this the default repository; the previous default stops being one. Not allowed for a provider that is not implemented, or inactive.",
+            "default": false
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateWebhookSubscriptionRequest": {
+        "required": [
+          "events",
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string",
+            "description": "Absolute http or https URL, with no credentials in it. Private, loopback and link-local addresses are refused unless the deployment allows them."
+          },
+          "secret": {
+            "maxLength": 256,
+            "type": "string",
+            "description": "The HMAC-SHA256 key, 16 to 256 characters. Leave it out to have one generated; it is then returned once, in this answer.",
+            "nullable": true
+          },
+          "events": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One or more of `document.completed`, `document.failed`, `document.purged`."
+          },
+          "productServiceId": {
+            "type": "string",
+            "description": "Only notify documents of this product or service; omit for every document.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "additionalProperties": false
+      },
       "DiagnosedBlockResponse": {
         "type": "object",
         "properties": {
@@ -1648,6 +3853,12 @@
           "status": {
             "$ref": "#/components/schemas/DocumentStatus"
           },
+          "productService": {
+            "$ref": "#/components/schemas/ProductServiceReferenceResponse"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/DocumentRetentionResponse"
+          },
           "upload": {
             "$ref": "#/components/schemas/DocumentUploadResponse"
           },
@@ -1680,6 +3891,23 @@
           "id": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
           "protocol": "DOC-20260924-000001",
           "status": "QUEUED",
+          "productService": {
+            "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+            "code": "CONTA-PJ",
+            "name": "Abertura de conta PJ"
+          },
+          "retention": {
+            "expiresAt": "2027-09-24T22:00:00Z",
+            "retentionDays": 365,
+            "policy": {
+              "id": "0199c1f0-2222-7a10-9c44-2f1d8e6b4a21",
+              "scope": "DOCUMENT_TYPE_AND_PRODUCT_SERVICE",
+              "documentType": "BR_CNPJ_CARD",
+              "productServiceCode": "CONTA-PJ",
+              "retentionDays": 365
+            },
+            "purgedAt": null
+          },
           "upload": {
             "fileName": "cartao-cnpj.pdf",
             "channel": "API",
@@ -2056,6 +4284,32 @@
         },
         "additionalProperties": false
       },
+      "DocumentRetentionResponse": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "description": "When the document becomes eligible for purge, in UTC.",
+            "format": "date-time"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "description": "Days of retention in force when the date was set.",
+            "format": "int32"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/RetentionPolicyReferenceResponse"
+          },
+          "purgedAt": {
+            "type": "string",
+            "description": "When the original file was removed; null while the document is alive.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The purge date of a document and where it came from."
+      },
       "DocumentStatus": {
         "enum": [
           "RECEIVED",
@@ -2067,7 +4321,8 @@
           "EXTRACTING",
           "COMPLETED",
           "FAILED",
-          "REJECTED"
+          "REJECTED",
+          "PURGED"
         ],
         "type": "string",
         "description": "Lifecycle of a document, as defined by RF-007 of the PRD."
@@ -2194,6 +4449,15 @@
             "description": "Caller reference sent at upload time, when any.",
             "nullable": true
           },
+          "productService": {
+            "$ref": "#/components/schemas/ProductServiceReferenceResponse"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "When the document becomes eligible for purge, in UTC; null when no retention was applied.",
+            "format": "date-time",
+            "nullable": true
+          },
           "uploadedAt": {
             "type": "string",
             "description": "Upload instant in UTC.",
@@ -2224,6 +4488,12 @@
           "detectedDocumentType": null,
           "classificationConfidence": null,
           "externalReference": "CLIENTE-123",
+          "productService": {
+            "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+            "code": "CONTA-PJ",
+            "name": "Abertura de conta PJ"
+          },
+          "expiresAt": "2027-09-24T22:00:00Z",
           "uploadedAt": "2026-09-24T22:00:00Z",
           "completedAt": null,
           "links": {
@@ -2285,6 +4555,12 @@
               "detectedDocumentType": null,
               "classificationConfidence": null,
               "externalReference": "CLIENTE-123",
+              "productService": {
+                "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+                "code": "CONTA-PJ",
+                "name": "Abertura de conta PJ"
+              },
+              "expiresAt": "2027-09-24T22:00:00Z",
               "uploadedAt": "2026-09-24T22:00:00Z",
               "completedAt": null,
               "links": {
@@ -2754,6 +5030,131 @@
         ],
         "type": "string"
       },
+      "ProductServiceReferenceResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Unique code."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The product or service a document is linked to."
+      },
+      "ProductServiceResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Unique code, in upper case. Send it as `productServiceCode` when uploading."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "An inactive product keeps its documents but refuses new uploads."
+          },
+          "storageRepository": {
+            "$ref": "#/components/schemas/StorageRepositoryReferenceResponse"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation instant, in UTC.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last change, in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A product or service documents can be linked to.",
+        "example": {
+          "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+          "code": "CONTA-PJ",
+          "name": "Abertura de conta PJ",
+          "active": true,
+          "storageRepository": {
+            "id": "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+            "code": "ARQUIVO-DB",
+            "name": "Arquivo no banco de dados"
+          },
+          "createdAt": "2026-09-24T22:00:00Z",
+          "updatedAt": "2026-09-24T22:00:00Z"
+        }
+      },
+      "ProductServiceResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductServiceResponse"
+            },
+            "description": "Items of the current page, newest first."
+          },
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of items matching the filters.",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Number of pages for the current page size.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope of every paginated listing.",
+        "example": {
+          "items": [
+            {
+              "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+              "code": "CONTA-PJ",
+              "name": "Abertura de conta PJ",
+              "active": true,
+              "storageRepository": {
+                "id": "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+                "code": "ARQUIVO-DB",
+                "name": "Arquivo no banco de dados"
+              },
+              "createdAt": "2026-09-24T22:00:00Z",
+              "updatedAt": "2026-09-24T22:00:00Z"
+            }
+          ],
+          "page": 1,
+          "pageSize": 20,
+          "totalCount": 1,
+          "totalPages": 1
+        }
+      },
       "RecordedClassificationResponse": {
         "type": "object",
         "properties": {
@@ -2772,6 +5173,412 @@
             "type": "string",
             "description": "Rules version of the latest extraction.",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RetentionPolicyReferenceResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the policy.",
+            "format": "uuid"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RetentionScope"
+          },
+          "documentType": {
+            "type": "string",
+            "description": "Document type it covers, or null.",
+            "nullable": true
+          },
+          "productServiceCode": {
+            "type": "string",
+            "description": "Code of the product or service it covers, or null.",
+            "nullable": true
+          },
+          "retentionDays": {
+            "type": "integer",
+            "description": "Days the policy says <em>now</em>; can differ from the days that set the date if it was edited since.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The policy that defined the purge date of a document."
+      },
+      "RetentionPolicyResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "documentType": {
+            "type": "string",
+            "description": "Document type the policy covers, or null for any type.",
+            "nullable": true
+          },
+          "productService": {
+            "$ref": "#/components/schemas/ProductServiceReferenceResponse"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "description": "Days a document is kept, counted from its upload (or from its last reprocessing).",
+            "format": "int32"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RetentionScope"
+          },
+          "isGlobal": {
+            "type": "boolean",
+            "description": "The global policy always exists, covers whatever no other policy covers, and cannot be deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation instant, in UTC.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last change, in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "How long documents are kept before they are purged, for one scope.",
+        "example": {
+          "id": "0199c1f0-2222-7a10-9c44-2f1d8e6b4a21",
+          "documentType": "BR_CNPJ_CARD",
+          "productService": {
+            "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+            "code": "CONTA-PJ",
+            "name": "Abertura de conta PJ"
+          },
+          "retentionDays": 365,
+          "scope": "DOCUMENT_TYPE_AND_PRODUCT_SERVICE",
+          "isGlobal": false,
+          "createdAt": "2026-09-24T22:00:00Z",
+          "updatedAt": "2026-09-24T22:00:00Z"
+        }
+      },
+      "RetentionPolicyResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetentionPolicyResponse"
+            },
+            "description": "Items of the current page, newest first."
+          },
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of items matching the filters.",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Number of pages for the current page size.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope of every paginated listing.",
+        "example": {
+          "items": [
+            {
+              "id": "0199c1f0-2222-7a10-9c44-2f1d8e6b4a21",
+              "documentType": "BR_CNPJ_CARD",
+              "productService": {
+                "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+                "code": "CONTA-PJ",
+                "name": "Abertura de conta PJ"
+              },
+              "retentionDays": 365,
+              "scope": "DOCUMENT_TYPE_AND_PRODUCT_SERVICE",
+              "isGlobal": false,
+              "createdAt": "2026-09-24T22:00:00Z",
+              "updatedAt": "2026-09-24T22:00:00Z"
+            }
+          ],
+          "page": 1,
+          "pageSize": 20,
+          "totalCount": 1,
+          "totalPages": 1
+        }
+      },
+      "RetentionScope": {
+        "enum": [
+          "GLOBAL",
+          "DOCUMENT_TYPE",
+          "PRODUCT_SERVICE",
+          "DOCUMENT_TYPE_AND_PRODUCT_SERVICE"
+        ],
+        "type": "string",
+        "description": "What a retention policy applies to, from the most general to the most specific."
+      },
+      "StorageProvider": {
+        "enum": [
+          "FILE_SYSTEM",
+          "DATABASE",
+          "AZURE_BLOB_STORAGE",
+          "AWS_S3"
+        ],
+        "type": "string",
+        "description": "Where the bytes of a document are kept."
+      },
+      "StorageRepositoryReferenceResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Unique code."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The storage repository a product or service stores its documents in."
+      },
+      "StorageRepositoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Unique code, in upper case."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "provider": {
+            "$ref": "#/components/schemas/StorageProvider"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Exactly one repository is the default; it stores the documents of every product that names none."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "An inactive repository keeps serving its documents but takes no new ones."
+          },
+          "hasConnectionConfig": {
+            "type": "boolean",
+            "description": "Whether connection settings are stored. Their content is never shown."
+          },
+          "isImplemented": {
+            "type": "boolean",
+            "description": "False for the providers that are registered but whose adapter does not exist yet (AZURE_BLOB_STORAGE, AWS_S3): uploading to them answers 501."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation instant, in UTC.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last change, in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A place documents are stored. The connection settings are secrets and are never returned.",
+        "example": {
+          "id": "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+          "code": "ARQUIVO-DB",
+          "name": "Arquivo no banco de dados",
+          "provider": "DATABASE",
+          "isDefault": false,
+          "active": true,
+          "hasConnectionConfig": false,
+          "isImplemented": true,
+          "createdAt": "2026-09-24T22:00:00Z",
+          "updatedAt": "2026-09-24T22:00:00Z"
+        }
+      },
+      "StorageRepositoryResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageRepositoryResponse"
+            },
+            "description": "Items of the current page, newest first."
+          },
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of items matching the filters.",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Number of pages for the current page size.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope of every paginated listing.",
+        "example": {
+          "items": [
+            {
+              "id": "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+              "code": "ARQUIVO-DB",
+              "name": "Arquivo no banco de dados",
+              "provider": "DATABASE",
+              "isDefault": false,
+              "active": true,
+              "hasConnectionConfig": false,
+              "isImplemented": true,
+              "createdAt": "2026-09-24T22:00:00Z",
+              "updatedAt": "2026-09-24T22:00:00Z"
+            }
+          ],
+          "page": 1,
+          "pageSize": 20,
+          "totalCount": 1,
+          "totalPages": 1
+        }
+      },
+      "UpdateProductServiceRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "storageRepositoryId": {
+            "type": "string",
+            "description": "Repository the documents of this product are stored in; omit (null) to use the default repository. Must exist and be active.",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateRetentionPolicyRequest": {
+        "required": [
+          "retentionDays"
+        ],
+        "type": "object",
+        "properties": {
+          "retentionDays": {
+            "maximum": 36500,
+            "minimum": 1,
+            "type": "integer",
+            "description": "Days a document is kept, from 1 to 36500. The scope of a policy cannot change.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateStorageRepositoryRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "true makes this the default (the previous one stops being it); omit to leave it as is. false is refused for the current default.",
+            "nullable": true
+          },
+          "connectionConfig": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Partial update of the settings: a key with a string sets it, a key with `null` removes it, the keys not sent\nstay as they are. Omit the whole object to leave the settings alone.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateWebhookSubscriptionRequest": {
+        "required": [
+          "events",
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string",
+            "description": "Absolute http or https URL, with no credentials in it."
+          },
+          "secret": {
+            "maxLength": 256,
+            "type": "string",
+            "description": "A new signing secret, 16 to 256 characters. Omit it to keep the current one; there is no way to read the current one.",
+            "nullable": true
+          },
+          "events": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One or more of `document.completed`, `document.failed`, `document.purged`. Replaces the current list."
+          },
+          "productServiceId": {
+            "type": "string",
+            "description": "Only notify documents of this product or service; omit (null) for every document.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "active": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -2858,6 +5665,322 @@
           }
         },
         "additionalProperties": { }
+      },
+      "WebhookDeliveryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the delivery; it is the `X-Webhook-Delivery` header, the same on every retry.",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "description": "The document it is about.",
+            "format": "uuid"
+          },
+          "event": {
+            "type": "string",
+            "description": "Event name."
+          },
+          "status": {
+            "$ref": "#/components/schemas/WebhookDeliveryStatus"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "description": "Attempts started so far.",
+            "format": "int32"
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "description": "When the next attempt is due (meaningful while PENDING).",
+            "format": "date-time"
+          },
+          "lastAttemptAt": {
+            "type": "string",
+            "description": "When the last attempt started.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastStatusCode": {
+            "type": "integer",
+            "description": "HTTP status the subscriber answered with on the last attempt.",
+            "format": "int32",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "description": "Why the last attempt failed: HTTP_503, TIMEOUT, CONNECTION_FAILED, BLOCKED_ADDRESS.",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When it was queued, in UTC.",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "When it succeeded, failed for good or was dropped, in UTC.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One notification and how its sending is going.",
+        "example": {
+          "id": "0199c1f0-5555-7a10-9c44-2f1d8e6b4a21",
+          "documentId": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+          "event": "document.completed",
+          "status": "SUCCEEDED",
+          "attemptCount": 1,
+          "nextAttemptAt": "2026-09-24T22:00:00Z",
+          "lastAttemptAt": "2026-09-24T22:00:00Z",
+          "lastStatusCode": 200,
+          "lastError": null,
+          "createdAt": "2026-09-24T22:00:00Z",
+          "completedAt": "2026-09-24T22:00:00Z"
+        }
+      },
+      "WebhookDeliveryResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookDeliveryResponse"
+            },
+            "description": "Items of the current page, newest first."
+          },
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of items matching the filters.",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Number of pages for the current page size.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope of every paginated listing.",
+        "example": {
+          "items": [
+            {
+              "id": "0199c1f0-5555-7a10-9c44-2f1d8e6b4a21",
+              "documentId": "0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
+              "event": "document.completed",
+              "status": "SUCCEEDED",
+              "attemptCount": 1,
+              "nextAttemptAt": "2026-09-24T22:00:00Z",
+              "lastAttemptAt": "2026-09-24T22:00:00Z",
+              "lastStatusCode": 200,
+              "lastError": null,
+              "createdAt": "2026-09-24T22:00:00Z",
+              "completedAt": "2026-09-24T22:00:00Z"
+            }
+          ],
+          "page": 1,
+          "pageSize": 20,
+          "totalCount": 1,
+          "totalPages": 1
+        }
+      },
+      "WebhookDeliveryStatus": {
+        "enum": [
+          "PENDING",
+          "SUCCEEDED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "type": "string",
+        "description": "Where a notification is on its way to a subscriber."
+      },
+      "WebhookSubscriptionCreatedResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where the notifications are POSTed."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Events it receives."
+          },
+          "productService": {
+            "$ref": "#/components/schemas/ProductServiceReferenceResponse"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether it receives notifications."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation instant, in UTC.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last change, in UTC.",
+            "format": "date-time"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The signing secret, only when none was sent in the request and one had to be generated. Save it now: it is stored encrypted and no endpoint returns it again. Null when you supplied your own.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The answer to creating a subscription: the subscription and, when the secret was generated, the secret itself, this once.",
+        "example": {
+          "id": "0199c1f0-4444-7a10-9c44-2f1d8e6b4a21",
+          "url": "https://webhook.site/6c0e2f6a-1b7d-4c8e-9a5f-3d2b1c0e9f8a",
+          "events": [
+            "document.completed",
+            "document.failed"
+          ],
+          "productService": {
+            "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+            "code": "CONTA-PJ",
+            "name": "Abertura de conta PJ"
+          },
+          "active": true,
+          "createdAt": "2026-09-24T22:00:00Z",
+          "updatedAt": "2026-09-24T22:00:00Z",
+          "secret": "9f2c1ab5d0e74c3c8a6b21f04d5e9a77c3b1e8d24f6a90b5c7d1e3f8a2b4c6d0"
+        }
+      },
+      "WebhookSubscriptionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where the notifications are POSTed."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Events it receives: `document.completed`, `document.failed`, `document.purged`."
+          },
+          "productService": {
+            "$ref": "#/components/schemas/ProductServiceReferenceResponse"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "An inactive subscription receives nothing, and what was still queued for it is dropped."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation instant, in UTC.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last change, in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A subscriber that is told when a document reaches a final state. The signing secret is never returned.",
+        "example": {
+          "id": "0199c1f0-4444-7a10-9c44-2f1d8e6b4a21",
+          "url": "https://webhook.site/6c0e2f6a-1b7d-4c8e-9a5f-3d2b1c0e9f8a",
+          "events": [
+            "document.completed",
+            "document.failed"
+          ],
+          "productService": {
+            "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+            "code": "CONTA-PJ",
+            "name": "Abertura de conta PJ"
+          },
+          "active": true,
+          "createdAt": "2026-09-24T22:00:00Z",
+          "updatedAt": "2026-09-24T22:00:00Z"
+        }
+      },
+      "WebhookSubscriptionResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookSubscriptionResponse"
+            },
+            "description": "Items of the current page, newest first."
+          },
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of items matching the filters.",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Number of pages for the current page size.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope of every paginated listing.",
+        "example": {
+          "items": [
+            {
+              "id": "0199c1f0-4444-7a10-9c44-2f1d8e6b4a21",
+              "url": "https://webhook.site/6c0e2f6a-1b7d-4c8e-9a5f-3d2b1c0e9f8a",
+              "events": [
+                "document.completed",
+                "document.failed"
+              ],
+              "productService": {
+                "id": "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+                "code": "CONTA-PJ",
+                "name": "Abertura de conta PJ"
+              },
+              "active": true,
+              "createdAt": "2026-09-24T22:00:00Z",
+              "updatedAt": "2026-09-24T22:00:00Z"
+            }
+          ],
+          "page": 1,
+          "pageSize": 20,
+          "totalCount": 1,
+          "totalPages": 1
+        }
       }
     }
   },
@@ -2865,6 +5988,22 @@
     {
       "name": "Documents",
       "description": "Ingestion and consultation of documents. Every endpoint is anonymous in this proof of concept:\nthere is no login, no bearer token and no tenant."
+    },
+    {
+      "name": "ProductServices",
+      "description": "Registry of the products and services a document can be uploaded for."
+    },
+    {
+      "name": "RetentionPolicies",
+      "description": "How long documents are kept. The most specific policy that applies to a document decides its purge date."
+    },
+    {
+      "name": "StorageRepositories",
+      "description": "Where documents are stored. A document is stored in the repository of its product or service, or in the default one,\nand stays there."
+    },
+    {
+      "name": "WebhookSubscriptions",
+      "description": "Subscribers that are told, with a signed POST, when a document is completed, fails or is purged."
     }
   ]
 }

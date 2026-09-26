@@ -1,3 +1,4 @@
+using DocReader.Application.Retention;
 using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
@@ -66,7 +67,7 @@ public sealed class ResultQueriesAndReprocessTests
             NullLogger<DocumentQueryService>.Instance);
 
     private static DocumentReprocessingService ReprocessService(InMemoryDocumentStore store) =>
-        new(store, new FakeTimeProvider(Now.AddHours(1)), NullLogger<DocumentReprocessingService>.Instance);
+        new(store, new RetentionService(new InMemoryRetentionPolicyStore()), new FakeTimeProvider(Now.AddHours(1)), NullLogger<DocumentReprocessingService>.Instance);
 
     [Fact]
     public async Task Resultado_de_documento_ainda_na_fila_e_conflito_com_o_status_atual()

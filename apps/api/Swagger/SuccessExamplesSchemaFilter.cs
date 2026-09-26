@@ -94,6 +94,99 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
             return BuildDetail();
         }
 
+        if (type == typeof(WebhookSubscriptionCreatedResponse))
+        {
+            var created = BuildWebhookSubscription();
+            created["secret"] = "9f2c1ab5d0e74c3c8a6b21f04d5e9a77c3b1e8d24f6a90b5c7d1e3f8a2b4c6d0";
+
+            return created;
+        }
+
+        if (type == typeof(WebhookSubscriptionResponse))
+        {
+            return BuildWebhookSubscription();
+        }
+
+        if (type == typeof(PagedResponse<WebhookSubscriptionResponse>))
+        {
+            return new JsonObject
+            {
+                ["items"] = new JsonArray(BuildWebhookSubscription()),
+                ["page"] = 1,
+                ["pageSize"] = 20,
+                ["totalCount"] = 1,
+                ["totalPages"] = 1
+            };
+        }
+
+        if (type == typeof(WebhookDeliveryResponse))
+        {
+            return BuildWebhookDelivery();
+        }
+
+        if (type == typeof(PagedResponse<WebhookDeliveryResponse>))
+        {
+            return new JsonObject
+            {
+                ["items"] = new JsonArray(BuildWebhookDelivery()),
+                ["page"] = 1,
+                ["pageSize"] = 20,
+                ["totalCount"] = 1,
+                ["totalPages"] = 1
+            };
+        }
+
+        if (type == typeof(StorageRepositoryResponse))
+        {
+            return BuildStorageRepository();
+        }
+
+        if (type == typeof(PagedResponse<StorageRepositoryResponse>))
+        {
+            return new JsonObject
+            {
+                ["items"] = new JsonArray(BuildStorageRepository()),
+                ["page"] = 1,
+                ["pageSize"] = 20,
+                ["totalCount"] = 1,
+                ["totalPages"] = 1
+            };
+        }
+
+        if (type == typeof(RetentionPolicyResponse))
+        {
+            return BuildRetentionPolicy();
+        }
+
+        if (type == typeof(PagedResponse<RetentionPolicyResponse>))
+        {
+            return new JsonObject
+            {
+                ["items"] = new JsonArray(BuildRetentionPolicy()),
+                ["page"] = 1,
+                ["pageSize"] = 20,
+                ["totalCount"] = 1,
+                ["totalPages"] = 1
+            };
+        }
+
+        if (type == typeof(ProductServiceResponse))
+        {
+            return BuildProductService();
+        }
+
+        if (type == typeof(PagedResponse<ProductServiceResponse>))
+        {
+            return new JsonObject
+            {
+                ["items"] = new JsonArray(BuildProductService()),
+                ["page"] = 1,
+                ["pageSize"] = 20,
+                ["totalCount"] = 1,
+                ["totalPages"] = 1
+            };
+        }
+
         if (type == typeof(PagedResponse<DocumentSummaryResponse>))
         {
             return new JsonObject
@@ -109,6 +202,81 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
         return null;
     }
 
+    private static JsonObject BuildWebhookSubscription() => new()
+    {
+        ["id"] = "0199c1f0-4444-7a10-9c44-2f1d8e6b4a21",
+        ["url"] = "https://webhook.site/6c0e2f6a-1b7d-4c8e-9a5f-3d2b1c0e9f8a",
+        ["events"] = new JsonArray("document.completed", "document.failed"),
+        ["productService"] = BuildProductReference(),
+        ["active"] = true,
+        ["createdAt"] = SampleInstant,
+        ["updatedAt"] = SampleInstant
+    };
+
+    private static JsonObject BuildWebhookDelivery() => new()
+    {
+        ["id"] = "0199c1f0-5555-7a10-9c44-2f1d8e6b4a21",
+        ["documentId"] = SampleId,
+        ["event"] = "document.completed",
+        ["status"] = "SUCCEEDED",
+        ["attemptCount"] = 1,
+        ["nextAttemptAt"] = SampleInstant,
+        ["lastAttemptAt"] = SampleInstant,
+        ["lastStatusCode"] = 200,
+        ["lastError"] = null,
+        ["createdAt"] = SampleInstant,
+        ["completedAt"] = SampleInstant
+    };
+
+    private static JsonObject BuildStorageRepository() => new()
+    {
+        ["id"] = "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+        ["code"] = "ARQUIVO-DB",
+        ["name"] = "Arquivo no banco de dados",
+        ["provider"] = "DATABASE",
+        ["isDefault"] = false,
+        ["active"] = true,
+        ["hasConnectionConfig"] = false,
+        ["isImplemented"] = true,
+        ["createdAt"] = SampleInstant,
+        ["updatedAt"] = SampleInstant
+    };
+
+    private static JsonObject BuildRetentionPolicy() => new()
+    {
+        ["id"] = "0199c1f0-2222-7a10-9c44-2f1d8e6b4a21",
+        ["documentType"] = "BR_CNPJ_CARD",
+        ["productService"] = BuildProductReference(),
+        ["retentionDays"] = 365,
+        ["scope"] = "DOCUMENT_TYPE_AND_PRODUCT_SERVICE",
+        ["isGlobal"] = false,
+        ["createdAt"] = SampleInstant,
+        ["updatedAt"] = SampleInstant
+    };
+
+    private static JsonObject BuildProductReference() => new()
+    {
+        ["id"] = "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+        ["code"] = "CONTA-PJ",
+        ["name"] = "Abertura de conta PJ"
+    };
+
+    private static JsonObject BuildProductService() => new()
+    {
+        ["id"] = "0199c1f0-1111-7a10-9c44-2f1d8e6b4a21",
+        ["code"] = "CONTA-PJ",
+        ["name"] = "Abertura de conta PJ",
+        ["active"] = true,
+        ["storageRepository"] = new JsonObject
+        {
+            ["id"] = "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+            ["code"] = "ARQUIVO-DB",
+            ["name"] = "Arquivo no banco de dados"
+        },
+        ["createdAt"] = SampleInstant,
+        ["updatedAt"] = SampleInstant
+    };
+
     private static JsonObject BuildSummary() => new()
     {
         ["id"] = SampleId,
@@ -123,6 +291,8 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
         ["detectedDocumentType"] = null,
         ["classificationConfidence"] = null,
         ["externalReference"] = "CLIENTE-123",
+        ["productService"] = BuildProductReference(),
+        ["expiresAt"] = "2027-09-24T22:00:00Z",
         ["uploadedAt"] = SampleInstant,
         ["completedAt"] = null,
         ["links"] = BuildLinks()
@@ -133,6 +303,21 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
         ["id"] = SampleId,
         ["protocol"] = SampleProtocol,
         ["status"] = "QUEUED",
+        ["productService"] = BuildProductReference(),
+        ["retention"] = new JsonObject
+        {
+            ["expiresAt"] = "2027-09-24T22:00:00Z",
+            ["retentionDays"] = 365,
+            ["policy"] = new JsonObject
+            {
+                ["id"] = "0199c1f0-2222-7a10-9c44-2f1d8e6b4a21",
+                ["scope"] = "DOCUMENT_TYPE_AND_PRODUCT_SERVICE",
+                ["documentType"] = "BR_CNPJ_CARD",
+                ["productServiceCode"] = "CONTA-PJ",
+                ["retentionDays"] = 365
+            },
+            ["purgedAt"] = null
+        },
         ["upload"] = new JsonObject
         {
             ["fileName"] = "cartao-cnpj.pdf",

@@ -4,6 +4,7 @@ using DocReader.Application.Abstractions;
 using DocReader.Application.Classification;
 using DocReader.Application.Errors;
 using DocReader.Application.Options;
+using DocReader.Application.Retention;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Extractions;
 using DocReader.Domain.Processing;
@@ -32,6 +33,7 @@ public sealed class DocumentProcessor(
     IDocumentOcrProvider ocrProvider,
     IDocumentClassifier classifier,
     IEnumerable<IDocumentExtractor> extractors,
+    RetentionService retention,
     IOptions<ProcessingQueueOptions> queueOptions,
     IOptions<OcrProviderOptions> ocrOptions,
     TimeProvider timeProvider,
@@ -173,12 +175,19 @@ public sealed class DocumentProcessor(
 
         var extraction = BuildExtraction(job, ocrResult, classification, extractor, structured);
 
+        // The type is known only now. The policy of this type (or of the type and the product) may differ from the
+        // one chosen at upload, when the document had no expected type.
+        var retentionPolicy = await retention
+            .ResolveAsync(classification.DocumentType, document.ProductServiceId, ct)
+            .ConfigureAwait(false);
+
         var persisted = await store.CompleteAsync(
             job,
             extraction,
             classification.DocumentType,
             classification.Confidence,
             ClassificationDetails(classification, document.ExpectedDocumentType),
+            retentionPolicy,
             ct).ConfigureAwait(false);
 
         if (!persisted)
@@ -205,7 +214,7 @@ public sealed class DocumentProcessor(
         Stream original;
         try
         {
-            original = await storage.OpenReadAsync(document.StorageKey, ct).ConfigureAwait(false);
+            original = await storage.OpenReadAsync(document.StorageRepositoryId, document.StorageKey, ct).ConfigureAwait(false);
         }
         catch (FileNotFoundException)
         {

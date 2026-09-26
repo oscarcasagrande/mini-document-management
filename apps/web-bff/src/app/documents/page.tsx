@@ -34,6 +34,8 @@ export default async function DocumentsPage({
     protocol: single(params, "protocol"),
     fileName: single(params, "fileName"),
     documentType: single(params, "documentType"),
+    productServiceCode: single(params, "productServiceCode"),
+    externalReference: single(params, "externalReference"),
     channel: single(params, "channel"),
     status: single(params, "status"),
     uploadedFrom: single(params, "uploadedFrom"),
@@ -99,6 +101,7 @@ export default async function DocumentsPage({
                 <th>Protocolo</th>
                 <th>Arquivo</th>
                 <th>Tipo</th>
+                <th>Produto</th>
                 <th>Canal</th>
                 <th>Enviado em</th>
                 <th>Status</th>
@@ -115,12 +118,29 @@ export default async function DocumentsPage({
                   <td>
                     {document.fileName}
                     <br />
+                    {document.externalReference && (
+                      <>
+                        <span className="mono" style={{ fontSize: 12 }} title="Referência externa">
+                          ref: {document.externalReference}
+                        </span>
+                        <br />
+                      </>
+                    )}
                     <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
                       {document.mimeType} · {formatBytes(document.sizeBytes)} · {document.pageCount}{" "}
                       pág.
                     </span>
                   </td>
                   <td>{document.detectedDocumentType ?? "UNKNOWN"}</td>
+                  <td>
+                    {document.productService ? (
+                      <span className="mono" title={document.productService.name}>
+                        {document.productService.code}
+                      </span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td>{document.channel}</td>
                   <td>{formatInstant(document.uploadedAt)}</td>
                   <td>

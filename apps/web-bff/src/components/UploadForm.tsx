@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useId, useRef, useState } from "react";
 
-import type { ProblemDetails, UploadAccepted } from "@/lib/contracts";
+import type { ProblemDetails, ProductService, UploadAccepted } from "@/lib/contracts";
 import { bffRoutes } from "@/lib/routes";
 import { formatBytes } from "@/lib/format";
 
@@ -19,12 +19,15 @@ interface UploadOutcome {
 interface UploadFormProps {
   maxSizeBytes: number;
   maxPageCount: number;
+  /** Active products the document can be linked to. */
+  products: ProductService[];
 }
 
-export function UploadForm({ maxSizeBytes, maxPageCount }: UploadFormProps) {
+export function UploadForm({ maxSizeBytes, maxPageCount, products }: UploadFormProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [expectedDocumentType, setExpectedDocumentType] = useState("");
   const [externalReference, setExternalReference] = useState("");
+  const [productServiceCode, setProductServiceCode] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -33,6 +36,7 @@ export function UploadForm({ maxSizeBytes, maxPageCount }: UploadFormProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const typeFieldId = useId();
   const referenceFieldId = useId();
+  const productFieldId = useId();
 
   const addFiles = useCallback((incoming: FileList | null) => {
     if (!incoming || incoming.length === 0) {
@@ -61,6 +65,9 @@ export function UploadForm({ maxSizeBytes, maxPageCount }: UploadFormProps) {
     }
     if (externalReference.trim()) {
       body.set("externalReference", externalReference.trim());
+    }
+    if (productServiceCode) {
+      body.set("productServiceCode", productServiceCode);
     }
 
     try {
@@ -173,6 +180,22 @@ export function UploadForm({ maxSizeBytes, maxPageCount }: UploadFormProps) {
             maxLength={128}
             onChange={(event) => setExternalReference(event.target.value)}
           />
+        </div>
+        <div>
+          <label htmlFor={productFieldId}>Produto ou serviço (opcional)</label>
+          <select id={productFieldId} value={productServiceCode} onChange={(event) => setProductServiceCode(event.target.value)}>
+            <option value="">Nenhum</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.code}>
+                {product.code} · {product.name}
+              </option>
+            ))}
+          </select>
+          {products.length === 0 && (
+            <div className="small muted">
+              Nenhum cadastrado. <Link href="/config/product-services">Cadastrar produtos</Link>
+            </div>
+          )}
         </div>
       </div>
 

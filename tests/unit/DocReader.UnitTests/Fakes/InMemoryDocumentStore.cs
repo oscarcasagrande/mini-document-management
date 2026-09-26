@@ -3,6 +3,7 @@ using DocReader.Application.Documents;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Idempotency;
 using DocReader.Domain.Processing;
+using DocReader.Domain.Retention;
 
 namespace DocReader.UnitTests.Fakes;
 
@@ -57,9 +58,18 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
     public Task<Document?> FindByProtocolAsync(string protocol, bool includeEvents, CancellationToken ct) =>
         Task.FromResult(_documents.Values.FirstOrDefault(document => document.Protocol == protocol));
 
+    public Task<Document?> FindLatestByExternalReferenceAsync(string externalReference, CancellationToken ct) =>
+        Task.FromResult(_documents.Values
+            .Where(document => document.ExternalReference == externalReference)
+            .OrderByDescending(document => document.UploadedAt)
+            .ThenByDescending(document => document.Id)
+            .FirstOrDefault());
+
     public Task<PagedResult<Document>> ListAsync(DocumentListFilter filter, CancellationToken ct)
     {
         var ordered = _documents.Values
+            .Where(document => string.IsNullOrWhiteSpace(filter.ExternalReference)
+                || (document.ExternalReference?.Contains(filter.ExternalReference.Trim(), StringComparison.OrdinalIgnoreCase) ?? false))
             .OrderByDescending(document => document.UploadedAt)
             .ToArray();
 
@@ -91,11 +101,20 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
             ? new ExtractionOcrView(entry.Text.Summary, RawOcr.GetValueOrDefault(documentId, "{}"), entry.Text.PageTextsJson)
             : null);
 
-    public Task<ReprocessOutcome> QueueReprocessingAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
+    public Task<ReprocessOutcome> QueueReprocessingAsync(
+        Guid documentId,
+        DateTimeOffset now,
+        RetentionPolicy? retentionPolicy,
+        CancellationToken ct)
     {
         if (!_documents.TryGetValue(documentId, out var document))
         {
             return Task.FromResult(ReprocessOutcome.NotFound);
+        }
+
+        if (document.Status == DocumentStatus.Purged)
+        {
+            return Task.FromResult(ReprocessOutcome.Purged);
         }
 
         var hasActiveJob = Jobs.Any(job =>
@@ -108,9 +127,45 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
         }
 
         document.MarkQueued(now, "REPROCESS_REQUESTED");
+
+        if (retentionPolicy is not null)
+        {
+            document.ApplyRetention(retentionPolicy, now);
+        }
+
         Jobs.Add(ProcessingJob.CreateForDocument(documentId, now));
 
         return Task.FromResult(ReprocessOutcome.Queued);
+    }
+
+    /// <summary>Ids the purge tried and could not finish, in the order they were tried.</summary>
+    public List<Guid> PurgeAttempts { get; } = [];
+
+    public Task<IReadOnlyList<PurgeCandidate>> FindPurgeableAsync(
+        DateTimeOffset now,
+        int limit,
+        IReadOnlyCollection<Guid> exclude,
+        CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<PurgeCandidate>>([
+            .. _documents.Values
+                .Where(document => document.IsPurgeable(now) && !exclude.Contains(document.Id))
+                .OrderBy(document => document.ExpiresAt)
+                .Take(limit)
+                .Select(document => new PurgeCandidate(document.Id, document.Protocol, document.StorageRepositoryId, document.StorageKey))
+        ]);
+
+    public Task<bool> MarkPurgedAsync(Guid documentId, DateTimeOffset now, CancellationToken ct)
+    {
+        PurgeAttempts.Add(documentId);
+
+        if (!_documents.TryGetValue(documentId, out var document) || !document.IsPurgeable(now))
+        {
+            return Task.FromResult(false);
+        }
+
+        document.MarkPurged(now);
+
+        return Task.FromResult(true);
     }
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct)

@@ -51,6 +51,11 @@ export async function POST(request: Request): Promise<Response> {
     outgoing.set("externalReference", externalReference.trim());
   }
 
+  const productServiceCode = incoming.get("productServiceCode");
+  if (typeof productServiceCode === "string" && productServiceCode.trim().length > 0) {
+    outgoing.set("productServiceCode", productServiceCode.trim());
+  }
+
   const idempotencyKey = incoming.get("idempotencyKey");
   const forwardedHeaders: Record<string, string> = { "X-Upload-Channel": "WEB" };
   if (typeof idempotencyKey === "string" && idempotencyKey.trim().length > 0) {

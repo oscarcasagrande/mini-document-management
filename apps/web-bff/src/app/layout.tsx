@@ -23,6 +23,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <nav className="nav">
               <Link href="/">Enviar</Link>
               <Link href="/documents">Documentos</Link>
+              <Link href="/config/product-services">Produtos</Link>
+              <Link href="/config/retention-policies">Retenção</Link>
+              <Link href="/config/storage-repositories">Repositórios</Link>
+              <Link href="/config/webhook-subscriptions">Webhooks</Link>
               <a href={swaggerUrl} target="_blank" rel="noreferrer">
                 Swagger
               </a>

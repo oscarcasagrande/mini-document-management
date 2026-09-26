@@ -1,3 +1,5 @@
+using DocReader.Application.Retention;
+using DocReader.Domain.Retention;
 using DocReader.Application.Abstractions;
 using DocReader.Application.Classification;
 using DocReader.Application.Errors;
@@ -70,7 +72,8 @@ public sealed class DocumentProcessorTests
     private static Rig BuildRig(
         ScriptedOcrProvider provider,
         Document? document = null,
-        bool originalExists = true)
+        bool originalExists = true,
+        InMemoryRetentionPolicyStore? retention = null)
     {
         document ??= NewDocument();
 
@@ -85,12 +88,38 @@ public sealed class DocumentProcessorTests
             provider,
             new RulesDocumentClassifier(),
             [new BrCpfCardExtractor(time)],
+            new RetentionService(retention ?? new InMemoryRetentionPolicyStore()),
             Options.Create(new ProcessingQueueOptions()),
             Options.Create(new OcrProviderOptions()),
             time,
             NullLogger<DocumentProcessor>.Instance);
 
         return new Rig(processor, queue, store, provider, ProcessingJob.CreateForDocument(document.Id, Now));
+    }
+
+    [Fact]
+    public async Task A_classificacao_entrega_a_politica_do_tipo_detectado_ao_gravar_o_resultado()
+    {
+        var retention = new InMemoryRetentionPolicyStore(globalDays: 365);
+        var cpfPolicy = RetentionPolicy.Create(Guid.CreateVersion7(Now), "BR_CPF_CARD", null, 30, Now);
+        retention.Items.Add(cpfPolicy);
+
+        var rig = BuildRig(ScriptedOcrProvider.ReadingPages(CpfCardLines), retention: retention);
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        Assert.Equal(cpfPolicy.Id, Assert.Single(rig.Store.Completed).RetentionPolicy?.Id);
+    }
+
+    [Fact]
+    public async Task Sem_politica_do_tipo_o_resultado_leva_a_global()
+    {
+        var retention = new InMemoryRetentionPolicyStore(globalDays: 90);
+        var rig = BuildRig(ScriptedOcrProvider.ReadingPages(CpfCardLines), retention: retention);
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RetentionPolicy.GlobalPolicyId, Assert.Single(rig.Store.Completed).RetentionPolicy?.Id);
     }
 
     [Fact]
@@ -364,15 +393,15 @@ public sealed class DocumentProcessorTests
     /// <summary>Storage that serves a few bytes for any key, or reports the original as missing.</summary>
     private sealed class StubStorage(bool exists) : IFileStorage
     {
-        public Task<StoredFile> SaveAsync(Stream content, FileMetadata metadata, CancellationToken ct) =>
+        public Task<StoredFile> SaveAsync(Guid repositoryId, Stream content, FileMetadata metadata, CancellationToken ct) =>
             throw new NotSupportedException();
 
-        public Task<Stream> OpenReadAsync(string storageKey, CancellationToken ct) =>
+        public Task<Stream> OpenReadAsync(Guid repositoryId, string storageKey, CancellationToken ct) =>
             exists
                 ? Task.FromResult<Stream>(new MemoryStream([1, 2, 3]))
                 : throw new FileNotFoundException("missing", storageKey);
 
-        public Task DeleteAsync(string storageKey, CancellationToken ct) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid repositoryId, string storageKey, CancellationToken ct) => throw new NotSupportedException();
 
         public Task<bool> IsWritableAsync(CancellationToken ct) => Task.FromResult(true);
     }

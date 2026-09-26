@@ -120,6 +120,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
                 "BR_CPF_CARD",
                 1.0m,
                 "type=BR_CPF_CARD confidence=1",
+                null,
                 TestContext.Current.CancellationToken);
 
             Assert.True(completed);
@@ -188,6 +189,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
                 "BR_CPF_CARD",
                 1.0m,
                 null,
+                null,
                 TestContext.Current.CancellationToken);
 
             Assert.False(completed);
@@ -215,7 +217,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
 
         await using (var context = fixture.CreateContext())
         {
-            Assert.True(await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, TestContext.Current.CancellationToken));
+            Assert.True(await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, null, TestContext.Current.CancellationToken));
         }
 
         // Simula "gravou e caiu antes de confirmar": o job volta a RUNNING na mesma tentativa e é completado outra vez.
@@ -227,7 +229,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
 
         await using (var context = fixture.CreateContext())
         {
-            Assert.True(await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, TestContext.Current.CancellationToken));
+            Assert.True(await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, null, TestContext.Current.CancellationToken));
         }
 
         await using var verification = fixture.CreateContext();
@@ -243,7 +245,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
 
         await using (var context = fixture.CreateContext())
         {
-            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, TestContext.Current.CancellationToken);
+            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, null, TestContext.Current.CancellationToken);
         }
 
         await using (var context = fixture.CreateContext())
@@ -266,7 +268,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
 
         await using (var context = fixture.CreateContext())
         {
-            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, TestContext.Current.CancellationToken);
+            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, null, TestContext.Current.CancellationToken);
         }
 
         await using var reading = fixture.CreateContext();
@@ -296,13 +298,13 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
 
         await using (var context = fixture.CreateContext())
         {
-            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, TestContext.Current.CancellationToken);
+            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, null, TestContext.Current.CancellationToken);
         }
 
         await using (var context = fixture.CreateContext())
         {
             var outcome = await new DocumentRepository(context)
-                .QueueReprocessingAsync(documentId, Now.AddHours(1), TestContext.Current.CancellationToken);
+                .QueueReprocessingAsync(documentId, Now.AddHours(1), null, TestContext.Current.CancellationToken);
 
             Assert.Equal(ReprocessOutcome.Queued, outcome);
         }
@@ -333,7 +335,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
         await using var context = fixture.CreateContext();
         var repository = new DocumentRepository(context);
 
-        Assert.Equal(ReprocessOutcome.Conflict, await repository.QueueReprocessingAsync(documentId, Now.AddMinutes(1), TestContext.Current.CancellationToken));
+        Assert.Equal(ReprocessOutcome.Conflict, await repository.QueueReprocessingAsync(documentId, Now.AddMinutes(1), null, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -345,7 +347,7 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
 
         Assert.Equal(
             ReprocessOutcome.NotFound,
-            await new DocumentRepository(context).QueueReprocessingAsync(Guid.NewGuid(), Now, TestContext.Current.CancellationToken));
+            await new DocumentRepository(context).QueueReprocessingAsync(Guid.NewGuid(), Now, null, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -357,15 +359,15 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
 
         await using (var context = fixture.CreateContext())
         {
-            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, TestContext.Current.CancellationToken);
+            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, null, TestContext.Current.CancellationToken);
         }
 
         await using var contextA = fixture.CreateContext();
         await using var contextB = fixture.CreateContext();
 
         var outcomes = await Task.WhenAll(
-            new DocumentRepository(contextA).QueueReprocessingAsync(documentId, Now.AddHours(1), TestContext.Current.CancellationToken),
-            new DocumentRepository(contextB).QueueReprocessingAsync(documentId, Now.AddHours(1), TestContext.Current.CancellationToken));
+            new DocumentRepository(contextA).QueueReprocessingAsync(documentId, Now.AddHours(1), null, TestContext.Current.CancellationToken),
+            new DocumentRepository(contextB).QueueReprocessingAsync(documentId, Now.AddHours(1), null, TestContext.Current.CancellationToken));
 
         Assert.Single(outcomes, ReprocessOutcome.Queued);
         Assert.Single(outcomes, ReprocessOutcome.Conflict);

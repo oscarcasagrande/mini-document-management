@@ -13,6 +13,7 @@ Endpoints da v1:
 | `GET` | `/api/v1/documents` | 1 |
 | `GET` / `DELETE` | `/api/v1/documents/{id}` | 1 |
 | `GET` | `/api/v1/documents/by-protocol/{protocol}` | 1 |
+| `GET` | `/api/v1/documents/by-external-reference/{reference}` | extra |
 | `GET` | `/api/v1/documents/{id}/status` | 1 |
 | `GET` | `/api/v1/documents/{id}/content` | 1 |
 | `GET` | `/api/v1/documents/{id}/text` | 2 |
@@ -20,6 +21,15 @@ Endpoints da v1:
 | `POST` | `/api/v1/documents/{id}/reprocess` | 2 |
 | `GET` | `/api/v1/documents/{id}/classification-diagnostics` | 4 |
 | `GET` | `/api/v1/documents/{id}/extraction-diagnostics` | 5 |
+| `GET` `POST` | `/api/v1/product-services` | extra |
+| `GET` `PUT` `DELETE` | `/api/v1/product-services/{id}` | extra |
+| `GET` `POST` | `/api/v1/retention-policies` | extra |
+| `GET` `PUT` `DELETE` | `/api/v1/retention-policies/{id}` | extra |
+| `GET` `POST` | `/api/v1/storage-repositories` | extra |
+| `GET` `PUT` `DELETE` | `/api/v1/storage-repositories/{id}` | extra |
+| `GET` `POST` | `/api/v1/webhook-subscriptions` | extra |
+| `GET` `PUT` `DELETE` | `/api/v1/webhook-subscriptions/{id}` | extra |
+| `GET` | `/api/v1/webhook-subscriptions/{id}/deliveries` | extra |
 
 `/text`, `/result` e os dois `*-diagnostics` respondem `409` (`RESULT_NOT_READY`) enquanto não há extração; `/reprocess`
 responde `202`, `404` se o documento não existe e `409` (`REPROCESS_CONFLICT`) se o documento está na

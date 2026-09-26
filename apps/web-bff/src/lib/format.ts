@@ -1,4 +1,4 @@
-import type { DocumentProcessing, DocumentStatus, FieldValidationStatus } from "./contracts";
+import type { DocumentProcessing, DocumentStatus, FieldValidationStatus, RetentionScope } from "./contracts";
 
 /** Formats a UTC instant for a Brazilian reader, keeping it explicit that the value is UTC. */
 export function formatInstant(value: string | null | undefined): string {
@@ -53,7 +53,19 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   COMPLETED: "Concluído",
   FAILED: "Falhou",
   REJECTED: "Rejeitado",
+  PURGED: "Expurgado",
 };
+
+const SCOPE_LABELS: Record<RetentionScope, string> = {
+  GLOBAL: "global",
+  DOCUMENT_TYPE: "por tipo",
+  PRODUCT_SERVICE: "por produto",
+  DOCUMENT_TYPE_AND_PRODUCT_SERVICE: "por tipo e produto",
+};
+
+export function scopeLabel(scope: RetentionScope): string {
+  return SCOPE_LABELS[scope] ?? scope;
+}
 
 export function statusLabel(status: DocumentStatus): string {
   return STATUS_LABELS[status] ?? status;
@@ -196,7 +208,11 @@ export function processingSummary(status: DocumentStatus, processing: DocumentPr
 }
 
 /** Groups statuses into the three visual tones used by the status chip. */
-export function statusTone(status: DocumentStatus): "pending" | "done" | "error" {
+export function statusTone(status: DocumentStatus): "pending" | "done" | "error" | "muted" {
+  if (status === "PURGED") {
+    return "muted";
+  }
+
   if (status === "COMPLETED") {
     return "done";
   }

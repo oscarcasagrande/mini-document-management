@@ -5,6 +5,9 @@ using System.Text.Json;
 using DocReader.Application.Abstractions;
 using DocReader.Application.Errors;
 using DocReader.Application.Options;
+using DocReader.Application.Retention;
+using DocReader.Application.Storage;
+using DocReader.Domain.Catalog;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Files;
 using DocReader.Domain.Idempotency;
@@ -21,6 +24,9 @@ namespace DocReader.Application.Documents;
 public sealed class DocumentUploadService(
     IFileStorage storage,
     IDocumentRepository repository,
+    IProductServiceRepository productServices,
+    RetentionService retention,
+    StorageRepositoryResolver storageResolver,
     IIdempotencyStore idempotencyStore,
     IProtocolGenerator protocolGenerator,
     IPageCounter pageCounter,
@@ -49,7 +55,10 @@ public sealed class DocumentUploadService(
         var externalReference = NormalizeOptionalField(
             command.ExternalReference, _upload.MaxExternalReferenceLength, "externalReference");
         var idempotencyKey = NormalizeIdempotencyKey(command.IdempotencyKey);
+        var productService = await ResolveProductServiceAsync(command.ProductServiceCode, ct).ConfigureAwait(false);
         var fileName = SanitizeFileName(command.OriginalFileName);
+        var retentionPolicy = await retention.ResolveAsync(expectedDocumentType, productService?.Id, ct).ConfigureAwait(false);
+        var storageRepository = await storageResolver.ResolveForUploadAsync(productService, ct).ConfigureAwait(false);
 
         var sizeBytes = content.Length;
         if (sizeBytes == 0)
@@ -100,7 +109,7 @@ public sealed class DocumentUploadService(
 
         content.Position = 0;
         var stored = await storage
-            .SaveAsync(content, new FileMetadata(documentId, extension, mimeType, now), ct)
+            .SaveAsync(storageRepository.Id, content, new FileMetadata(documentId, extension, mimeType, now), ct)
             .ConfigureAwait(false);
 
         try
@@ -117,7 +126,10 @@ public sealed class DocumentUploadService(
                 command.Channel,
                 externalReference,
                 expectedDocumentType,
-                now);
+                now,
+                productService?.Id,
+                retentionPolicy,
+                storageRepository.Id);
 
             document.MarkQueued(now);
 
@@ -146,9 +158,41 @@ public sealed class DocumentUploadService(
         catch
         {
             // Never leave a blob behind for a document that was not persisted.
-            await SafeDeleteAsync(stored.StorageKey).ConfigureAwait(false);
+            await SafeDeleteAsync(storageRepository.Id, stored.StorageKey).ConfigureAwait(false);
             throw;
         }
+    }
+
+    /// <summary>
+    /// The product or service the caller named, or null when none was named. An unknown or inactive one is a
+    /// 422: the upload is well formed, but it points at something that cannot receive documents.
+    /// </summary>
+    private async Task<ProductService?> ResolveProductServiceAsync(string? code, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        var normalized = ProductService.NormalizeCode(code);
+        var productService = normalized is null
+            ? null
+            : await productServices.FindByCodeAsync(normalized, ct).ConfigureAwait(false);
+
+        if (productService is null)
+        {
+            throw new UploadRejectedException(
+                UploadRejectionReason.UnprocessableContent,
+                "PRODUCT_SERVICE_NOT_FOUND",
+                $"There is no product or service with the code {code.Trim()}.");
+        }
+
+        return productService.Active
+            ? productService
+            : throw new UploadRejectedException(
+                UploadRejectionReason.UnprocessableContent,
+                "PRODUCT_SERVICE_INACTIVE",
+                $"The product or service {productService.Code} is inactive and does not accept documents.");
     }
 
     private async Task<UploadDocumentResult?> TryReplayAsync(string key, string sha256, CancellationToken ct)
@@ -280,11 +324,11 @@ public sealed class DocumentUploadService(
             record.DocumentId, string.Empty, nameof(DocumentStatus.Queued));
     }
 
-    private async Task SafeDeleteAsync(string storageKey)
+    private async Task SafeDeleteAsync(Guid repositoryId, string storageKey)
     {
         try
         {
-            await storage.DeleteAsync(storageKey, CancellationToken.None).ConfigureAwait(false);
+            await storage.DeleteAsync(repositoryId, storageKey, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
         {

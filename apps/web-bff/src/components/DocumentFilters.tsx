@@ -21,6 +21,8 @@ export function DocumentFilters({ hasInFlightDocuments }: { hasInFlightDocuments
     protocol: searchParams.get("protocol") ?? "",
     fileName: searchParams.get("fileName") ?? "",
     documentType: searchParams.get("documentType") ?? "",
+    productServiceCode: searchParams.get("productServiceCode") ?? "",
+    externalReference: searchParams.get("externalReference") ?? "",
     channel: searchParams.get("channel") ?? "",
     status: searchParams.get("status") ?? "",
     uploadedFrom: searchParams.get("uploadedFrom") ?? "",
@@ -59,6 +61,8 @@ export function DocumentFilters({ hasInFlightDocuments }: { hasInFlightDocuments
       protocol: "",
       fileName: "",
       documentType: "",
+      productServiceCode: "",
+      externalReference: "",
       channel: "",
       status: "",
       uploadedFrom: "",
@@ -98,6 +102,27 @@ export function DocumentFilters({ hasInFlightDocuments }: { hasInFlightDocuments
             value={form.documentType}
             placeholder="BR_CNH"
             onChange={(event) => setForm({ ...form, documentType: event.target.value })}
+          />
+        </div>
+        <div>
+          <label htmlFor="filter-product">Produto ou serviço</label>
+          <input
+            id="filter-product"
+            type="text"
+            value={form.productServiceCode}
+            placeholder="CONTA-PJ"
+            onChange={(event) => setForm({ ...form, productServiceCode: event.target.value })}
+          />
+        </div>
+        <div>
+          <label htmlFor="filter-external-reference">Referência externa</label>
+          <input
+            id="filter-external-reference"
+            type="text"
+            value={form.externalReference}
+            maxLength={256}
+            placeholder="PEDIDO-12345"
+            onChange={(event) => setForm({ ...form, externalReference: event.target.value })}
           />
         </div>
         <div>

@@ -39,6 +39,16 @@ public sealed class DocumentListRequest
     [MaxLength(32)]
     public string? Status { get; init; }
 
+    /// <summary>Code of the product or service the document is linked to, case insensitive.</summary>
+    [FromQuery(Name = "productServiceCode")]
+    [MaxLength(64)]
+    public string? ProductServiceCode { get; init; }
+
+    /// <summary>Full or partial external reference sent at upload time, case insensitive.</summary>
+    [FromQuery(Name = "externalReference")]
+    [MaxLength(256)]
+    public string? ExternalReference { get; init; }
+
     /// <summary>Lower bound of the upload instant, inclusive, ISO 8601 in UTC.</summary>
     [FromQuery(Name = "uploadedFrom")]
     public DateTimeOffset? UploadedFrom { get; init; }

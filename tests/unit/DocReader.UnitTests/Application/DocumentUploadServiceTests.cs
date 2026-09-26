@@ -1,3 +1,5 @@
+using DocReader.Application.Retention;
+using DocReader.Application.Storage;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
 using DocReader.Application.Options;
@@ -17,6 +19,9 @@ public sealed class DocumentUploadServiceTests
 
     private readonly InMemoryDocumentStore _store = new() { Now = Now };
     private readonly InMemoryFileStorage _storage = new();
+    private readonly InMemoryProductServiceStore _products = new();
+    private readonly InMemoryRetentionPolicyStore _retention = new();
+    private readonly InMemoryStorageRepositoryStore _storageRepositories = new();
     private readonly UploadOptions _upload = new();
     private readonly IdempotencyOptions _idempotency = new();
 
@@ -296,6 +301,9 @@ public sealed class DocumentUploadServiceTests
     private DocumentUploadService BuildService() => new(
         _storage,
         _store,
+        _products,
+        new RetentionService(_retention),
+        new StorageRepositoryResolver(_storageRepositories),
         _store,
         new SequentialProtocolGenerator(),
         new DocumentPageCounter(),

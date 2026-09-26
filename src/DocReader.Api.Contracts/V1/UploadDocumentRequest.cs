@@ -25,4 +25,8 @@ public sealed class UploadDocumentRequest
     /// <summary>Optional reference of the calling system, echoed back in every response.</summary>
     [MaxLength(128)]
     public string? ExternalReference { get; init; }
+
+    /// <summary>Code of the product or service the document is for. Unknown or inactive codes answer 422.</summary>
+    [MaxLength(64)]
+    public string? ProductServiceCode { get; init; }
 }

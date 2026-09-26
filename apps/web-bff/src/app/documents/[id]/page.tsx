@@ -17,6 +17,7 @@ import {
   formatConfidence,
   formatInstant,
   processingSummary,
+  scopeLabel,
   statusLabel,
   validationLabel,
   validationMessage,
@@ -251,6 +252,59 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
               <dd>{formatInstant(upload.uploadedAt)}</dd>
               <dt>Concluído em</dt>
               <dd>{formatInstant(upload.completedAt)}</dd>
+              <dt>Produto ou serviço</dt>
+              <dd>
+                {document.productService ? (
+                  <>
+                    <span className="mono">{document.productService.code}</span> · {document.productService.name}
+                  </>
+                ) : (
+                  "—"
+                )}
+              </dd>
+              <dt>Expira em</dt>
+              <dd>
+                {document.retention ? (
+                  <>
+                    {formatInstant(document.retention.expiresAt)}
+                    {document.retention.purgedAt && (
+                      <> · expurgado em {formatInstant(document.retention.purgedAt)}</>
+                    )}
+                  </>
+                ) : (
+                  "—"
+                )}
+              </dd>
+              <dt>Política de retenção</dt>
+              <dd>
+                {document.retention ? (
+                  <>
+                    {document.retention.retentionDays} dia(s)
+                    {document.retention.policy ? (
+                      <>
+                        {" "}
+                        · {scopeLabel(document.retention.policy.scope)}
+                        {document.retention.policy.documentType && (
+                          <>
+                            {" "}
+                            <span className="mono">{document.retention.policy.documentType}</span>
+                          </>
+                        )}
+                        {document.retention.policy.productServiceCode && (
+                          <>
+                            {" "}
+                            <span className="mono">{document.retention.policy.productServiceCode}</span>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <span className="muted"> · a política foi excluída depois</span>
+                    )}
+                  </>
+                ) : (
+                  "—"
+                )}
+              </dd>
               <dt>Tipo esperado</dt>
               <dd>{upload.expectedDocumentType ?? "—"}</dd>
               <dt>Referência externa</dt>

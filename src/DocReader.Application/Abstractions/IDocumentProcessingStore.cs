@@ -1,6 +1,7 @@
 using DocReader.Domain.Documents;
 using DocReader.Domain.Extractions;
 using DocReader.Domain.Processing;
+using DocReader.Domain.Retention;
 
 namespace DocReader.Application.Abstractions;
 
@@ -34,5 +35,6 @@ public interface IDocumentProcessingStore
         string detectedDocumentType,
         decimal? classificationConfidence,
         string? classificationDetails,
+        RetentionPolicy? retentionPolicy,
         CancellationToken ct);
 }

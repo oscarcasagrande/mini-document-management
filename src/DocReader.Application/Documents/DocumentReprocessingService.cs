@@ -1,5 +1,6 @@
 using DocReader.Application.Abstractions;
 using DocReader.Application.Errors;
+using DocReader.Application.Retention;
 using Microsoft.Extensions.Logging;
 
 namespace DocReader.Application.Documents;
@@ -10,6 +11,7 @@ namespace DocReader.Application.Documents;
 /// </summary>
 public sealed class DocumentReprocessingService(
     IDocumentRepository repository,
+    RetentionService retention,
     TimeProvider timeProvider,
     ILogger<DocumentReprocessingService> logger)
 {
@@ -17,8 +19,17 @@ public sealed class DocumentReprocessingService(
     /// <exception cref="ReprocessConflictException">The document is queued or being processed.</exception>
     public async Task<Domain.Documents.Document> ReprocessAsync(Guid id, CancellationToken ct)
     {
+        // The new cycle gets the policy that fits the document today: its detected type when it has one, and its
+        // product. A policy edited since the upload is picked up here, which is the explicit way to apply it.
+        var current = await repository.FindByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
+        var policy = current is null
+            ? null
+            : await retention
+                .ResolveAsync(current.DetectedDocumentType ?? current.ExpectedDocumentType, current.ProductServiceId, ct)
+                .ConfigureAwait(false);
+
         var outcome = await repository
-            .QueueReprocessingAsync(id, timeProvider.GetUtcNow(), ct)
+            .QueueReprocessingAsync(id, timeProvider.GetUtcNow(), policy, ct)
             .ConfigureAwait(false);
 
         switch (outcome)
@@ -27,6 +38,8 @@ public sealed class DocumentReprocessingService(
                 throw new DocumentNotFoundException(id.ToString());
             case ReprocessOutcome.Conflict:
                 throw new ReprocessConflictException(id);
+            case ReprocessOutcome.Purged:
+                throw new DocumentPurgedException(id);
         }
 
         logger.LogInformation("Reprocessing requested. documentId={DocumentId}", id);

@@ -2,6 +2,7 @@ using DocReader.Application.Abstractions;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Extractions;
 using DocReader.Domain.Processing;
+using DocReader.Domain.Retention;
 
 namespace DocReader.UnitTests.Fakes;
 
@@ -57,7 +58,8 @@ public sealed record CompletedCall(
     DocumentExtraction Extraction,
     string DetectedType,
     decimal? Confidence,
-    string? Details);
+    string? Details,
+    RetentionPolicy? RetentionPolicy = null);
 
 public sealed class FakeProcessingStore(Document? document) : IDocumentProcessingStore
 {
@@ -95,9 +97,10 @@ public sealed class FakeProcessingStore(Document? document) : IDocumentProcessin
         string detectedDocumentType,
         decimal? classificationConfidence,
         string? classificationDetails,
+        RetentionPolicy? retentionPolicy,
         CancellationToken ct)
     {
-        Completed.Add(new CompletedCall(extraction, detectedDocumentType, classificationConfidence, classificationDetails));
+        Completed.Add(new CompletedCall(extraction, detectedDocumentType, classificationConfidence, classificationDetails, retentionPolicy));
         return Task.FromResult(CompleteResult);
     }
 }

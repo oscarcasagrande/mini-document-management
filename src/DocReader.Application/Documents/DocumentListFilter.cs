@@ -14,6 +14,8 @@ namespace DocReader.Application.Documents;
 /// <param name="UploadedTo">Upper bound of the upload timestamp, inclusive.</param>
 /// <param name="Page">One based page number.</param>
 /// <param name="PageSize">Number of items per page.</param>
+/// <param name="ProductServiceCode">Code of the product or service the document is linked to.</param>
+/// <param name="ExternalReference">Full or partial caller reference, case insensitive.</param>
 public sealed record DocumentListFilter(
     string? Protocol,
     string? FileName,
@@ -23,4 +25,6 @@ public sealed record DocumentListFilter(
     DateTimeOffset? UploadedFrom,
     DateTimeOffset? UploadedTo,
     int Page,
-    int PageSize);
+    int PageSize,
+    string? ProductServiceCode = null,
+    string? ExternalReference = null);

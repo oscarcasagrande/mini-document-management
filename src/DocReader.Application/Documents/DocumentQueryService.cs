@@ -19,6 +19,9 @@ public sealed class DocumentQueryService(
     IEnumerable<IDocumentExtractor> extractors,
     ILogger<DocumentQueryService> logger)
 {
+    /// <summary>Length of the <c>external_reference</c> column; nothing longer can exist.</summary>
+    private const int MaxStoredExternalReferenceLength = 256;
+
     private static readonly JsonSerializerOptions StoredJson = new(JsonSerializerDefaults.Web);
 
     public Task<PagedResult<Document>> ListAsync(DocumentListFilter filter, CancellationToken ct) =>
@@ -39,6 +42,25 @@ public sealed class DocumentQueryService(
 
         var document = await repository.FindByProtocolAsync(protocol, includeEvents, ct).ConfigureAwait(false);
         return document ?? throw new DocumentNotFoundException(protocol);
+    }
+
+    /// <summary>
+    /// The most recent document uploaded with exactly this external reference. The reference is the caller's own
+    /// key and is not unique: when several documents share it, the latest upload wins.
+    /// </summary>
+    /// <exception cref="DocumentNotFoundException">The reference is blank, longer than any stored one, or unused.</exception>
+    public async Task<Document> GetLatestByExternalReferenceAsync(string reference, CancellationToken ct)
+    {
+        var trimmed = reference.Trim();
+        var label = $"with external reference '{(trimmed.Length > 64 ? trimmed[..64] + "...": trimmed)}'";
+
+        if (trimmed.Length == 0 || trimmed.Length > MaxStoredExternalReferenceLength)
+        {
+            throw new DocumentNotFoundException(label);
+        }
+
+        var document = await repository.FindLatestByExternalReferenceAsync(trimmed, ct).ConfigureAwait(false);
+        return document ?? throw new DocumentNotFoundException(label);
     }
 
     /// <summary>
@@ -176,10 +198,15 @@ public sealed class DocumentQueryService(
     {
         var document = await GetByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
 
+        if (document.Status == DocumentStatus.Purged)
+        {
+            throw new DocumentPurgedException(id);
+        }
+
         Stream content;
         try
         {
-            content = await storage.OpenReadAsync(document.StorageKey, ct).ConfigureAwait(false);
+            content = await storage.OpenReadAsync(document.StorageRepositoryId, document.StorageKey, ct).ConfigureAwait(false);
         }
         catch (FileNotFoundException)
         {

@@ -1,26 +1,22 @@
 using DocReader.Application.Abstractions;
-using DocReader.Application.Options;
 using DocReader.Infrastructure.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace DocReader.UnitTests.Infrastructure;
 
-public sealed class LocalFileStorageTests : IDisposable
+public sealed class FileSystemStorageAdapterTests : IDisposable
 {
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),
         "docreader-tests",
         Guid.NewGuid().ToString("N"));
 
-    private readonly LocalFileStorage _storage;
+    private readonly FileSystemStorageAdapter _storage;
 
-    public LocalFileStorageTests()
+    public FileSystemStorageAdapterTests()
     {
-        _storage = new LocalFileStorage(
-            Options.Create(new StorageOptions { RootPath = _root }),
-            NullLogger<LocalFileStorage>.Instance);
+        _storage = new FileSystemStorageAdapter(_root, NullLogger<FileSystemStorageAdapter>.Instance);
     }
 
     [Fact]

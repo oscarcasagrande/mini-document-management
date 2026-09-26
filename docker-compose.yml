@@ -54,6 +54,10 @@ services:
       DocReader__Security__AllowAnonymousAccess: ${ALLOW_ANONYMOUS_ACCESS:-true}
       DocReader__Security__AllowedCorsOrigins__0: http://localhost:${WEB_PORT:-3000}
       DocReader__Ocr__BaseUrl: http://ocr-service:8000
+      # Encrypts the connection settings of the storage repositories. API and worker must share it.
+      DocReader__Secrets__EncryptionKey: ${STORAGE_CONFIG_ENCRYPTION_KEY:-ZG9jcmVhZGVyLWxvY2FsLWRlbW8ta2V5LTMyYnl0ZXM=}
+      # The API refuses webhook URLs the worker would refuse to call, so both read the same switch.
+      DocReader__Webhooks__AllowPrivateNetworks: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-false}
       # The status endpoint reports "attempt N of M", so the API needs the same limit as the worker.
       DocReader__Queue__MaxAttempts: ${QUEUE_MAX_ATTEMPTS:-3}
       # The classification diagnostics endpoint replays the decision, so it needs the worker's setting.
@@ -91,11 +95,16 @@ services:
       # Budget of one page as seen by the worker. It must stay above OCR_PAGE_TIMEOUT_SECONDS of the OCR
       # service, so the service answers 504 first and the failure carries a precise code.
       DocReader__Ocr__PageTimeout: ${OCR_WORKER_PAGE_TIMEOUT:-00:02:30}
+      DocReader__Secrets__EncryptionKey: ${STORAGE_CONFIG_ENCRYPTION_KEY:-ZG9jcmVhZGVyLWxvY2FsLWRlbW8ta2V5LTMyYnl0ZXM=}
+      # Webhook notifications are sent by the worker. Private, loopback and link-local destinations are refused unless this is true.
+      DocReader__Webhooks__AllowPrivateNetworks: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-false}
       DocReader__Queue__MaxAttempts: ${QUEUE_MAX_ATTEMPTS:-3}
       DocReader__Queue__RetryBaseDelay: ${QUEUE_RETRY_BASE_DELAY:-00:00:15}
       # Silence after which a job is taken from its worker. The worker renews it after every page, so this
       # is not a limit on the document; it must stay above the page timeout (checked at startup).
       DocReader__Queue__JobLockTimeout: ${QUEUE_JOB_LOCK_TIMEOUT:-00:05:00}
+      # Daily purge of the documents whose retention period ended (five-field cron, UTC). Default: 02:00 every day.
+      DocReader__Purge__ScheduleCron: ${PURGE_SCHEDULE_CRON:-0 2 * * *}
       DocReader__Classification__MinimumScore: ${CLASSIFICATION_MIN_SCORE:-0}
     networks:
       - internal

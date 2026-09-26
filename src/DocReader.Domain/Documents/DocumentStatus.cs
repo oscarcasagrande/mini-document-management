@@ -14,5 +14,8 @@ public enum DocumentStatus
     Extracting = 6,
     Completed = 7,
     Failed = 8,
-    Rejected = 9
+    Rejected = 9,
+
+    /// <summary>The retention period ended and the original file was removed. The metadata and the history stay.</summary>
+    Purged = 10
 }

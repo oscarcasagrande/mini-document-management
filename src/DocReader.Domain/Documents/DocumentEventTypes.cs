@@ -11,6 +11,11 @@ public static class DocumentEventTypes
     public const string Rejected = "REJECTED";
     public const string Deleted = "DELETED";
     public const string Failed = "FAILED";
+    public const string Purged = "PURGED";
+    public const string RetentionApplied = "RETENTION_APPLIED";
+
+    /// <summary>A webhook subscriber never accepted the notification of this document, after every retry.</summary>
+    public const string WebhookDeliveryFailed = "WEBHOOK_DELIVERY_FAILED";
 
     public const string PreprocessingStarted = "PREPROCESSING_STARTED";
     public const string OcrStarted = "OCR_STARTED";

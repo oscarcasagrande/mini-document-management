@@ -21,6 +21,7 @@ public sealed class DocumentDeletionService(
         }
 
         var storageKey = document.StorageKey;
+        var repositoryId = document.StorageRepositoryId;
 
         // Rows go first: an orphan blob is recoverable by cleanup, an orphan row would keep showing a
         // document whose content can no longer be served.
@@ -32,7 +33,7 @@ public sealed class DocumentDeletionService(
 
         try
         {
-            await storage.DeleteAsync(storageKey, ct).ConfigureAwait(false);
+            await storage.DeleteAsync(repositoryId, storageKey, ct).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
