@@ -5,6 +5,7 @@ using DocReader.Domain.Extractions;
 using DocReader.Domain.Idempotency;
 using DocReader.Domain.Processing;
 using DocReader.Domain.Retention;
+using DocReader.Infrastructure.Queue;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocReader.Infrastructure.Persistence;
@@ -12,8 +13,13 @@ namespace DocReader.Infrastructure.Persistence;
 /// <summary>
 /// EF Core implementation of the document persistence. All SQL is parameterized by the provider.
 /// </summary>
-public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocumentRepository
+public sealed class DocumentRepository(DocReaderDbContext dbContext, QueueProviderOptions? queueProvider = null) : IDocumentRepository
 {
+    // Optional and defaulted to Postgres (ADR 0001), not required: the many existing test call sites
+    // construct this with just a DbContext, and defaulting keeps them exercising the always-supported
+    // Postgres path unchanged rather than forcing every one of them to thread a provider through.
+    private readonly QueueProviderOptions _queueProvider = queueProvider ?? new QueueProviderOptions(QueueProvider.Postgres);
+
     public async Task AcceptAsync(
         Document document,
         ProcessingJob job,
@@ -36,6 +42,14 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
             if (idempotencyRecord is not null)
             {
                 dbContext.IdempotencyKeys.Add(idempotencyRecord);
+            }
+
+            // Transactional outbox (ADR 0004): same SaveChangesAsync as the job row above, so a row
+            // exists if and only if the job does. Only in RabbitMQ mode - in Postgres mode
+            // outbox_messages stays empty forever, nothing ever reads it.
+            if (_queueProvider.Provider == QueueProvider.RabbitMq)
+            {
+                dbContext.OutboxMessages.Add(OutboxMessage.CreateForJob(job.Id, document.Id, job.CreatedAt));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -280,7 +294,16 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
             {
                 document.ApplyRetention(retentionPolicy, now);
             }
-            dbContext.ProcessingJobs.Add(ProcessingJob.CreateForDocument(documentId, now));
+
+            var newJob = ProcessingJob.CreateForDocument(documentId, now);
+            dbContext.ProcessingJobs.Add(newJob);
+
+            // Transactional outbox (ADR 0004): see AcceptAsync above for why this is the same
+            // SaveChangesAsync as the job row, and only written in RabbitMQ mode.
+            if (_queueProvider.Provider == QueueProvider.RabbitMq)
+            {
+                dbContext.OutboxMessages.Add(OutboxMessage.CreateForJob(newJob.Id, documentId, now));
+            }
 
             await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

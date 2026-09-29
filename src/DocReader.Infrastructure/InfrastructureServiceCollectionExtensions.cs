@@ -8,11 +8,13 @@ using DocReader.Infrastructure.Files;
 using DocReader.Infrastructure.Ocr;
 using DocReader.Infrastructure.Persistence;
 using DocReader.Infrastructure.Queue;
+using DocReader.Infrastructure.Queue.RabbitMq;
 using DocReader.Infrastructure.Storage;
 using DocReader.Infrastructure.Webhooks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -51,7 +53,30 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IStorageMigrationJobRepository, StorageMigrationJobRepository>();
         services.AddScoped<IIdempotencyStore, PostgresIdempotencyStore>();
         services.AddScoped<IProtocolGenerator, PostgresProtocolGenerator>();
-        services.AddScoped<IProcessingQueue, PostgresProcessingQueue>();
+
+        // ADR 0001 stays the default: DocReader:Queue:Provider (QUEUE_PROVIDER) picked, once, straight
+        // from configuration, the same way the connection string above is - not through an
+        // IOptions<ProcessingQueueOptions> binding, because that class belongs to DocReader.Application
+        // and this switch is Infrastructure-only wiring (ADR 0004).
+        var queueProvider = QueueProviderOptions.FromConfigurationValue(
+            configuration[QueueProviderOptions.ConfigurationKey]);
+        services.AddSingleton(queueProvider);
+
+        services.AddOptions<RabbitMqOptions>().Bind(configuration.GetSection(RabbitMqOptions.SectionName));
+
+        if (queueProvider.Provider == QueueProvider.RabbitMq)
+        {
+            // Singleton: owns the one connection/consumer for the whole process. Registered here (not
+            // hosted) so both api and worker can resolve IProcessingQueue without api ever starting a
+            // broker connection - only worker's Program.cs adds it as an IHostedService.
+            services.AddSingleton<RabbitMqJobBridge>();
+            services.AddScoped<IProcessingQueue, RabbitMqProcessingQueue>();
+        }
+        else
+        {
+            services.AddScoped<IProcessingQueue, PostgresProcessingQueue>();
+        }
+
         services.AddScoped<IDocumentProcessingStore, DocumentProcessingStore>();
         services.AddScoped<IWebhookSubscriptionRepository, WebhookSubscriptionRepository>();
         services.AddScoped<IWebhookDeliveryStore, WebhookDeliveryStore>();
@@ -88,6 +113,23 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IDatabaseRestorer>(provider => provider.GetRequiredService<PostgresBackupTool>());
         services.AddScoped<IBackupArchiveBuilder, TarGzBackupArchiveBuilder>();
         services.AddScoped<IBackupArchiveReader, TarGzBackupArchiveReader>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Starts the RabbitMQ connection/consumer/outbox publisher topology as a hosted service (ADR 0004).
+    /// Only <c>apps/worker</c> calls this, and only guarded by <c>QueueProviderOptions.Provider ==
+    /// QueueProvider.RabbitMq</c>: <c>apps/api</c> never consumes jobs, and calling this when
+    /// <see cref="RabbitMqJobBridge"/> was never registered (Postgres mode) would throw at resolution
+    /// time. The factory overload reuses the exact singleton instance
+    /// <see cref="AddDocReaderInfrastructure"/> already registered, so DI consumers of
+    /// <see cref="RabbitMqJobBridge"/> (namely <c>RabbitMqProcessingQueue</c>) and the hosted service
+    /// that actually opens the connection are the same object - never two disconnected bridges.
+    /// </summary>
+    public static IServiceCollection AddDocReaderRabbitMqConsumer(this IServiceCollection services)
+    {
+        services.AddHostedService(provider => provider.GetRequiredService<RabbitMqJobBridge>());
 
         return services;
     }

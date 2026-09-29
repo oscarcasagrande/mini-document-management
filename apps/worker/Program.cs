@@ -3,6 +3,7 @@ using DocReader.Application;
 using DocReader.Application.Options;
 using DocReader.Infrastructure;
 using DocReader.Infrastructure.Persistence;
+using DocReader.Infrastructure.Queue;
 using DocReader.Worker;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -27,6 +28,19 @@ builder.Services.AddDocReaderProcessing(builder.Configuration);
 builder.Services.AddDocReaderOcrProvider();
 
 builder.Services.AddSingleton<IValidateOptions<PurgeOptions>, PurgeOptionsValidator>();
+
+// ADR 0004: the RabbitMQ connection/consumer and the outbox publisher only exist in this process
+// (apps/api never consumes jobs) and only when QUEUE_PROVIDER=RabbitMQ - in Postgres mode (the
+// default, ADR 0001) neither is registered, so no broker connection is ever attempted. Read the same
+// way AddDocReaderInfrastructure reads it, straight from configuration, so the two agree without a
+// temporary service provider.
+var queueProvider = QueueProviderOptions.FromConfigurationValue(builder.Configuration[QueueProviderOptions.ConfigurationKey]);
+if (queueProvider.Provider == QueueProvider.RabbitMq)
+{
+    builder.Services.AddDocReaderRabbitMqConsumer();
+    builder.Services.AddHostedService<RabbitMqOutboxPublisher>();
+}
+
 builder.Services.AddHostedService<ProcessingWorker>();
 builder.Services.AddHostedService<PurgeExpiredDocumentsJob>();
 builder.Services.AddHostedService<WebhookDispatcher>();

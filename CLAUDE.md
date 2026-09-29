@@ -339,6 +339,46 @@ a este checkout.
   integração, 110 passam e 6 são pulados de sempre (psql/pg_dump e Azurite indisponíveis), medido com PostgreSQL
   real na rede do compose depois de juntar as quatro seções.
 
+**Fila alternativa: RabbitMQ (ADR 0004).** `QUEUE_PROVIDER` (`Postgres`, padrão, ou `RabbitMQ`) escolhe a
+implementação de `IProcessingQueue`; **PostgreSQL continua o padrão e a ADR 0001 continua valendo** — RabbitMQ é
+opt-in, ligado com `docker-compose.rabbitmq.yml` (`docker compose -f docker-compose.yml -f docker-compose.rabbitmq.yml
+up --build`, que também sobe um `rabbitmq` de management com UI publicada). Nem `Domain` nem `Application` mudaram
+uma linha para isto existir — a folga veio de `EnqueueAsync`/`CompleteAsync` já serem código morto desde a Etapa 3.
+
+- **Outbox transacional** (`outbox_messages`, `DocReader.Infrastructure.Queue.OutboxMessage`): gravado na mesma
+  `SaveChangesAsync` que a linha de `processing_jobs`, nos dois pontos reais de enfileiramento —
+  `DocumentRepository.AcceptAsync` (upload) e `QueueNewAttemptAsync` (reprocessar/reclassificar) — só quando o
+  provedor é RabbitMQ. **A API grava outbox, não só o worker**: upload e reprocessamento rodam no processo da API,
+  então `QUEUE_PROVIDER` precisa estar setado ali também (sem as variáveis `RABBITMQ_*` de conexão — a API nunca
+  abre conexão com o broker, só decide se grava a linha). Isso só apareceu numa verificação ao vivo: a primeira
+  versão do overlay setava a variável só no `worker`, e um upload de teste ficou preso em `QUEUED`/`PENDING` para
+  sempre com `outbox_messages` vazia. `RabbitMqOutboxPublisher` (`apps/worker`, molde de `WebhookDispatcher`) drena
+  o outbox com `FOR UPDATE SKIP LOCKED`; com o broker fora do ar a publicação falha, loga e tenta de novo no próximo
+  poll sem nunca desistir — confirmado ao vivo (upload com `rabbitmq` parado, documento ficou `QUEUED` com a linha
+  do outbox sem `published_at`; `docker compose start rabbitmq` e o documento chegou a `COMPLETED` sozinho).
+- **Ponte de DI** (`RabbitMqJobBridge`): `IProcessingQueue` é `Scoped` e o `ProcessingWorker` abre um escopo por
+  job, então a conexão/canal/consumidor do RabbitMQ vivem num singleton à parte, registrado em
+  `AddDocReaderInfrastructure` mas só promovido a `IHostedService` no `apps/worker/Program.cs`
+  (`AddDocReaderRabbitMqConsumer()`) — a API nunca abre conexão, mesmo sabendo o provedor. Prefetch 1 (padrão),
+  entregas viajam por um `Channel<T>` limitado até a fila escopada; `deliveryTag` fica num campo de instância da
+  própria fila escopada (não um dicionário singleton), porque `AcquireNextAsync` e o desfecho do job sempre rodam
+  na mesma instância dentro do mesmo escopo.
+- **Idempotência**: `AcquireNextAsync` faz um `UPDATE ... WHERE id = @jobId AND status = 'PENDING'` mirado (não o
+  `SKIP LOCKED LIMIT 1` do PostgreSQL, que é para escolher entre candidatos); zero linhas afetadas = duplicata ou
+  job já resolvido por outra tentativa, confirmado (`ack`) sem nunca virar job novo.
+- **Retry por fila de atraso por tentativa, não TTL por mensagem**: TTL por mensagem não funciona porque o RabbitMQ
+  só expira da cabeça da fila. Uma fila `docreader.processing.jobs.retry.N` por tentativa que ainda pode repetir
+  (`MaxAttempts - 1` filas), `x-message-ttl` calculado pela mesma `RetryBackoff.For` do PostgreSQL (não um valor
+  fixo), `x-dead-letter-exchange`/`x-dead-letter-routing-key` de volta à fila principal pela exchange padrão.
+- **Heartbeat continua no PostgreSQL** (`ProcessingJobBookkeeping`, compartilhado pelos dois provedores): a perda de
+  conexão TCP do RabbitMQ só cobre worker morto, não um worker vivo e travado. `x-consumer-timeout` da fila
+  principal (`ProcessingTimeout` + `RabbitMqOptions.ConsumerTimeoutMargin`, hoje 65 min) é a rede de segurança do
+  broker para esse caso; a varredura de jobs presos do PostgreSQL mantém o mesmo sinal diagnosticável dos dois
+  modos, mas sozinha não reatribui trabalho em modo RabbitMQ (só o broker redistribui uma entrega de verdade).
+- ADR completa (mecanismo, alternativas consideradas, trade-offs) em `docs/adr/0004-rabbitmq-fila-alternativa.md`.
+- Testes: 1086 unitários (1070 + 16 de seleção de provedor e cálculo de TTL, sem broker); 122 de integração, 116
+  passam (110 + 6 novos contra RabbitMQ real) e 6 continuam pulados (psql/pg_dump e Azurite indisponíveis).
+
 ## Estrutura do repositório
 
 ```text
@@ -369,6 +409,7 @@ Directory.Packages.props   versões centralizadas de pacote
 global.json                SDK 10.x e runner Microsoft.Testing.Platform
 docker-compose.yml         compose de aceite (postgres e ocr sem porta publicada)
 docker-compose.dev.yml     override de desenvolvimento (publica postgres e ocr)
+docker-compose.rabbitmq.yml override que troca a fila para RabbitMQ (ADR 0004), opt-in
 .env.example               sem segredos reais
 ```
 

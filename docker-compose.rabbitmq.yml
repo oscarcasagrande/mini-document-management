@@ -1,0 +1,55 @@
+# RabbitMQ overlay (ADR 0004). PostgreSQL (ADR 0001) stays the default and this compose file is never
+# applied on its own: it swaps the job queue provider and adds a rabbitmq service.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.rabbitmq.yml up --build
+#
+# apps/api never consumes jobs, but it does WRITE them: DocumentRepository.AcceptAsync (upload) and its
+# reprocess/reclassify counterpart run inside the API process, and that is exactly where the
+# transactional outbox row gets written alongside the processing_jobs row (ADR 0004). So api needs
+# DocReader__Queue__Provider too, or every document uploaded through it would silently stay on the
+# PostgreSQL-only path with no outbox row ever written for the worker's RabbitMQ consumer to see - api
+# does NOT get the RabbitMQ connection settings though (DocReader__RabbitMq__*), since it never opens a
+# broker connection: only DocumentRepository's provider check needs to be right, not a live connection.
+#
+# Management UI (published, unlike postgres/ocr-service in the base compose, on purpose: this overlay
+# exists for people who want to actually look at the broker) at
+# http://localhost:${RABBITMQ_MANAGEMENT_PORT:-15672}, login RABBITMQ_USERNAME/RABBITMQ_PASSWORD below.
+
+services:
+  api:
+    environment:
+      # QUEUE_PROVIDER is the human-friendly .env name; DocReader__Queue__Provider is the actual
+      # configuration key the app binds (ASP.NET Core's double-underscore convention) - same translation
+      # every other block of this compose file already does for its own env vars.
+      DocReader__Queue__Provider: ${QUEUE_PROVIDER:-RabbitMQ}
+
+  worker:
+    environment:
+      DocReader__Queue__Provider: ${QUEUE_PROVIDER:-RabbitMQ}
+      DocReader__RabbitMq__HostName: rabbitmq
+      DocReader__RabbitMq__Port: 5672
+      DocReader__RabbitMq__UserName: ${RABBITMQ_USERNAME:-docreader}
+      DocReader__RabbitMq__Password: ${RABBITMQ_PASSWORD:-docreader}
+      DocReader__RabbitMq__VirtualHost: ${RABBITMQ_VHOST:-/}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:4.0-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-docreader}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-docreader}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
