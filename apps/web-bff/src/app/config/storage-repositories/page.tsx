@@ -68,8 +68,8 @@ export default async function StorageRepositoriesPage() {
             options: [
               { value: "FILE_SYSTEM", label: "Sistema de arquivos" },
               { value: "DATABASE", label: "Banco de dados" },
-              { value: "AZURE_BLOB_STORAGE", label: "Azure Blob Storage (ainda não implementado)" },
-              { value: "AWS_S3", label: "AWS S3 (ainda não implementado)" },
+              { value: "AZURE_BLOB_STORAGE", label: "Azure Blob Storage" },
+              { value: "AWS_S3", label: "AWS S3" },
             ],
             help: "Não muda depois de criado.",
           },

@@ -13,7 +13,7 @@ using Xunit;
 
 namespace DocReader.UnitTests.Infrastructure;
 
-/// <summary>The encryption of the connection settings, the factory of adapters and the providers that are not implemented.</summary>
+/// <summary>The encryption of the connection settings and the factory that builds each provider's adapter.</summary>
 public sealed class StorageInfrastructureTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
