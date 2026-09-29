@@ -17,6 +17,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\DocReader.Application\DocReader.Application.csproj" />
     <ProjectReference Include="..\..\..\src\DocReader.Infrastructure\DocReader.Infrastructure.csproj" />
+    <!-- RabbitMqOutboxPublisher (ADR 0004) lives in apps/worker; the outbox drain tests exercise the
+         real production class instead of re-implementing its claim/publish loop. -->
+    <ProjectReference Include="..\..\..\apps\worker\DocReader.Worker.csproj" />
   </ItemGroup>
 
 </Project>

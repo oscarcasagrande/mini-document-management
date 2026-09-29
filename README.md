@@ -234,6 +234,16 @@ docker run --rm --network docreader_internal -v "$PWD:/src" -v docreader-nuget:/
   -e "DOCREADER_TEST_CONNECTION=Host=postgres;Port=5432;Database=postgres;Username=docreader;Password=docreader" \
   mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/integration/DocReader.IntegrationTests
 
+# os mesmos testes de integração, mais os do RabbitMQ (ADR 0004): precisam também de um RabbitMQ
+# alcançável na mesma rede (docker compose -f docker-compose.yml -f docker-compose.rabbitmq.yml up -d
+# rabbitmq); sem broker alcançável, só os testes de RabbitMqQueueIntegrationTests são PULADOS, o resto
+# da suíte roda normalmente.
+docker run --rm --network docreader_internal -v "$PWD:/src" -v docreader-nuget:/root/.nuget/packages -w /src \
+  -e "DOCREADER_TEST_CONNECTION=Host=postgres;Port=5432;Database=postgres;Username=docreader;Password=docreader" \
+  -e "DOCREADER_TEST_RABBITMQ_HOST=rabbitmq" -e "DOCREADER_TEST_RABBITMQ_USERNAME=docreader" \
+  -e "DOCREADER_TEST_RABBITMQ_PASSWORD=docreader" \
+  mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/integration/DocReader.IntegrationTests
+
 # ocr-service (usa um motor falso: não precisa do Paddle)
 docker run --rm -v "$PWD/services/ocr-service:/work" -w /work python:3.12-slim sh -c \
   "pip install -q fastapi 'uvicorn[standard]' pydantic python-multipart pypdfium2 pillow numpy -r requirements-dev.txt \

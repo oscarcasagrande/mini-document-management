@@ -1,6 +1,7 @@
 using DocReader.Application.Abstractions;
 using DocReader.Application.Options;
 using DocReader.Application.Processing;
+using DocReader.Infrastructure.Queue;
 using Microsoft.Extensions.Options;
 
 namespace DocReader.Worker;
@@ -17,6 +18,7 @@ namespace DocReader.Worker;
 public sealed class ProcessingWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<ProcessingQueueOptions> options,
+    QueueProviderOptions queueProvider,
     ILogger<ProcessingWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -82,6 +84,18 @@ public sealed class ProcessingWorker(
 
         var processor = scope.ServiceProvider.GetRequiredService<DocumentProcessor>();
         await processor.ProcessAsync(job, ct).ConfigureAwait(false);
+
+        // DocumentProcessor (DocReader.Application, unchanged) never calls IProcessingQueue.CompleteAsync
+        // on its success path: the real completion write is IDocumentProcessingStore.CompleteAsync,
+        // already done inside ProcessAsync. This is the RabbitMQ-only hook that acks the broker delivery
+        // afterward - RabbitMqProcessingQueue.CompleteAsync is a safe no-op if FailAsync/ReleaseAsync
+        // already settled the delivery earlier in this same attempt. Gated to RabbitMQ only: calling it
+        // in Postgres mode would be a harmless no-op today, but it is a previously-nonexistent code path
+        // there and must not become one (it would also log a confusing "Complete refused" warning).
+        if (queueProvider.Provider == QueueProvider.RabbitMq)
+        {
+            await queue.CompleteAsync(job, ct).ConfigureAwait(false);
+        }
 
         return true;
     }

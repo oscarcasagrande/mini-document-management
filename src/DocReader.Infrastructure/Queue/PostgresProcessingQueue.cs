@@ -56,34 +56,8 @@ public sealed class PostgresProcessingQueue(
         RETURNING id;
         """;
 
-    /// <summary>
-    /// Devolve à fila os jobs cujo worker ficou sem dar sinal de vida, e devolve o documento ao
-    /// estado QUEUED registrando o evento, tudo em uma instrução.
-    /// </summary>
-    private const string ReleaseStuckSql =
-        """
-        WITH released AS (
-            UPDATE processing_jobs
-            SET status = 'PENDING',
-                locked_at = NULL,
-                locked_by = NULL,
-                available_at = @now,
-                pages_completed = 0
-            WHERE status = 'RUNNING' AND locked_at < @threshold
-            RETURNING document_id
-        ),
-        requeued AS (
-            UPDATE documents
-            SET status = 'QUEUED'
-            WHERE id IN (SELECT document_id FROM released)
-            RETURNING id
-        )
-        INSERT INTO document_events (id, document_id, event_type, stage, details, occurred_at)
-        SELECT gen_random_uuid(), id, 'RETRY_SCHEDULED', 'QUEUED', 'STUCK_JOB_RECOVERED', @now
-        FROM requeued;
-        """;
-
     private readonly ProcessingQueueOptions _options = options.Value;
+    private readonly ProcessingJobBookkeeping _bookkeeping = new(dbContext, timeProvider, logger);
 
     public async Task EnqueueAsync(Guid documentId, CancellationToken ct)
     {
@@ -103,7 +77,7 @@ public sealed class PostgresProcessingQueue(
     {
         var now = timeProvider.GetUtcNow();
 
-        await ReleaseStuckJobsAsync(now, ct).ConfigureAwait(false);
+        await _bookkeeping.ReleaseStuckJobsAsync(_options.JobLockTimeout, ct).ConfigureAwait(false);
 
         var jobId = await ExecuteScalarGuidAsync(
             AcquireSql,
@@ -136,29 +110,11 @@ public sealed class PostgresProcessingQueue(
         return job;
     }
 
-    public async Task<bool> HeartbeatAsync(ProcessingJob job, int pagesCompleted, int pageCount, CancellationToken ct)
+    public Task<bool> HeartbeatAsync(ProcessingJob job, int pagesCompleted, int pageCount, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        var now = timeProvider.GetUtcNow();
-
-        var renewed = await dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-             UPDATE processing_jobs
-             SET locked_at = {now}, pages_completed = {pagesCompleted}, page_count = {pageCount}
-             WHERE id = {job.Id} AND status = 'RUNNING' AND attempt_count = {job.AttemptCount};
-             """,
-            ct).ConfigureAwait(false);
-
-        if (renewed == 0)
-        {
-            logger.LogWarning(
-                "Heartbeat refused: the job is no longer owned by this attempt. jobId={JobId} attempt={Attempt}",
-                job.Id,
-                job.AttemptCount);
-        }
-
-        return renewed > 0;
+        return _bookkeeping.HeartbeatAsync(job, pagesCompleted, pageCount, ct);
     }
 
     public async Task CompleteAsync(ProcessingJob job, CancellationToken ct)
@@ -185,181 +141,19 @@ public sealed class PostgresProcessingQueue(
         logger.LogInformation("Processing job completed. jobId={JobId}", job.Id);
     }
 
-    public async Task<JobFailureOutcome> FailAsync(ProcessingJob job, ProcessingError error, CancellationToken ct)
+    public Task<JobFailureOutcome> FailAsync(ProcessingJob job, ProcessingError error, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(job);
         ArgumentNullException.ThrowIfNull(error);
 
-        var now = timeProvider.GetUtcNow();
-        var willRetry = RetryBackoff.ShouldRetry(job.AttemptCount, error.IsTransient, _options);
-        var availableAt = willRetry ? now.Add(RetryBackoff.For(job.AttemptCount, _options)) : (DateTimeOffset?)null;
-
-        // The retrying execution strategy has to own the transaction, otherwise a retry would replay
-        // only part of it.
-        var strategy = dbContext.Database.CreateExecutionStrategy();
-
-        var applied = await strategy.ExecuteAsync(async cancellationToken =>
-        {
-            await using var transaction = await dbContext.Database
-                .BeginTransactionAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            // Each attempt reads fresh state: the same context may have loaded this document earlier.
-            dbContext.ChangeTracker.Clear();
-
-            var affected = willRetry
-                ? await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                    $"""
-                     UPDATE processing_jobs
-                     SET status = 'PENDING', available_at = {availableAt}, locked_at = NULL, locked_by = NULL,
-                         error_code = {error.Code}, error_message = {error.Message}
-                     WHERE id = {job.Id} AND status = 'RUNNING' AND attempt_count = {job.AttemptCount};
-                     """,
-                    cancellationToken).ConfigureAwait(false)
-                : await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                    $"""
-                     UPDATE processing_jobs
-                     SET status = 'FAILED', finished_at = {now}, locked_at = NULL, locked_by = NULL,
-                         error_code = {error.Code}, error_message = {error.Message}
-                     WHERE id = {job.Id} AND status = 'RUNNING' AND attempt_count = {job.AttemptCount};
-                     """,
-                    cancellationToken).ConfigureAwait(false);
-
-            if (affected == 0)
-            {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                return false;
-            }
-
-            // The document reflects the outcome too: the original stays consultable, and the
-            // interface has to say why the reading did not come out.
-            var document = await dbContext.Documents
-                .FirstOrDefaultAsync(candidate => candidate.Id == job.DocumentId, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (document is not null)
-            {
-                if (willRetry)
-                {
-                    document.MarkRetryScheduled(error.Code, error.Message, now);
-                }
-                else
-                {
-                    document.MarkFailed(error.Code, error.Message, now);
-                    await WebhookOutbox.EnqueueAsync(dbContext, document, now, cancellationToken).ConfigureAwait(false);
-                }
-
-                await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            return true;
-        }, ct).ConfigureAwait(false);
-
-        if (!applied)
-        {
-            logger.LogWarning(
-                "Fail refused: the job is not owned by this attempt. jobId={JobId} attempt={Attempt} errorCode={ErrorCode}",
-                job.Id,
-                job.AttemptCount,
-                error.Code);
-            return new JobFailureOutcome(Applied: false, WillRetry: false, AvailableAt: null);
-        }
-
-        if (willRetry)
-        {
-            logger.LogWarning(
-                "Processing job scheduled for retry. jobId={JobId} attempt={Attempt} of {MaxAttempts} errorCode={ErrorCode} availableAt={AvailableAt}",
-                job.Id,
-                job.AttemptCount,
-                _options.MaxAttempts,
-                error.Code,
-                availableAt);
-        }
-        else
-        {
-            logger.LogError(
-                "Processing job failed definitively. jobId={JobId} documentId={DocumentId} attempt={Attempt} errorCode={ErrorCode}",
-                job.Id,
-                job.DocumentId,
-                job.AttemptCount,
-                error.Code);
-        }
-
-        return new JobFailureOutcome(Applied: true, willRetry, availableAt);
+        return _bookkeeping.FailAsync(job, error, _options, ct);
     }
 
-    public async Task ReleaseAsync(ProcessingJob job, CancellationToken ct)
+    public Task ReleaseAsync(ProcessingJob job, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        var now = timeProvider.GetUtcNow();
-        var strategy = dbContext.Database.CreateExecutionStrategy();
-
-        var released = await strategy.ExecuteAsync(async cancellationToken =>
-        {
-            await using var transaction = await dbContext.Database
-                .BeginTransactionAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            dbContext.ChangeTracker.Clear();
-
-            // The attempt is given back: a restart is not the document's fault, so it must not eat
-            // one of the three tries.
-            var affected = await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"""
-                 UPDATE processing_jobs
-                 SET status = 'PENDING', available_at = {now}, locked_at = NULL, locked_by = NULL,
-                     attempt_count = attempt_count - 1, pages_completed = 0
-                 WHERE id = {job.Id} AND status = 'RUNNING' AND attempt_count = {job.AttemptCount};
-                 """,
-                cancellationToken).ConfigureAwait(false);
-
-            if (affected == 0)
-            {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                return false;
-            }
-
-            var document = await dbContext.Documents
-                .FirstOrDefaultAsync(candidate => candidate.Id == job.DocumentId, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (document is not null)
-            {
-                document.MarkRequeued(now, "WORKER_STOPPED");
-                await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            return true;
-        }, ct).ConfigureAwait(false);
-
-        if (released)
-        {
-            logger.LogInformation("Processing job released back to the queue. jobId={JobId}", job.Id);
-        }
-    }
-
-    private async Task ReleaseStuckJobsAsync(DateTimeOffset now, CancellationToken ct)
-    {
-        var threshold = now.Subtract(_options.JobLockTimeout);
-
-        var released = await dbContext.Database.ExecuteSqlRawAsync(
-            ReleaseStuckSql,
-            [
-                new NpgsqlParameter("now", NpgsqlDbType.TimestampTz) { Value = now },
-                new NpgsqlParameter("threshold", NpgsqlDbType.TimestampTz) { Value = threshold }
-            ],
-            ct).ConfigureAwait(false);
-
-        if (released > 0)
-        {
-            logger.LogWarning(
-                "Released {Count} stuck processing job(s) back to pending: no heartbeat within {LockTimeout}.",
-                released,
-                _options.JobLockTimeout);
-        }
+        return _bookkeeping.ReleaseAsync(job, ct);
     }
 
     private async Task<Guid?> ExecuteScalarGuidAsync(

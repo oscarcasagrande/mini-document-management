@@ -12,6 +12,7 @@ using DocReader.Domain.Storage;
 using DocReader.Domain.StorageMigrations;
 using DocReader.Domain.Webhooks;
 using DocReader.Infrastructure.Persistence.Configurations;
+using DocReader.Infrastructure.Queue;
 using DocReader.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -66,6 +67,9 @@ public sealed class DocReaderDbContext(
     public DbSet<ProtocolSequence> ProtocolSequences => Set<ProtocolSequence>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    /// <summary>Transactional outbox for the RabbitMQ queue provider (ADR 0004). Stays empty in PostgreSQL mode.</summary>
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
