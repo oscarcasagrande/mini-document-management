@@ -145,8 +145,14 @@ services:
       # oneDNN needs the paddlepaddle build pinned in requirements.txt; set false with any other build.
       OCR_ENABLE_MKLDNN: ${OCR_ENABLE_MKLDNN:-true}
       OMP_NUM_THREADS: ${OCR_THREADS:-4}
+      # RF-009: off by default (ADR 0002 — 2.5-3.9x slower than PP-OCRv5, OOM measured at >=1.17 MP even
+      # with 6 GiB). On demand only, gated by OCR_STRUCTURE_MAX_MEGAPIXELS below.
+      OCR_USE_PP_STRUCTUREV3_FOR_TABLES: ${OCR_USE_PP_STRUCTUREV3_FOR_TABLES:-false}
+      OCR_STRUCTURE_MAX_MEGAPIXELS: ${OCR_STRUCTURE_MAX_MEGAPIXELS:-1.17}
+      OCR_STRUCTURE_TABLE_CONFIDENCE_THRESHOLD: ${OCR_STRUCTURE_TABLE_CONFIDENCE_THRESHOLD:-0.80}
     # Explicit memory ceiling: the measured peak is about 2.3 GB, and a runaway page must kill this
     # container (which restarts) instead of taking the machine with it. Swap is off so the limit is real.
+    # Raise this together with OCR_STRUCTURE_MAX_MEGAPIXELS if PP-StructureV3 is enabled for larger pages.
     mem_limit: ${OCR_MEMORY_LIMIT:-3g}
     memswap_limit: ${OCR_MEMORY_LIMIT:-3g}
     # No published port: the OCR service is reachable only from the internal network.

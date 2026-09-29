@@ -68,7 +68,14 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
                     (block.BoundingBox ?? []).Select(coordinate => (decimal)coordinate).ToArray()))
                 .ToArray();
 
-            pages.Add(new OcrPage(pageNumber, string.Join('\n', blocks.Select(block => block.Text)), blocks));
+            pages.Add(new OcrPage(
+                pageNumber,
+                string.Join('\n', blocks.Select(block => block.Text)),
+                blocks,
+                analysis.HasNativeTextLayer,
+                analysis.RotationDegrees,
+                analysis.Deskewed,
+                analysis.ProcessedWithStructure));
 
             if (progress is not null)
             {
@@ -245,6 +252,10 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
                 writer.WriteNumber("imageWidth", page.ImageWidth);
                 writer.WriteNumber("imageHeight", page.ImageHeight);
                 writer.WriteNumber("durationMs", page.DurationMs);
+                writer.WriteBoolean("hasNativeTextLayer", page.HasNativeTextLayer);
+                writer.WriteNumber("rotationDegrees", page.RotationDegrees);
+                writer.WriteBoolean("deskewed", page.Deskewed);
+                writer.WriteBoolean("processedWithStructure", page.ProcessedWithStructure);
                 WriteBlocks(writer, page.Blocks);
                 writer.WritePropertyName("raw");
                 if (page.Raw.ValueKind == JsonValueKind.Undefined)
@@ -305,7 +316,11 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
         string ModelVersion,
         int DurationMs,
         List<BlockDto> Blocks,
-        JsonElement Raw);
+        JsonElement Raw,
+        bool HasNativeTextLayer = false,
+        int RotationDegrees = 0,
+        bool Deskewed = false,
+        bool ProcessedWithStructure = false);
 
     private sealed record BlockDto(string Text, decimal? Confidence, List<double> BoundingBox);
 }

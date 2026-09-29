@@ -142,6 +142,7 @@ public sealed class DocumentProcessor(
         await EnsureLockAsync(job, pagesCompleted: 0, document.PageCount, ct).ConfigureAwait(false);
 
         var ocrResult = await ReadPagesAsync(job, document, correlationId, ct).ConfigureAwait(false);
+        await RecordPreprocessingEventsAsync(document.Id, ocrResult, ct).ConfigureAwait(false);
 
         await store.AdvanceStageAsync(
             document.Id,
@@ -248,6 +249,54 @@ public sealed class DocumentProcessor(
         }
     }
 
+    /// <summary>
+    /// Records the RF-009 preprocessing outcomes on the timeline, once per document rather than once per
+    /// page: a multi-page document that skipped OCR on some pages or straightened others still reads as
+    /// one coherent story instead of one event per page.
+    /// </summary>
+    private async Task RecordPreprocessingEventsAsync(Guid documentId, OcrResult ocrResult, CancellationToken ct)
+    {
+        if (ocrResult.Pages.Any(page => page.HasNativeTextLayer))
+        {
+            var pages = ocrResult.Pages.Where(page => page.HasNativeTextLayer).Select(page => page.PageNumber);
+            await store.RecordProgressAsync(
+                documentId,
+                DocumentEventTypes.TextExtractedFromPdfNativeLayer,
+                Details($"pages={string.Join(',', pages)}"),
+                ct).ConfigureAwait(false);
+        }
+
+        var rotated = ocrResult.Pages.FirstOrDefault(page => page.RotationDegrees != 0);
+        if (rotated is not null)
+        {
+            await store.RecordProgressAsync(
+                documentId,
+                DocumentEventTypes.DocumentRotated,
+                Details($"page={rotated.PageNumber}", $"degrees={rotated.RotationDegrees}"),
+                ct).ConfigureAwait(false);
+        }
+
+        if (ocrResult.Pages.Any(page => page.Deskewed))
+        {
+            var pages = ocrResult.Pages.Where(page => page.Deskewed).Select(page => page.PageNumber);
+            await store.RecordProgressAsync(
+                documentId,
+                DocumentEventTypes.DocumentDeskewed,
+                Details($"pages={string.Join(',', pages)}"),
+                ct).ConfigureAwait(false);
+        }
+
+        if (ocrResult.Pages.Any(page => page.ProcessedWithStructure))
+        {
+            var pages = ocrResult.Pages.Where(page => page.ProcessedWithStructure).Select(page => page.PageNumber);
+            await store.RecordProgressAsync(
+                documentId,
+                DocumentEventTypes.OcrReprocessedWithPpStructureV3,
+                Details($"pages={string.Join(',', pages)}"),
+                ct).ConfigureAwait(false);
+        }
+    }
+
     private DocumentExtraction BuildExtraction(
         ProcessingJob job,
         OcrResult ocrResult,
@@ -281,6 +330,8 @@ public sealed class DocumentProcessor(
             }
         }
 
+        var rotated = ocrResult.Pages.FirstOrDefault(page => page.RotationDegrees != 0);
+
         return DocumentExtraction.Create(
             job.DocumentId,
             job.Id,
@@ -295,7 +346,11 @@ public sealed class DocumentProcessor(
             structuredJson,
             structured?.OverallConfidence,
             timeProvider.GetUtcNow(),
-            fields);
+            fields,
+            hasNativeTextLayer: ocrResult.Pages.Any(page => page.HasNativeTextLayer),
+            rotationDegrees: rotated?.RotationDegrees,
+            deskewed: ocrResult.Pages.Any(page => page.Deskewed),
+            ocrProcessedWithStructure: ocrResult.Pages.Any(page => page.ProcessedWithStructure));
     }
 
     private static string ClassificationDetails(ClassificationResult classification, string? expectedType)

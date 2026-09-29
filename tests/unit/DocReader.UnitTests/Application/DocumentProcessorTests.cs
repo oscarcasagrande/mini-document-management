@@ -390,6 +390,92 @@ public sealed class DocumentProcessorTests
         Assert.Equal(32, options.CorrelationId!.Length);
     }
 
+    // ---- RF-009: camada de texto nativa, rotação/deskew e PP-StructureV3 ------------------------------------
+
+    private static ScriptedOcrProvider ReadingOnePage(OcrPage page) =>
+        new()
+        {
+            Behaviour = (_, _, _, _) => Task.FromResult(new OcrResult("scripted", "scripted-1.0", [page], "{\"pages\":[]}"))
+        };
+
+    private static OcrBlock CpfBlock(string text) => new(text, 0.99m, [1, 2, 30, 2, 30, 12, 1, 12]);
+
+    [Fact]
+    public async Task Pagina_com_camada_de_texto_nativa_registra_o_evento_e_a_extracao()
+    {
+        var blocks = CpfCardLines.Select(CpfBlock).ToArray();
+        var page = new OcrPage(1, string.Join('\n', CpfCardLines), blocks, HasNativeTextLayer: true);
+        var rig = BuildRig(ReadingOnePage(page));
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        Assert.Contains(rig.Store.Progress, entry => entry.EventType == DocumentEventTypes.TextExtractedFromPdfNativeLayer);
+        Assert.True(Assert.Single(rig.Store.Completed).Extraction.HasNativeTextLayer);
+    }
+
+    [Fact]
+    public async Task Pagina_rotacionada_registra_o_evento_e_o_grau_na_extracao()
+    {
+        var blocks = CpfCardLines.Select(CpfBlock).ToArray();
+        var page = new OcrPage(1, string.Join('\n', CpfCardLines), blocks, RotationDegrees: 90);
+        var rig = BuildRig(ReadingOnePage(page));
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        var rotated = Assert.Single(rig.Store.Progress, entry => entry.EventType == DocumentEventTypes.DocumentRotated);
+        Assert.Contains("degrees=90", rotated.Details);
+        Assert.Equal(90, Assert.Single(rig.Store.Completed).Extraction.RotationDegrees);
+    }
+
+    [Fact]
+    public async Task Pagina_deskewed_registra_o_evento_e_a_extracao()
+    {
+        var blocks = CpfCardLines.Select(CpfBlock).ToArray();
+        var page = new OcrPage(1, string.Join('\n', CpfCardLines), blocks, Deskewed: true);
+        var rig = BuildRig(ReadingOnePage(page));
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        Assert.Contains(rig.Store.Progress, entry => entry.EventType == DocumentEventTypes.DocumentDeskewed);
+        Assert.True(Assert.Single(rig.Store.Completed).Extraction.Deskewed);
+    }
+
+    [Fact]
+    public async Task Pagina_lida_com_pp_structurev3_registra_o_evento_e_a_extracao()
+    {
+        var blocks = CpfCardLines.Select(CpfBlock).ToArray();
+        var page = new OcrPage(1, string.Join('\n', CpfCardLines), blocks, ProcessedWithStructure: true);
+        var rig = BuildRig(ReadingOnePage(page));
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        Assert.Contains(rig.Store.Progress, entry => entry.EventType == DocumentEventTypes.OcrReprocessedWithPpStructureV3);
+        Assert.True(Assert.Single(rig.Store.Completed).Extraction.OcrProcessedWithStructure);
+    }
+
+    [Fact]
+    public async Task Pagina_comum_nao_registra_nenhum_dos_novos_eventos_de_pre_processamento()
+    {
+        var rig = BuildRig(ScriptedOcrProvider.ReadingPages(CpfCardLines));
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        var newEventTypes = new[]
+        {
+            DocumentEventTypes.TextExtractedFromPdfNativeLayer,
+            DocumentEventTypes.DocumentRotated,
+            DocumentEventTypes.DocumentDeskewed,
+            DocumentEventTypes.OcrReprocessedWithPpStructureV3
+        };
+        Assert.DoesNotContain(rig.Store.Progress, entry => newEventTypes.Contains(entry.EventType));
+
+        var extraction = Assert.Single(rig.Store.Completed).Extraction;
+        Assert.False(extraction.HasNativeTextLayer);
+        Assert.Null(extraction.RotationDegrees);
+        Assert.False(extraction.Deskewed);
+        Assert.False(extraction.OcrProcessedWithStructure);
+    }
+
     /// <summary>Storage that serves a few bytes for any key, or reports the original as missing.</summary>
     private sealed class StubStorage(bool exists) : IFileStorage
     {

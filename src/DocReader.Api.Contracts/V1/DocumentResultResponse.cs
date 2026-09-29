@@ -44,6 +44,9 @@ public sealed record DocumentResultClassificationResponse(
 /// <param name="ExtractorVersion">Version of the extraction rules; null when the type has no extractor.</param>
 /// <param name="SchemaVersion">Version of the schema of the fields; null when the type has no extractor.</param>
 /// <param name="OverallConfidence">Aggregated confidence between 0 and 1.</param>
+/// <param name="HasNativeTextLayer">At least one page's text came from a PDF's own text layer, not OCR (RF-009).</param>
+/// <param name="Preprocessing">Rotation and deskew corrections applied before OCR read the pages (RF-009).</param>
+/// <param name="OcrProcessedWithStructure">At least one page was read with PP-StructureV3 instead of PP-OCRv5.</param>
 /// <param name="ExtractedAt">Instant the result was persisted, in UTC.</param>
 /// <param name="Fields">Fields by name; empty when the document type has no extractor.</param>
 public sealed record DocumentResultExtractionResponse(
@@ -52,8 +55,15 @@ public sealed record DocumentResultExtractionResponse(
     string? ExtractorVersion,
     int? SchemaVersion,
     decimal? OverallConfidence,
+    bool HasNativeTextLayer,
+    PreprocessingResponse Preprocessing,
+    bool OcrProcessedWithStructure,
     DateTimeOffset ExtractedAt,
     IReadOnlyDictionary<string, ExtractedFieldResponse> Fields);
+
+/// <param name="RotationDegrees">Cardinal rotation corrected before OCR read at least one page; null when none was needed.</param>
+/// <param name="Deskewed">Whether a small tilt was also straightened on at least one page, on top of any cardinal rotation.</param>
+public sealed record PreprocessingResponse(int? RotationDegrees, bool Deskewed);
 
 /// <param name="Raw">Value exactly as read from the document.</param>
 /// <param name="Normalized">Normalized value; null when the field was not found or did not validate.</param>

@@ -474,7 +474,7 @@ public sealed class RetentionApplicationTests
     // ---- o que o expurgo apaga e o que fica ---------------------------------------------------------------------
 
     private static readonly ExtractionSummary Summary = new(
-        Guid.NewGuid(), "paddleocr", "PP-OCRv5 test", "rules-2.0.0", "br-cnh-1.1.0", 1, 0.9m, Now);
+        Guid.NewGuid(), "paddleocr", "PP-OCRv5 test", "rules-2.0.0", "br-cnh-1.1.0", 1, 0.9m, false, null, false, false, Now);
 
     private DocumentQueryService Queries() =>
         new(_documents, _storage, new RulesDocumentClassifier(), [], NullLogger<DocumentQueryService>.Instance);

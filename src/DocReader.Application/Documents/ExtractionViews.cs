@@ -16,6 +16,10 @@ namespace DocReader.Application.Documents;
 /// <param name="ExtractorVersion">Extractor that ran, when any.</param>
 /// <param name="SchemaVersion">Schema of the structured result, when there is one.</param>
 /// <param name="OverallConfidence">Aggregated field confidence between 0 and 1.</param>
+/// <param name="HasNativeTextLayer">At least one page's text came from a PDF's own text layer, not OCR (RF-009).</param>
+/// <param name="RotationDegrees">Cardinal rotation corrected on at least one page; null when none needed one.</param>
+/// <param name="Deskewed">At least one page also had a small tilt straightened.</param>
+/// <param name="OcrProcessedWithStructure">At least one page was read with PP-StructureV3 instead of PP-OCRv5.</param>
 /// <param name="CreatedAt">Instant the extraction was persisted, in UTC.</param>
 public sealed record ExtractionSummary(
     Guid ExtractionId,
@@ -25,6 +29,10 @@ public sealed record ExtractionSummary(
     string? ExtractorVersion,
     int? SchemaVersion,
     decimal? OverallConfidence,
+    bool HasNativeTextLayer,
+    int? RotationDegrees,
+    bool Deskewed,
+    bool OcrProcessedWithStructure,
     DateTimeOffset CreatedAt);
 
 /// <param name="FieldPath">Path in the schema of the document type, such as <c>cpf</c>.</param>

@@ -10,6 +10,7 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="Status">Current status of the document. The text belongs to the latest extraction, even while a reprocessing runs.</param>
 /// <param name="OcrProvider">Provider that produced the text.</param>
 /// <param name="OcrModelVersion">Pipeline and library versions.</param>
+/// <param name="HasNativeTextLayer">At least one page's text came from a PDF's own text layer, not OCR (RF-009). The text itself does not say which.</param>
 /// <param name="ExtractedAt">Instant the text was persisted, in UTC.</param>
 /// <param name="Pages">One entry per page.</param>
 public sealed record DocumentTextResponse(
@@ -18,6 +19,7 @@ public sealed record DocumentTextResponse(
     DocumentStatus Status,
     string OcrProvider,
     string OcrModelVersion,
+    bool HasNativeTextLayer,
     DateTimeOffset ExtractedAt,
     IReadOnlyList<DocumentTextPageResponse> Pages);
 

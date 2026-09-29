@@ -124,6 +124,7 @@ public static class DocumentResponseMapper
             text.Document.Status,
             text.Text.Summary.OcrProvider,
             text.Text.Summary.OcrModelVersion,
+            text.Text.Summary.HasNativeTextLayer,
             text.Text.Summary.CreatedAt,
             pages.Select(page => new DocumentTextPageResponse(page.PageNumber, page.Text)).ToArray());
     }
@@ -266,6 +267,9 @@ public static class DocumentResponseMapper
                 summary.ExtractorVersion,
                 summary.SchemaVersion,
                 summary.OverallConfidence,
+                summary.HasNativeTextLayer,
+                new PreprocessingResponse(summary.RotationDegrees, summary.Deskewed),
+                summary.OcrProcessedWithStructure,
                 summary.CreatedAt,
                 fields));
     }
@@ -285,6 +289,9 @@ public static class DocumentResponseMapper
                 summary.OcrModelVersion,
                 summary.SchemaVersion,
                 summary.OverallConfidence,
+                summary.HasNativeTextLayer,
+                new PreprocessingResponse(summary.RotationDegrees, summary.Deskewed),
+                summary.OcrProcessedWithStructure,
                 summary.CreatedAt);
 
     private static DocumentProcessingResponse? ToProcessing(ProcessingJob? job, int maxAttempts) =>

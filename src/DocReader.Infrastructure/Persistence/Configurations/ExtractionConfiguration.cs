@@ -72,6 +72,21 @@ public sealed class ExtractionConfiguration : IEntityTypeConfiguration<DocumentE
             .HasColumnName("overall_confidence")
             .HasPrecision(5, 4);
 
+        builder.Property(extraction => extraction.HasNativeTextLayer)
+            .HasColumnName("has_native_text_layer")
+            .IsRequired();
+
+        builder.Property(extraction => extraction.RotationDegrees)
+            .HasColumnName("rotation_degrees");
+
+        builder.Property(extraction => extraction.Deskewed)
+            .HasColumnName("deskewed")
+            .IsRequired();
+
+        builder.Property(extraction => extraction.OcrProcessedWithStructure)
+            .HasColumnName("ocr_processed_with_structure")
+            .IsRequired();
+
         builder.Property(extraction => extraction.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired();

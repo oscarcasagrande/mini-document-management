@@ -31,4 +31,16 @@ public static class DocumentEventTypes
 
     /// <summary>Reclassification and extraction were requested against the current document-type rules.</summary>
     public const string ReclassificationTriggered = "RECLASSIFICATION_TRIGGERED";
+
+    /// <summary>A PDF page's text came from its own text layer (pdfplumber), so OCR was skipped for it (RF-009).</summary>
+    public const string TextExtractedFromPdfNativeLayer = "TEXT_EXTRACTED_FROM_PDF_NATIVE_LAYER";
+
+    /// <summary>A page was rotated 90, 180 or 270 degrees before OCR read it.</summary>
+    public const string DocumentRotated = "DOCUMENT_ROTATED";
+
+    /// <summary>A page had a small tilt straightened before OCR read it.</summary>
+    public const string DocumentDeskewed = "DOCUMENT_DESKEWED";
+
+    /// <summary>A page was reread with PP-StructureV3 instead of PP-OCRv5 (a suspected table, opt-in).</summary>
+    public const string OcrReprocessedWithPpStructureV3 = "OCR_REPROCESSED_WITH_PP_STRUCTUREV3";
 }

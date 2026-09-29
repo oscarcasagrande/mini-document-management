@@ -20,7 +20,7 @@ public sealed class ResultQueriesAndReprocessTests
     private static readonly DateTimeOffset Now = new(2026, 9, 24, 12, 0, 0, TimeSpan.Zero);
 
     private static readonly ExtractionSummary Summary = new(
-        Guid.NewGuid(), "paddleocr", "PP-OCRv5 test", "rules-1.0.0", "br-cpf-card-1.0.0", 1, 0.99m, Now);
+        Guid.NewGuid(), "paddleocr", "PP-OCRv5 test", "rules-1.0.0", "br-cpf-card-1.0.0", 1, 0.99m, false, null, false, false, Now);
 
     private static (InMemoryDocumentStore Store, Document Document) StoreWithDocument(
         DocumentStatus status = DocumentStatus.Queued,

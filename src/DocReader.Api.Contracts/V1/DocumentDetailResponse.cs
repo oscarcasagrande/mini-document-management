@@ -62,12 +62,18 @@ public sealed record DocumentClassificationResponse(string DetectedType, decimal
 /// <param name="OcrModelVersion">Pipeline and library versions, for reproducibility.</param>
 /// <param name="SchemaVersion">Version of the schema used for the fields; null when the type has no extractor.</param>
 /// <param name="OverallConfidence">Aggregated confidence between 0 and 1.</param>
+/// <param name="HasNativeTextLayer">At least one page's text came from a PDF's own text layer, not OCR (RF-009).</param>
+/// <param name="Preprocessing">Rotation and deskew corrections applied before OCR read the pages (RF-009).</param>
+/// <param name="OcrProcessedWithStructure">At least one page was read with PP-StructureV3 instead of PP-OCRv5.</param>
 /// <param name="ExtractedAt">Instant the result was persisted, in UTC.</param>
 public sealed record DocumentExtractionResponse(
     string OcrProvider,
     string OcrModelVersion,
     int? SchemaVersion,
     decimal? OverallConfidence,
+    bool HasNativeTextLayer,
+    PreprocessingResponse Preprocessing,
+    bool OcrProcessedWithStructure,
     DateTimeOffset ExtractedAt);
 
 /// <param name="Code">Stable machine readable code.</param>

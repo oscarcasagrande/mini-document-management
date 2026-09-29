@@ -16,7 +16,18 @@ public sealed record OcrResult(
 /// <param name="PageNumber">One based page number.</param>
 /// <param name="Text">Concatenated text of the page.</param>
 /// <param name="Blocks">Blocks with coordinates, when the provider supplies them.</param>
-public sealed record OcrPage(int PageNumber, string Text, IReadOnlyList<OcrBlock> Blocks);
+/// <param name="HasNativeTextLayer">The page's text came from a PDF's own text layer (pdfplumber), not OCR (RF-009).</param>
+/// <param name="RotationDegrees">Cardinal rotation the service corrected before reading the page: 0, 90, 180 or 270.</param>
+/// <param name="Deskewed">Whether a small tilt was also straightened, on top of any cardinal rotation.</param>
+/// <param name="ProcessedWithStructure">Whether PP-StructureV3 replaced PP-OCRv5's reading of this page (a suspected table, low confidence, opt-in).</param>
+public sealed record OcrPage(
+    int PageNumber,
+    string Text,
+    IReadOnlyList<OcrBlock> Blocks,
+    bool HasNativeTextLayer = false,
+    int RotationDegrees = 0,
+    bool Deskewed = false,
+    bool ProcessedWithStructure = false);
 
 /// <param name="Text">Block text.</param>
 /// <param name="Confidence">Provider confidence between 0 and 1.</param>

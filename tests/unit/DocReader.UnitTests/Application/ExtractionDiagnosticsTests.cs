@@ -21,7 +21,7 @@ public sealed class ExtractionDiagnosticsTests
     private static readonly DateTimeOffset Now = Stage3Support.Now;
 
     private static readonly ExtractionSummary Summary = new(
-        Guid.NewGuid(), "paddleocr", "PP-OCRv5 test", "rules-1.0.0", "br-cnh-1.0.0", 1, 0.9m, Now);
+        Guid.NewGuid(), "paddleocr", "PP-OCRv5 test", "rules-1.0.0", "br-cnh-1.0.0", 1, 0.9m, false, null, false, false, Now);
 
     private static DocumentQueryService QueryService(InMemoryDocumentStore store) =>
         new(

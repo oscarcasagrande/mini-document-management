@@ -43,6 +43,18 @@ public sealed class DocumentExtraction
 
     public decimal? OverallConfidence { get; private init; }
 
+    /// <summary>At least one page's text came from a PDF's own text layer (pdfplumber), not OCR (RF-009).</summary>
+    public bool HasNativeTextLayer { get; private init; }
+
+    /// <summary>Cardinal rotation corrected on at least one page: 0, 90, 180 or 270; null when no page needed one.</summary>
+    public int? RotationDegrees { get; private init; }
+
+    /// <summary>At least one page also had a small tilt straightened, on top of any cardinal rotation.</summary>
+    public bool Deskewed { get; private init; }
+
+    /// <summary>At least one page was read with PP-StructureV3 instead of PP-OCRv5 (a suspected table, opt-in).</summary>
+    public bool OcrProcessedWithStructure { get; private init; }
+
     public DateTimeOffset CreatedAt { get; private init; }
 
     public IReadOnlyCollection<ExtractedField> Fields => _fields;
@@ -61,7 +73,11 @@ public sealed class DocumentExtraction
         string? structuredResultJson,
         decimal? overallConfidence,
         DateTimeOffset createdAt,
-        IEnumerable<ExtractedField> fields)
+        IEnumerable<ExtractedField> fields,
+        bool hasNativeTextLayer = false,
+        int? rotationDegrees = null,
+        bool deskewed = false,
+        bool ocrProcessedWithStructure = false)
     {
         var extraction = new DocumentExtraction
         {
@@ -78,7 +94,11 @@ public sealed class DocumentExtraction
             RawOcrResultJson = rawOcrResultJson,
             StructuredResultJson = structuredResultJson,
             OverallConfidence = overallConfidence,
-            CreatedAt = createdAt
+            CreatedAt = createdAt,
+            HasNativeTextLayer = hasNativeTextLayer,
+            RotationDegrees = rotationDegrees,
+            Deskewed = deskewed,
+            OcrProcessedWithStructure = ocrProcessedWithStructure
         };
 
         foreach (var field in fields)

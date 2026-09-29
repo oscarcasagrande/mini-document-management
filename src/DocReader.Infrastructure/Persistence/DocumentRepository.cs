@@ -403,6 +403,10 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
                 extraction.ExtractorVersion,
                 extraction.SchemaVersion,
                 extraction.OverallConfidence,
+                extraction.HasNativeTextLayer,
+                extraction.RotationDegrees,
+                extraction.Deskewed,
+                extraction.OcrProcessedWithStructure,
                 extraction.CreatedAt));
 
     private IQueryable<Document> BaseQuery(bool includeEvents)
