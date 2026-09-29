@@ -1,8 +1,10 @@
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.Catalog;
 using DocReader.Application.Options;
+using DocReader.Domain.Audit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +30,7 @@ public sealed class ProductServicesController(
     /// <response code="409">The code is already taken.</response>
     /// <response code="422">The storage repository does not exist or is inactive.</response>
     [HttpPost]
+    [Audited(AuditActionTypes.ProductServiceCreated, "ProductService")]
     [ProducesResponseType(typeof(ProductServiceResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -82,6 +85,7 @@ public sealed class ProductServicesController(
     /// <response code="404">There is none with this id.</response>
     /// <response code="422">The storage repository does not exist or is inactive.</response>
     [HttpPut("{id:guid}")]
+    [Audited(AuditActionTypes.ProductServiceUpdated, "ProductService")]
     [ProducesResponseType(typeof(ProductServiceResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
@@ -100,6 +104,7 @@ public sealed class ProductServicesController(
     /// <response code="404">There is none with this id.</response>
     /// <response code="409">Something still refers to it.</response>
     [HttpDelete("{id:guid}")]
+    [Audited(AuditActionTypes.ProductServiceDeleted, "ProductService")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]

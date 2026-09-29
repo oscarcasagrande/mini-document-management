@@ -1,7 +1,9 @@
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.StorageMigrations;
+using DocReader.Domain.Audit;
 using DocReader.Domain.StorageMigrations;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,6 +34,7 @@ public sealed class AdminStorageMigrationController(StorageMigrationService serv
     /// <response code="400">The body is invalid, the source and the target are the same, or the date range is inverted.</response>
     /// <response code="422">The source or the target does not exist, or the target is inactive.</response>
     [HttpPost]
+    [Audited(AuditActionTypes.StorageMigrationStarted, "StorageMigrationJob")]
     [ProducesResponseType(typeof(StorageMigrationJobResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity, ProblemTypes.ContentType)]
@@ -75,6 +78,7 @@ public sealed class AdminStorageMigrationController(StorageMigrationService serv
     /// <response code="404">There is none with this id.</response>
     /// <response code="409">The job already ended.</response>
     [HttpDelete("{jobId:guid}/rollback")]
+    [Audited(AuditActionTypes.StorageMigrationRolledBack, "StorageMigrationJob")]
     [ProducesResponseType(typeof(StorageMigrationJobResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]

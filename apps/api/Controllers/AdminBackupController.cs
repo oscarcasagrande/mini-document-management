@@ -1,7 +1,9 @@
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.Backup;
+using DocReader.Domain.Audit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -33,6 +35,7 @@ public sealed class AdminBackupController(BackupService service) : ControllerBas
     /// <response code="503">A restore is running and the system is read-only.</response>
     [HttpPost]
     [Consumes("application/json")]
+    [Audited(AuditActionTypes.BackupStarted, "BackupJob")]
     [ProducesResponseType(typeof(BackupJobResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable, ProblemTypes.ContentType)]

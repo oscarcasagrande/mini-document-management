@@ -1,8 +1,10 @@
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.Options;
 using DocReader.Application.Retention;
+using DocReader.Domain.Audit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -34,6 +36,7 @@ public sealed class RetentionPoliciesController(
     /// <response code="409">A policy for this scope already exists (there is exactly one global policy).</response>
     /// <response code="422">The product or service does not exist.</response>
     [HttpPost]
+    [Audited(AuditActionTypes.RetentionPolicyCreated, "RetentionPolicy")]
     [ProducesResponseType(typeof(RetentionPolicyResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -87,6 +90,7 @@ public sealed class RetentionPoliciesController(
     /// <response code="400">The days are out of range.</response>
     /// <response code="404">There is none with this id.</response>
     [HttpPut("{id:guid}")]
+    [Audited(AuditActionTypes.RetentionPolicyUpdated, "RetentionPolicy")]
     [ProducesResponseType(typeof(RetentionPolicyResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
@@ -108,6 +112,7 @@ public sealed class RetentionPoliciesController(
     /// <response code="202">Accepted. Poll the request, once exposed, or check the documents' timeline.</response>
     /// <response code="404">There is none with this id.</response>
     [HttpPut("{id:guid}/reapply-to-existing")]
+    [Audited(AuditActionTypes.RetentionPolicyReapplyTriggered, "RetentionPolicy")]
     [ProducesResponseType(typeof(RetentionReapplyResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     public async Task<ActionResult<RetentionReapplyResponse>> ReapplyToExistingAsync(Guid id, CancellationToken ct)
@@ -125,6 +130,7 @@ public sealed class RetentionPoliciesController(
     /// <response code="404">There is none with this id.</response>
     /// <response code="409">It is the global policy.</response>
     [HttpDelete("{id:guid}")]
+    [Audited(AuditActionTypes.RetentionPolicyDeleted, "RetentionPolicy")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]

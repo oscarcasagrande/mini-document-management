@@ -28,6 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <Link href="/config/storage-repositories">Repositórios</Link>
               <Link href="/config/webhook-subscriptions">Webhooks</Link>
               <Link href="/config/document-types">Tipos documentais</Link>
+              <Link href="/config/audit-logs">Auditoria</Link>
               <a href={swaggerUrl} target="_blank" rel="noreferrer">
                 Swagger
               </a>

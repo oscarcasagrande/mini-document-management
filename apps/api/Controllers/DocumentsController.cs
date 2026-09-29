@@ -1,3 +1,4 @@
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
@@ -5,6 +6,7 @@ using DocReader.Application.Documents;
 using DocReader.Application.Errors;
 using DocReader.Application.Options;
 using DocReader.Domain;
+using DocReader.Domain.Audit;
 using DocReader.Domain.Documents;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -57,6 +59,7 @@ public sealed class DocumentsController(
     /// <response code="422">The file is an accepted format but unreadable or above the page limit, or <c>productServiceCode</c> is unknown or inactive.</response>
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [Audited(AuditActionTypes.DocumentUploaded, "Document")]
     [ProducesResponseType(typeof(UploadAcceptedResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -414,6 +417,7 @@ public sealed class DocumentsController(
     /// <response code="404">No document with this id.</response>
     /// <response code="409">The document is already queued or being processed.</response>
     [HttpPost("{id:guid}/reprocess")]
+    [Audited(AuditActionTypes.DocumentReprocessed, "Document")]
     [ProducesResponseType(typeof(UploadAcceptedResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -453,6 +457,7 @@ public sealed class DocumentsController(
     /// <response code="404">No document with this id.</response>
     /// <response code="409">The document is already queued or being processed.</response>
     [HttpPut("{id:guid}/reclassify-and-extract")]
+    [Audited(AuditActionTypes.DocumentReclassificationTriggered, "Document")]
     [ProducesResponseType(typeof(UploadAcceptedResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -485,6 +490,7 @@ public sealed class DocumentsController(
     /// <response code="204">Document and file removed.</response>
     /// <response code="404">No document with this id.</response>
     [HttpDelete("{id:guid}")]
+    [Audited(AuditActionTypes.DocumentDeleted, "Document")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken ct)
