@@ -43,4 +43,7 @@ public static class DocumentEventTypes
 
     /// <summary>A page was reread with PP-StructureV3 instead of PP-OCRv5 (a suspected table, opt-in).</summary>
     public const string OcrReprocessedWithPpStructureV3 = "OCR_REPROCESSED_WITH_PP_STRUCTUREV3";
+
+    /// <summary>The document's file was copied to another storage repository and StorageRepositoryId now points at it.</summary>
+    public const string StorageMigrated = "STORAGE_MIGRATED";
 }
