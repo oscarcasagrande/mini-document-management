@@ -153,6 +153,29 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
             };
         }
 
+        if (type == typeof(StorageMigrationJobResponse))
+        {
+            return new JsonObject
+            {
+                ["id"] = "0199c1f0-6666-7a10-9c44-2f1d8e6b4a21",
+                ["sourceRepositoryId"] = "00000000-0000-7000-8000-0000000000d1",
+                ["targetRepositoryId"] = "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+                ["documentFilter"] = new JsonObject
+                {
+                    ["documentType"] = "BR_CNH",
+                    ["productServiceId"] = null,
+                    ["uploadedFrom"] = "2026-01-01T00:00:00Z",
+                    ["uploadedTo"] = null
+                },
+                ["status"] = "PENDING",
+                ["requestedAt"] = SampleInstant,
+                ["startedAt"] = null,
+                ["completedAt"] = null,
+                ["documentsMigrated"] = 0,
+                ["documentsFailed"] = 0
+            };
+        }
+
         if (type == typeof(RetentionPolicyResponse))
         {
             return BuildRetentionPolicy();
@@ -357,6 +380,7 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
                 ["details"] = null,
                 ["occurredAt"] = SampleInstant
             }),
+        ["migrationHistory"] = new JsonArray(),
         ["links"] = BuildLinks()
     };
 

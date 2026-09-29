@@ -1,6 +1,7 @@
 using DocReader.Domain.Catalog;
 using DocReader.Domain.Retention;
 using DocReader.Domain.Storage;
+using DocReader.Domain.StorageMigrations;
 
 namespace DocReader.Domain.Documents;
 
@@ -24,10 +25,13 @@ public sealed class Document
     /// <summary>Name supplied by the client. Metadata only: it never reaches the storage key.</summary>
     public string OriginalFileName { get; private init; } = string.Empty;
 
-    public string StorageKey { get; private init; } = string.Empty;
+    public string StorageKey { get; private set; } = string.Empty;
 
-    /// <summary>The repository <see cref="StorageKey"/> lives in. Fixed at upload: changing the default later never moves a file.</summary>
-    public Guid StorageRepositoryId { get; private init; }
+    /// <summary>
+    /// The repository <see cref="StorageKey"/> lives in. Chosen at upload: changing the default later never moves a file.
+    /// Only a storage migration (<see cref="MigrateStorageRepository"/>) changes it.
+    /// </summary>
+    public Guid StorageRepositoryId { get; private set; }
 
     /// <summary>MIME type detected from the file signature, not the declared one.</summary>
     public string MimeType { get; private init; } = string.Empty;
@@ -223,6 +227,34 @@ public sealed class Document
     /// </summary>
     public void RecordProgress(string eventType, DateTimeOffset occurredAt, string? details = null) =>
         _events.Add(DocumentEvent.Create(Id, eventType, Status, occurredAt, details));
+
+    /// <summary>
+    /// Points the document at a copy of its original in another repository, and records the move on the timeline
+    /// (<see cref="DocumentEventTypes.StorageMigrated"/>). The copy must already exist; the old one is left alone. The
+    /// status does not change.
+    /// </summary>
+    public void MigrateStorageRepository(
+        Guid targetRepositoryId,
+        string targetStorageKey,
+        DateTimeOffset occurredAt,
+        Guid? migrationJobId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetStorageKey);
+
+        if (targetRepositoryId == StorageRepositoryId)
+        {
+            throw new InvalidOperationException("The document is already stored in the target repository.");
+        }
+
+        var fromRepositoryId = StorageRepositoryId;
+
+        StorageRepositoryId = targetRepositoryId;
+        StorageKey = targetStorageKey;
+        RecordProgress(
+            DocumentEventTypes.StorageMigrated,
+            occurredAt,
+            StorageMigrationEventDetails.Format(fromRepositoryId, targetRepositoryId, migrationJobId));
+    }
 
     public void RecordClassification(
         string detectedType,

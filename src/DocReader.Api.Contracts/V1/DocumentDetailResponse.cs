@@ -17,6 +17,7 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="LastError">Last processing error, when any.</param>
 /// <param name="Processing">Progress of the asynchronous work, null when no job exists.</param>
 /// <param name="Timeline">Ordered processing events.</param>
+/// <param name="MigrationHistory">Every move of the original between storage repositories, oldest first; empty when it never moved. Read from the STORAGE_MIGRATED events of the timeline.</param>
 /// <param name="Links">Related endpoints.</param>
 public sealed record DocumentDetailResponse(
     Guid Id,
@@ -30,6 +31,7 @@ public sealed record DocumentDetailResponse(
     DocumentErrorResponse? LastError,
     DocumentProcessingResponse? Processing,
     IReadOnlyList<DocumentTimelineEntryResponse> Timeline,
+    IReadOnlyList<StorageMigrationHistoryEntryResponse> MigrationHistory,
     DocumentLinks Links);
 
 /// <param name="FileName">Original file name as sent by the client.</param>

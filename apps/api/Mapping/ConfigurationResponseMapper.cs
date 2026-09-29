@@ -5,6 +5,7 @@ using DocReader.Domain.Catalog;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Retention;
 using DocReader.Domain.Storage;
+using DocReader.Domain.StorageMigrations;
 using DocReader.Domain.Webhooks;
 using DocReader.Application.Webhooks;
 
@@ -92,6 +93,24 @@ public static class ConfigurationResponseMapper
         request.StartedAt,
         request.CompletedAt,
         request.DocumentsUpdated);
+
+    public static StorageMigrationJobResponse ToResponse(StorageMigrationJob job) => new(
+        job.Id,
+        job.SourceRepositoryId,
+        job.TargetRepositoryId,
+        job.Filter.IsEmpty
+            ? null
+            : new StorageMigrationDocumentFilterResponse(
+                job.FilterDocumentType,
+                job.FilterProductServiceId,
+                job.FilterUploadedFrom,
+                job.FilterUploadedTo),
+        job.Status,
+        job.RequestedAt,
+        job.StartedAt,
+        job.CompletedAt,
+        job.DocumentsMigrated,
+        job.DocumentsFailed);
 
     /// <summary>The purge date of a document and the policy behind it; null when the document never had one.</summary>
     public static DocumentRetentionResponse? ToRetention(Document document) =>

@@ -16,6 +16,19 @@ public static class FileSignatureInspector
     public const string JpegMimeType = "image/jpeg";
     public const string TiffMimeType = "image/tiff";
 
+    /// <summary>
+    /// The storage extension (with the dot) the inspector assigns to a detected MIME type, or an empty string for a
+    /// type outside the allowlist. Lets a stored original be written again, elsewhere, under the key it was first given.
+    /// </summary>
+    public static string ExtensionForMimeType(string mimeType) => mimeType switch
+    {
+        PdfMimeType => ".pdf",
+        PngMimeType => ".png",
+        JpegMimeType => ".jpg",
+        TiffMimeType => ".tif",
+        _ => string.Empty
+    };
+
     private static readonly byte[] PdfMagic = Encoding.ASCII.GetBytes("%PDF-");
     private static readonly byte[] PngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
     private static readonly byte[] JpegMagic = [0xFF, 0xD8, 0xFF];

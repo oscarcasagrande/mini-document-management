@@ -32,6 +32,7 @@ builder.Services.AddHostedService<PurgeExpiredDocumentsJob>();
 builder.Services.AddHostedService<WebhookDispatcher>();
 builder.Services.AddHostedService<RetentionReapplyWorker>();
 builder.Services.AddHostedService<QueueDepthReporter>();
+builder.Services.AddHostedService<StorageMigrationWorker>();
 
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<DocReaderDbContext>("postgres", tags: ["ready"]);

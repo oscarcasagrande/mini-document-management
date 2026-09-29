@@ -5,6 +5,7 @@ using DocReader.Domain.Idempotency;
 using DocReader.Domain.Processing;
 using DocReader.Domain.Retention;
 using DocReader.Domain.Storage;
+using DocReader.Domain.StorageMigrations;
 using DocReader.Domain.Webhooks;
 using DocReader.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,8 @@ public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> opti
     public DbSet<RetentionReapplyRequest> RetentionReapplyRequests => Set<RetentionReapplyRequest>();
 
     public DbSet<StorageRepository> StorageRepositories => Set<StorageRepository>();
+
+    public DbSet<StorageMigrationJob> StorageMigrationJobs => Set<StorageMigrationJob>();
 
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
 

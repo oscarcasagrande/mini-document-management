@@ -5,6 +5,7 @@ using DocReader.Application.Documents;
 using DocReader.Application.Extraction;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Processing;
+using DocReader.Domain.StorageMigrations;
 
 namespace DocReader.Api.Mapping;
 
@@ -111,7 +112,29 @@ public static class DocumentResponseMapper
                 documentEvent.Details,
                 documentEvent.OccurredAt))
             .ToArray(),
+        ToMigrationHistory(document),
         LinksFor(document.Id));
+    }
+
+    /// <summary>
+    /// The storage moves of a document, projected from its STORAGE_MIGRATED timeline events: the timeline is the one
+    /// record of them, so nothing else has to be kept in step with it.
+    /// </summary>
+    public static IReadOnlyList<StorageMigrationHistoryEntryResponse> ToMigrationHistory(Document document)
+    {
+        var history = new List<StorageMigrationHistoryEntryResponse>();
+
+        foreach (var documentEvent in document.Events
+            .Where(documentEvent => documentEvent.EventType == DocumentEventTypes.StorageMigrated)
+            .OrderBy(documentEvent => documentEvent.OccurredAt))
+        {
+            if (StorageMigrationEventDetails.TryParse(documentEvent.Details, out var from, out var to))
+            {
+                history.Add(new StorageMigrationHistoryEntryResponse(from, to, documentEvent.OccurredAt));
+            }
+        }
+
+        return history;
     }
 
     public static DocumentTextResponse ToText(DocumentText text)

@@ -20,6 +20,12 @@ public sealed class DestructiveOperationFilter : IOperationFilter
             return;
         }
 
+        // Cancelling a storage migration deletes nothing: moved documents stay moved and every original stays in place.
+        if (context.ApiDescription.RelativePath?.EndsWith("/rollback", StringComparison.Ordinal) == true)
+        {
+            return;
+        }
+
         operation.Summary = Warning + operation.Summary;
     }
 }

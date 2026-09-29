@@ -84,6 +84,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         await context.Database.ExecuteSqlRawAsync("DELETE FROM product_services;");
 
         // Same for the storage: the default repository the migration creates stays, back to its original state.
+        await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE storage_migration_jobs;");
         await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE document_blobs;");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM storage_repositories WHERE id <> '00000000-0000-7000-8000-0000000000d1';");
         await context.Database.ExecuteSqlRawAsync("UPDATE storage_repositories SET is_default = true, active = true, connection_config = NULL WHERE id = '00000000-0000-7000-8000-0000000000d1';");

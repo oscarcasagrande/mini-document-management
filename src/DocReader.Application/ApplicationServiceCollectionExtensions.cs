@@ -7,6 +7,7 @@ using DocReader.Application.Options;
 using DocReader.Application.Processing;
 using DocReader.Application.Retention;
 using DocReader.Application.Storage;
+using DocReader.Application.StorageMigrations;
 using DocReader.Application.Webhooks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -93,6 +94,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IFileStorage, RepositoryFileStorage>();
         services.AddScoped<RetentionPolicyService>();
         services.AddScoped<RetentionReapplyService>();
+        services.AddScoped<StorageMigrationService>();
         services.AddScoped<DocumentPurgeService>();
         services.AddScoped<DocumentUploadService>();
         services.AddScoped<DocumentQueryService>();
