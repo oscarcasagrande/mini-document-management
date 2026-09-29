@@ -309,8 +309,19 @@ public sealed partial class BrSocialContractExtractor(TimeProvider timeProvider)
         RegexOptions.CultureInvariant)]
     private static partial Regex PurposePattern();
 
+    /// <summary>
+    /// O anchor original ("depois de pontuação, "N)", ou e/entre/por") exigia que nada além disso ficasse
+    /// colado ao nome, e um único caractere de ruído de OCR entre o fim da frase anterior e o nome (ex.:
+    /// uma linha perdida "D" que o `ProseIndex` junta como uma palavra a mais, separada por espaço) já
+    /// bastava para nenhuma alternativa bater e o sócio inteiro sumir, silenciosamente. O que de fato
+    /// distingue "aqui começa um sócio" não é o que vem antes do nome — é a combinação, rara fora desta
+    /// convenção jurídica, de 2 a 8 palavras com inicial maiúscula seguidas de vírgula e então uma das
+    /// palavras de qualificação abaixo. Por isso o anchor virou só uma guarda mínima contra colar o nome
+    /// no fim de uma palavra minúscula sem espaço (frase em curso, não o início de uma qualificação);
+    /// o resto do trabalho de discriminar é do grupo capturado e do lookahead.
+    /// </summary>
     [GeneratedRegex(
-        @"(?<=(?:^|[,;:.]\s+|\d\)\s+|\b(?:e|E|entre|por)\s+))(?<n>\p{Lu}[\p{L}'\-]+(?:\s+(?:d[aeo]s?|e|\p{Lu}[\p{L}'\-]+)){1,7}),\s+(?=brasileir|portugu|estrangeir|natural|casad|solteir|divorciad|vi[uú]v|empres[aá]ri|maior|nascid)",
+        @"(?<!\p{Ll})(?<n>\p{Lu}[\p{L}'\-]+(?:\s+(?:d[aeo]s?|e|\p{Lu}[\p{L}'\-]+)){1,7}),\s+(?=brasileir|portugu|estrangeir|natural|casad|solteir|divorciad|vi[uú]v|empres[aá]ri|maior|nascid)",
         RegexOptions.CultureInvariant)]
     private static partial Regex PartnerPattern();
 

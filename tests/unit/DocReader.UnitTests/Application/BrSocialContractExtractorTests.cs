@@ -234,6 +234,92 @@ public sealed class BrSocialContractExtractorTests
         Assert.DoesNotContain("partners[6].name", fields.Keys);
     }
 
+    /// <summary>
+    /// Regressão do achado 6 de <c>docs/bench/real-exploratory-v1.md</c>: texto de OCR real (mascarado),
+    /// com uma linha inteira de ruído ("D") colada, só separada por espaço, imediatamente antes do nome
+    /// da sócia. O anchor antigo só aceitava pontuação, "N)" ou e/entre/por logo antes do nome; um único
+    /// caractere de ruído nessa posição bastava para nenhuma alternativa bater, e o sócio inteiro sumia
+    /// sem deixar rastro (contrato social não passa por <c>ExtractionTrace</c>).
+    /// </summary>
+    private static readonly string[] ContratoRealComRuidoAntesDoNome =
+    [
+        "Esca",
+        "assessoria contábile tributária",
+        "INSTRUMENTO PARTICULAR DE ALTERAÇÃO DE CONTRATO SOCIAL",
+        "EXEMPLO SERVICOS E TECNOLOGIA LTDA\"",
+        "CNPJ 11.222.333/0001-81",
+        "NIRE 11.111.111.111",
+        "D",
+        "MARIA EXEMPLO DA SILVA SANTOS, brasileira, casada sob regime de comunhão",
+        "parcial de bens, nascida em 01/01/1980, empresária, portadora da cédula de identidade RG sob",
+        "nº 11.111.111/SSP/SP, inscrita no CPF-MF sob nº 111.222.333-96, residente e domiciliada nesta",
+        "capital, do estado de São Paulo, na rua Exemplo, n° 100, no bairro Exemplo – CEP",
+        "11111-000.",
+        "Única sócia desta Sociedade Limitada Unipessoal, que gira nesta praça sob a",
+    ];
+
+    [Fact]
+    public async Task Socia_e_extraida_mesmo_com_uma_linha_de_ruido_de_ocr_colada_antes_do_nome()
+    {
+        var fields = await ExtractAsync(Stage3Support.Of(ContratoRealComRuidoAntesDoNome));
+
+        Assert.Equal("MARIA EXEMPLO DA SILVA SANTOS", fields["partners[0].name"].Normalized);
+        Assert.Equal("11122233396", fields["partners[0].cpf"].Normalized);
+        Assert.Equal("VALID", fields["partners[0].cpf"].ValidationStatus);
+        Assert.DoesNotContain("partners[1].name", fields.Keys);
+    }
+
+    /// <summary>
+    /// Mesma regressão, lado "documento que já funcionava": ruído de OCR também presente ("b" solto, algumas
+    /// linhas antes do nome, não colado a ele), sócio único ainda lido corretamente depois do ajuste do
+    /// anchor. Este fragmento traz só a introdução do primeiro sócio do documento real (o documento inteiro
+    /// tinha dois), então o teste cobre a regressão específica, não a cobertura completa do documento.
+    /// </summary>
+    private static readonly string[] ContratoRealComRuidoLongeDoNome =
+    [
+        "CNPJ11.222.222/0001-23",
+        "RG:1.111.111-1",
+        "NRE:11.111111.111",
+        "b",
+        "Pelo presente instrumento particular de Alteração Contratual Consolidada, e na melhor forma",
+        "de direito, os abaixo assinados:",
+        "JOSE EXEMPLO DA SILVA, brasileiro, divorciado, maior, empresário, nascido em",
+        "01/01/1950, portador da cédula de identidade RG de n° 1.111.111-1 SSP/SP, inscrito no",
+        "CPF/MF sob o n° 111.333.555-60, residente e domiciliado à Rua Exemplo n° 53 -",
+        "Jardim Exemplo - Exemplo - SP CEP 11111-070.",
+        "Único sócio componente da sociedade limitada unipessoal que nesta praça gira sob a",
+        "denominação social de EXEMPLO ADESIVOS LTDA, com sede à Rua Exemplo n°",
+        "100 – Sala 03 - Polo Industrial - Exemplo – SP CEP 11111-450, com contrato",
+        "social registrado e arquivado na Junta Comercial do Estado de São Paulo JUCESP sob o NIRE",
+        "de n° 11.111.111.111",
+    ];
+
+    [Fact]
+    public async Task Socio_do_documento_que_ja_funcionava_continua_lido_depois_do_ajuste_do_anchor()
+    {
+        var fields = await ExtractAsync(Stage3Support.Of(ContratoRealComRuidoLongeDoNome));
+
+        Assert.Equal("JOSE EXEMPLO DA SILVA", fields["partners[0].name"].Normalized);
+        Assert.Equal("11133355560", fields["partners[0].cpf"].Normalized);
+        Assert.Equal("VALID", fields["partners[0].cpf"].ValidationStatus);
+        Assert.DoesNotContain("partners[1].name", fields.Keys);
+    }
+
+    /// <summary>
+    /// Confirma que o caso "limpo" (sócio só depois de pontuação, sem nenhum ruído colado) continua
+    /// batendo depois de trocar o anchor específico por uma guarda mais simples — já coberto pelos testes
+    /// acima e por <see cref="Socios_saem_como_campos_indexados_com_cpf_validado"/>, que usa a mesma
+    /// combinação "pontuação, espaço, nome" da amostra sintética original.
+    /// </summary>
+    [Fact]
+    public async Task Socio_sem_nenhum_ruido_antes_do_nome_continua_lido()
+    {
+        var fields = await ExtractAsync(Stage3Support.Of(
+            "CONTRATO SOCIAL", "Entre si, os abaixo assinados: MARIA EXEMPLO DA SILVA, brasileira, casada, empresária, resolvem constituir."));
+
+        Assert.Equal("MARIA EXEMPLO DA SILVA", fields["partners[0].name"].Normalized);
+    }
+
     [Fact]
     public async Task Ocr_vazio_devolve_nenhum_campo_e_nenhuma_confianca()
     {
