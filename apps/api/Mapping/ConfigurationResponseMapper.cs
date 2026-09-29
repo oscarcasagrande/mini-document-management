@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DocReader.Api.Contracts.V1;
 using DocReader.Application.Documents;
 using DocReader.Domain.Catalog;
@@ -98,4 +99,27 @@ public static class ConfigurationResponseMapper
 
     public static ProductServiceReferenceResponse? ToReference(ProductService? productService) =>
         productService is null ? null : new ProductServiceReferenceResponse(productService.Id, productService.Code, productService.Name);
+
+    public static DocumentTypeResponse ToResponse(DocumentType documentType) => new(
+        documentType.Id,
+        documentType.Code,
+        documentType.Name,
+        ParseJson(documentType.SchemaJson),
+        ParseJson(documentType.ClassificationRulesJson),
+        ParseJson(documentType.ExtractionRulesJson),
+        documentType.Active,
+        documentType.IsBuiltIn,
+        documentType.CreatedAt,
+        documentType.UpdatedAt);
+
+    /// <summary>
+    /// Parses a stored JSON column into a standalone <see cref="JsonElement"/>: cloned, so it stays valid
+    /// after the <see cref="JsonDocument"/> that parsed it is disposed, which happens before the response
+    /// is serialized.
+    /// </summary>
+    private static JsonElement ParseJson(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
 }

@@ -40,6 +40,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IProductServiceRepository, ProductServiceRepository>();
+        services.AddScoped<IDocumentTypeRepository, DocumentTypeRepository>();
         services.AddScoped<IRetentionPolicyRepository, RetentionPolicyRepository>();
         services.AddScoped<IIdempotencyStore, PostgresIdempotencyStore>();
         services.AddScoped<IProtocolGenerator, PostgresProtocolGenerator>();

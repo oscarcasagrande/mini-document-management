@@ -86,6 +86,10 @@ public sealed class PostgresFixture : IAsyncLifetime
         await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE document_blobs;");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM storage_repositories WHERE id <> '00000000-0000-7000-8000-0000000000d1';");
         await context.Database.ExecuteSqlRawAsync("UPDATE storage_repositories SET is_default = true, active = true, connection_config = NULL WHERE id = '00000000-0000-7000-8000-0000000000d1';");
+
+        // Same for the document types: the seven built-ins the migration seeds stay, back to active.
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM document_types WHERE is_built_in = false;");
+        await context.Database.ExecuteSqlRawAsync("UPDATE document_types SET active = true WHERE is_built_in = true;");
     }
 
     public DocReaderDbContext CreateContext()

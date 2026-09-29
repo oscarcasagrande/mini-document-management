@@ -10,13 +10,13 @@ public interface IDocumentClassifier
 {
     string Version { get; }
 
-    ClassificationResult Classify(OcrResult result);
+    Task<ClassificationResult> ClassifyAsync(OcrResult result, CancellationToken ct);
 
     /// <summary>
     /// Runs the same decision on plain text and reports what was weighed for every type, so an UNKNOWN
     /// can be explained without reading the rules.
     /// </summary>
-    ClassificationDiagnostics Diagnose(string text);
+    Task<ClassificationDiagnostics> DiagnoseAsync(string text, CancellationToken ct);
 }
 
 /// <param name="DocumentType">Identified type, or <see cref="UnknownType"/> without enough evidence.</param>

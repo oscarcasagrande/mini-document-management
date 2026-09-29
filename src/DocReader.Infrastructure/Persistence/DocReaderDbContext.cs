@@ -21,6 +21,8 @@ public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> opti
 
     public DbSet<ProductService> ProductServices => Set<ProductService>();
 
+    public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
+
     public DbSet<RetentionPolicy> RetentionPolicies => Set<RetentionPolicy>();
 
     public DbSet<StorageRepository> StorageRepositories => Set<StorageRepository>();

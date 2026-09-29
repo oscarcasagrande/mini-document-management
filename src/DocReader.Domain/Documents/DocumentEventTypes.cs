@@ -25,4 +25,10 @@ public static class DocumentEventTypes
     public const string ExtractionStarted = "EXTRACTION_STARTED";
     public const string Completed = "COMPLETED";
     public const string RetryScheduled = "RETRY_SCHEDULED";
+
+    /// <summary>A retention policy was reapplied to an existing document after the policy's duration changed.</summary>
+    public const string RetentionPolicyReapplied = "RETENTION_POLICY_REAPPLIED";
+
+    /// <summary>Reclassification and extraction were requested against the current document-type rules.</summary>
+    public const string ReclassificationTriggered = "RECLASSIFICATION_TRIGGERED";
 }

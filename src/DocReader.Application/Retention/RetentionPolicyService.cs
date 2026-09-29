@@ -1,5 +1,4 @@
 using DocReader.Application.Abstractions;
-using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
 using DocReader.Domain.Retention;
@@ -14,11 +13,13 @@ namespace DocReader.Application.Retention;
 public sealed class RetentionPolicyService(
     IRetentionPolicyRepository repository,
     IProductServiceRepository productServices,
+    IDocumentTypeRepository documentTypes,
     TimeProvider timeProvider,
     ILogger<RetentionPolicyService> logger)
 {
-    /// <summary>The document types a policy can name: the ones the classifier can produce.</summary>
-    public static IReadOnlyList<string> KnownDocumentTypes { get; } = [.. DocumentTypeProfile.All.Select(profile => profile.DocumentType)];
+    /// <summary>The document types a policy can name: the active ones in the document type registry.</summary>
+    public async Task<IReadOnlyList<string>> ListKnownDocumentTypesAsync(CancellationToken ct) =>
+        [.. (await documentTypes.ListActiveAsync(ct).ConfigureAwait(false)).Select(type => type.Code)];
 
     public Task<PagedResult<RetentionPolicy>> ListAsync(RetentionPolicyFilter filter, CancellationToken ct) =>
         repository.ListAsync(filter, ct);
@@ -33,7 +34,7 @@ public sealed class RetentionPolicyService(
         int retentionDays,
         CancellationToken ct)
     {
-        var type = NormalizeType(documentType);
+        var type = await NormalizeTypeAsync(documentType, ct).ConfigureAwait(false);
         ValidateDays(retentionDays);
 
         if (productServiceId is { } productId
@@ -97,7 +98,7 @@ public sealed class RetentionPolicyService(
         logger.LogInformation("Retention policy deleted. retentionPolicyId={RetentionPolicyId} scope={Scope}", id, policy.Scope);
     }
 
-    private static string? NormalizeType(string? documentType)
+    private async Task<string?> NormalizeTypeAsync(string? documentType, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(documentType))
         {
@@ -105,12 +106,13 @@ public sealed class RetentionPolicyService(
         }
 
         var normalized = documentType.Trim().ToUpperInvariant();
+        var known = await ListKnownDocumentTypesAsync(ct).ConfigureAwait(false);
 
-        return KnownDocumentTypes.Contains(normalized, StringComparer.Ordinal)
+        return known.Contains(normalized, StringComparer.Ordinal)
             ? normalized
             : throw new RequestValidationException(
                 "INVALID_DOCUMENT_TYPE",
-                $"Unknown document type {documentType.Trim()}. Known types: {string.Join(", ", KnownDocumentTypes)}.");
+                $"Unknown document type {documentType.Trim()}. Known types: {string.Join(", ", known)}.");
     }
 
     private static void ValidateDays(int retentionDays)

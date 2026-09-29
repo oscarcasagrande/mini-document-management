@@ -25,6 +25,7 @@ public sealed class RetentionApplicationTests
 
     private readonly InMemoryRetentionPolicyStore _policies = new();
     private readonly InMemoryProductServiceStore _products = new();
+    private readonly InMemoryDocumentTypeStore _documentTypes = InMemoryDocumentTypeStore.WithBuiltIns();
     private readonly InMemoryStorageRepositoryStore _storageRepositories = new();
     private readonly InMemoryDocumentStore _documents = new() { Now = Now };
     private readonly InMemoryFileStorage _storage = new();
@@ -33,7 +34,7 @@ public sealed class RetentionApplicationTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private RetentionPolicyService Service() =>
-        new(_policies, _products, _clock, NullLogger<RetentionPolicyService>.Instance);
+        new(_policies, _products, _documentTypes, _clock, NullLogger<RetentionPolicyService>.Instance);
 
     private async Task<ProductService> AddProductAsync(string code, bool active = true)
     {
@@ -133,12 +134,14 @@ public sealed class RetentionApplicationTests
     [Fact]
     public async Task Todos_os_tipos_que_o_classificador_produz_sao_aceitos()
     {
-        foreach (var type in RetentionPolicyService.KnownDocumentTypes)
+        var known = await Service().ListKnownDocumentTypesAsync(Ct);
+
+        foreach (var type in known)
         {
             await Service().CreateAsync(type, null, 30, Ct);
         }
 
-        Assert.Equal(RetentionPolicyService.KnownDocumentTypes.Count + 1, _policies.Items.Count);
+        Assert.Equal(known.Count + 1, _policies.Items.Count);
     }
 
     [Fact]

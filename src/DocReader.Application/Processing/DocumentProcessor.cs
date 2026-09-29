@@ -150,7 +150,7 @@ public sealed class DocumentProcessor(
             null,
             ct).ConfigureAwait(false);
 
-        var classification = classifier.Classify(ocrResult);
+        var classification = await classifier.ClassifyAsync(ocrResult, ct).ConfigureAwait(false);
 
         StructuredExtraction? structured = null;
         IDocumentExtractor? extractor = null;

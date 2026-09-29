@@ -117,7 +117,9 @@ public sealed class DocumentQueryService(
         var text = await GetTextAsync(id, ct).ConfigureAwait(false);
 
         var pages = JsonSerializer.Deserialize<List<StoredPage>>(text.Text.PageTextsJson, StoredJson) ?? [];
-        var diagnostics = classifier.Diagnose(string.Join('\n', pages.Select(page => page.Text)));
+        var diagnostics = await classifier
+            .DiagnoseAsync(string.Join('\n', pages.Select(page => page.Text)), ct)
+            .ConfigureAwait(false);
 
         return new DocumentClassificationDiagnostics(
             text.Document,
@@ -147,7 +149,7 @@ public sealed class DocumentQueryService(
             stored.Summary.OcrModelVersion);
         var lines = OcrTextLine.From(ocr);
 
-        var (documentType, typeSource) = ResolveDocumentType(document, lines);
+        var (documentType, typeSource) = await ResolveDocumentTypeAsync(document, lines, ct).ConfigureAwait(false);
         var extractor = documentType is null ? null : extractors.FirstOrDefault(candidate => candidate.DocumentType == documentType);
 
         var note = source == StoredOcr.PageText
@@ -178,7 +180,10 @@ public sealed class DocumentQueryService(
                 documentType!, typeSource, extractor.Version, source, lines, extraction, trace, recordedStatuses, note));
     }
 
-    private (string? Type, string Source) ResolveDocumentType(Document document, IReadOnlyList<OcrTextLine> lines)
+    private async Task<(string? Type, string Source)> ResolveDocumentTypeAsync(
+        Document document,
+        IReadOnlyList<OcrTextLine> lines,
+        CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(document.DetectedDocumentType)
             && document.DetectedDocumentType != ClassificationResult.UnknownType)
@@ -186,7 +191,9 @@ public sealed class DocumentQueryService(
             return (document.DetectedDocumentType, "RECORDED");
         }
 
-        var current = classifier.Diagnose(string.Join('\n', lines.Select(line => line.Text)));
+        var current = await classifier
+            .DiagnoseAsync(string.Join('\n', lines.Select(line => line.Text)), ct)
+            .ConfigureAwait(false);
 
         return current.DocumentType == ClassificationResult.UnknownType
             ? (null, "RECORDED")

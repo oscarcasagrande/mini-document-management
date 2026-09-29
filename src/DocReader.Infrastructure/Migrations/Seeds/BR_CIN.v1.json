@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_CIN.v1",
+  "title": "Carteira de Identidade Nacional (CIN) e RG",
+  "description": "Um esquema atende a CIN e o RG: os campos são os mesmos. A MRZ, quando lida, é validada pelos dígitos verificadores do ICAO 9303 (TD1) e conferida contra a data de nascimento impressa. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": [
+    "name",
+    "cpf",
+    "birthDate"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "description": "Nome do titular, em caixa alta, com espaços simples.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA APARECIDA DA SILVA SOUZA"
+      ]
+    },
+    "cpf": {
+      "description": "Número do CPF, normalizado para 11 dígitos sem máscara.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "11144477735"
+      ]
+    },
+    "rg": {
+      "description": "Registro Geral sem máscara e sem a sigla do estado. Numeração por estado, sem dígito verificador nacional: valida-se o formato.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{7,9}[0-9X]?$",
+      "examples": [
+        "123456789"
+      ]
+    },
+    "birthDate": {
+      "description": "Data de nascimento, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "1985-03-14"
+      ]
+    },
+    "issueDate": {
+      "description": "Data de expedição, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2024-05-20"
+      ]
+    },
+    "expirationDate": {
+      "description": "Data de validade, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2034-05-20"
+      ]
+    },
+    "birthPlace": {
+      "description": "Naturalidade, em caixa alta e sem acento.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "SAO PAULO - SP"
+      ]
+    },
+    "fatherName": {
+      "description": "Nome do pai. Sem rótulo próprio no documento, sai UNCERTAIN: a ordem da filiação é suposta.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "JOSE DA SILVA SOUZA"
+      ]
+    },
+    "motherName": {
+      "description": "Nome da mãe. Sem rótulo próprio no documento, sai UNCERTAIN: a ordem da filiação é suposta.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "ANA MARIA APARECIDA"
+      ]
+    },
+    "mrz": {
+      "description": "As três linhas da zona de leitura mecânica (TD1), separadas por quebra de linha. VALID só com todos os dígitos verificadores corretos e datas existentes.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "IDBRA0123456782<<<<<<<<<<<<<<<"
+      ]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.45,
+          "patterns": [
+            "CARTEIRA DE IDENTIDADE",
+            "REGISTRO DE IDENTIDADE CIVIL",
+            "CEDULA DE IDENTIDADE"
+          ]
+        },
+        {
+          "name": "republic",
+          "weight": 0.1,
+          "patterns": [
+            "REPUBLICA FEDERATIVA DO BRASIL"
+          ]
+        },
+        {
+          "name": "registration-number",
+          "weight": 0.1,
+          "patterns": [
+            "REGISTRO GERAL",
+            "NUMERO RIC",
+            "NUMERO DO REGISTRO GERAL"
+          ]
+        },
+        {
+          "name": "birth-date",
+          "weight": 0.1,
+          "patterns": [
+            "DATA DE NASCIMENTO",
+            "DATA DE NASC",
+            "DATE OF BIRTH"
+          ]
+        },
+        {
+          "name": "parentage",
+          "weight": 0.1,
+          "patterns": [
+            "FILIACAO"
+          ]
+        },
+        {
+          "name": "place-of-birth",
+          "weight": 0.05,
+          "patterns": [
+            "NATURALIDADE"
+          ]
+        },
+        {
+          "name": "issue-date",
+          "weight": 0.05,
+          "patterns": [
+            "DATA DE EXPEDICAO",
+            "DATA DA EXPEDICAO"
+          ]
+        },
+        {
+          "name": "issuing-body",
+          "weight": 0.05,
+          "patterns": [
+            "ORGAO EMISSOR",
+            "ORGAO EXPEDIDOR"
+          ]
+        },
+        {
+          "name": "cpf",
+          "weight": 0.05,
+          "patterns": [
+            "CPF"
+          ]
+        }
+      ],
+      "counterEvidence": [
+        {
+          "name": "cnh-title",
+          "weight": 0.6,
+          "patterns": [
+            "CARTEIRA NACIONAL DE HABILITACAO"
+          ]
+        },
+        {
+          "name": "cnpj-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO NACIONAL DA PESSOA JURIDICA"
+          ]
+        },
+        {
+          "name": "cpf-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO DE PESSOAS FISICAS"
+          ]
+        }
+      ],
+      "threshold": 0.6
+    },
+    "validation": {
+      "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",
+      "rg": "Formato: 7 a 10 caracteres, o último podendo ser X. Não há dígito verificador nacional.",
+      "birthDate": "Data real de calendário, não futura e não anterior a 1900.",
+      "issueDate": "Data real de calendário, não futura.",
+      "expirationDate": "Data real de calendário, até 50 anos adiante. Data anterior a hoje continua VALID e ganha a mensagem DOCUMENT_EXPIRED.",
+      "mrz": "Dígitos verificadores do ICAO 9303 (número, nascimento, validade e composto) e conferência da data de nascimento com a impressa."
+    }
+  }
+}

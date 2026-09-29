@@ -20,4 +20,10 @@
     <ProjectReference Include="..\DocReader.Application\DocReader.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Snapshot of schemas/documents/*.json at the time the seed migration was written, embedded so the
+         migration never depends on files outside the assembly. -->
+    <EmbeddedResource Include="Migrations\Seeds\*.json" />
+  </ItemGroup>
+
 </Project>

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace DocReader.Application.Classification;
 
 /// <summary>
@@ -232,4 +234,72 @@ public sealed record DocumentTypeProfile(
 
     private static ClassificationEvidence Of(string name, decimal weight, params string[] patterns) =>
         new(name, patterns, weight);
+
+    private static readonly JsonSerializerOptions RulesJsonOptions = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// The inverse of <see cref="TryParse"/>: the JSON a <c>DocumentType.classificationRules</c> column
+    /// holds for this profile. Used to seed the built-in types (see the <c>AddDocumentTypes</c> migration)
+    /// and by tests that need a document type row equivalent to a hardcoded profile.
+    /// </summary>
+    public string ToClassificationRulesJson() =>
+        JsonSerializer.Serialize(
+            new ClassificationRulesDto(
+                [.. Evidence.Select(e => new EvidenceDto(e.Name, e.Weight, [.. e.Patterns]))],
+                [.. CounterEvidence.Select(e => new EvidenceDto(e.Name, e.Weight, [.. e.Patterns]))],
+                Threshold),
+            RulesJsonOptions);
+
+    /// <summary>
+    /// Reads a <c>DocumentType.classificationRules</c> column, the same shape as a schema's
+    /// <c>x-docreader.classification</c> block: <c>{ evidence, counterEvidence, threshold }</c>.
+    /// </summary>
+    public static bool TryParse(string documentType, string classificationRulesJson, out DocumentTypeProfile? profile, out string? error)
+    {
+        try
+        {
+            var dto = JsonSerializer.Deserialize<ClassificationRulesDto>(classificationRulesJson, RulesJsonOptions);
+            if (dto is null)
+            {
+                profile = null;
+                error = "classificationRules must be a JSON object.";
+                return false;
+            }
+
+            if (dto.Evidence is null || dto.Evidence.Count == 0)
+            {
+                profile = null;
+                error = "classificationRules.evidence must have at least one entry.";
+                return false;
+            }
+
+            if (dto.Threshold is < 0 or > 1)
+            {
+                profile = null;
+                error = "classificationRules.threshold must be between 0 and 1.";
+                return false;
+            }
+
+            profile = new DocumentTypeProfile(
+                documentType,
+                [.. dto.Evidence.Select(ToEvidence)],
+                [.. (dto.CounterEvidence ?? []).Select(ToEvidence)],
+                dto.Threshold);
+            error = null;
+            return true;
+        }
+        catch (JsonException exception)
+        {
+            profile = null;
+            error = exception.Message;
+            return false;
+        }
+    }
+
+    private static ClassificationEvidence ToEvidence(EvidenceDto evidence) =>
+        new(evidence.Name, evidence.Patterns ?? [], evidence.Weight);
+
+    private sealed record ClassificationRulesDto(List<EvidenceDto> Evidence, List<EvidenceDto>? CounterEvidence, decimal Threshold);
+
+    private sealed record EvidenceDto(string Name, decimal Weight, List<string>? Patterns);
 }

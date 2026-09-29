@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "BR_CNH.v1",
+  "title": "Carteira Nacional de Habilitação (CNH)",
+  "description": "O CPF e o número de registro passam pelo dígito verificador; validade vencida é sinalizada com DOCUMENT_EXPIRED sem reprovar o campo. Campo não encontrado é sempre null: o extrator nunca inventa valor (RF-011).",
+  "type": "object",
+  "required": [
+    "name",
+    "cpf",
+    "birthDate",
+    "registrationNumber"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "description": "Nome do condutor, em caixa alta, com espaços simples.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": [
+        "MARIA APARECIDA DA SILVA SOUZA"
+      ]
+    },
+    "cpf": {
+      "description": "Número do CPF, normalizado para 11 dígitos sem máscara.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "11144477735"
+      ]
+    },
+    "birthDate": {
+      "description": "Data de nascimento, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "1985-03-14"
+      ]
+    },
+    "registrationNumber": {
+      "description": "Número de registro da CNH, 11 dígitos, com os dois dígitos verificadores conferidos. Registro com DV errado sai INVALID, sem valor normalizado.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{11}$",
+      "examples": [
+        "01234567890"
+      ]
+    },
+    "category": {
+      "description": "Categoria de habilitação.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "AB",
+        "AC",
+        "AD",
+        "AE",
+        "ACC",
+        null
+      ],
+      "examples": [
+        "AB"
+      ]
+    },
+    "firstLicenseDate": {
+      "description": "Data da primeira habilitação, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2004-07-01"
+      ]
+    },
+    "issueDate": {
+      "description": "Data de emissão, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2024-07-01"
+      ]
+    },
+    "expirationDate": {
+      "description": "Data de validade, ISO 8601.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "examples": [
+        "2029-07-01"
+      ]
+    }
+  },
+  "x-docreader": {
+    "supportLevel": "STRUCTURED",
+    "schemaVersion": 1,
+    "classification": {
+      "evidence": [
+        {
+          "name": "title",
+          "weight": 0.45,
+          "patterns": [
+            "CARTEIRA NACIONAL DE HABILITACAO",
+            "DRIVER LICENSE",
+            "PERMISO DE CONDUCCION"
+          ]
+        },
+        {
+          "name": "republic",
+          "weight": 0.05,
+          "patterns": [
+            "REPUBLICA FEDERATIVA DO BRASIL"
+          ]
+        },
+        {
+          "name": "issuing-authority",
+          "weight": 0.15,
+          "patterns": [
+            "SECRETARIA NACIONAL DE TRANSITO",
+            "SENATRAN",
+            "DENATRAN",
+            "MINISTERIO DOS TRANSPORTES",
+            "MINISTERIO DA INFRAESTRUTURA",
+            "MINISTERIO DAS CIDADES"
+          ]
+        },
+        {
+          "name": "category",
+          "weight": 0.1,
+          "patterns": [
+            "CAT HAB",
+            "CATEGORIA DE HABILITACAO"
+          ]
+        },
+        {
+          "name": "validity",
+          "weight": 0.05,
+          "patterns": [
+            "VALIDADE"
+          ]
+        },
+        {
+          "name": "parentage",
+          "weight": 0.05,
+          "patterns": [
+            "FILIACAO"
+          ]
+        },
+        {
+          "name": "registration-number",
+          "weight": 0.05,
+          "patterns": [
+            "N REGISTRO",
+            "NUMERO DE REGISTRO",
+            "REGISTRO"
+          ]
+        },
+        {
+          "name": "identity-document",
+          "weight": 0.05,
+          "patterns": [
+            "DOC IDENTIDADE",
+            "ORG EMISSOR"
+          ]
+        },
+        {
+          "name": "first-license",
+          "weight": 0.05,
+          "patterns": [
+            "1 HABILITACAO",
+            "PRIMEIRA HABILITACAO"
+          ]
+        },
+        {
+          "name": "cpf",
+          "weight": 0.05,
+          "patterns": [
+            "CPF"
+          ]
+        }
+      ],
+      "counterEvidence": [
+        {
+          "name": "cnpj-title",
+          "weight": 0.6,
+          "patterns": [
+            "CADASTRO NACIONAL DA PESSOA JURIDICA"
+          ]
+        },
+        {
+          "name": "ccmei-title",
+          "weight": 0.6,
+          "patterns": [
+            "CERTIFICADO DA CONDICAO DE MICROEMPREENDEDOR INDIVIDUAL"
+          ]
+        }
+      ],
+      "threshold": 0.6
+    },
+    "validation": {
+      "cpf": "Dígito verificador por módulo 11; sequência de dígito repetido é rejeitada (RF-012).",
+      "registrationNumber": "11 dígitos com dígitos verificadores do DENATRAN (pesos 9..1 e 1..9, desconto de 2 quando o 1º resto é 10); sequência de dígito repetido é rejeitada.",
+      "category": "Uma das categorias A, B, C, D, E, AB, AC, AD, AE, ACC.",
+      "birthDate": "Data real de calendário, não futura e não anterior a 1900.",
+      "expirationDate": "Data real de calendário, até 50 anos adiante. Data anterior a hoje continua VALID e ganha a mensagem DOCUMENT_EXPIRED."
+    }
+  }
+}

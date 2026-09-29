@@ -71,7 +71,9 @@ public static class ApplicationServiceCollectionExtensions
 
         services.TryAddTimeProvider();
 
-        services.AddSingleton<IDocumentClassifier, RulesDocumentClassifier>();
+        // Scoped, not singleton: it reads the document_types table on every call, so a rule edited
+        // through the API applies to the very next document.
+        services.AddScoped<IDocumentClassifier, DynamicDocumentClassifier>();
 
         services.AddScoped<IDocumentExtractor, BrCpfCardExtractor>();
         services.AddScoped<IDocumentExtractor, BrCinExtractor>();
@@ -82,6 +84,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IDocumentExtractor, BrSocialContractExtractor>();
 
         services.AddScoped<ProductServiceService>();
+        services.AddScoped<DocumentTypeService>();
         services.AddScoped<RetentionService>();
         services.AddScoped<StorageRepositoryService>();
         services.AddScoped<WebhookSubscriptionService>();

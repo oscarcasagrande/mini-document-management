@@ -40,6 +40,12 @@ public sealed class RulesDocumentClassifier : IDocumentClassifier
 
     public string Version => ClassifierVersion;
 
+    /// <summary>Trivial async wrapper: the scoring itself is pure CPU work over an already-loaded profile list.</summary>
+    public Task<ClassificationResult> ClassifyAsync(OcrResult result, CancellationToken ct) => Task.FromResult(Classify(result));
+
+    /// <summary>Trivial async wrapper: the scoring itself is pure CPU work over an already-loaded profile list.</summary>
+    public Task<ClassificationDiagnostics> DiagnoseAsync(string text, CancellationToken ct) => Task.FromResult(Diagnose(text));
+
     public ClassificationResult Classify(OcrResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
