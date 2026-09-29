@@ -14,6 +14,9 @@ public static class DocumentEventTypes
     public const string Purged = "PURGED";
     public const string RetentionApplied = "RETENTION_APPLIED";
 
+    /// <summary>A retention policy changed and this document's <c>expiresAt</c> was recalculated to match.</summary>
+    public const string RetentionPolicyReapplied = "RETENTION_POLICY_REAPPLIED";
+
     /// <summary>A webhook subscriber never accepted the notification of this document, after every retry.</summary>
     public const string WebhookDeliveryFailed = "WEBHOOK_DELIVERY_FAILED";
 

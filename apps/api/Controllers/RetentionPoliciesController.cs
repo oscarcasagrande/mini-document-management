@@ -17,6 +17,7 @@ namespace DocReader.Api.Controllers;
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError, ProblemTypes.ContentType)]
 public sealed class RetentionPoliciesController(
     RetentionPolicyService service,
+    RetentionReapplyService reapplyService,
     IOptions<PagingOptions> pagingOptions) : ControllerBase
 {
     /// <summary>Creates a retention policy for a document type, a product or service, or both.</summary>
@@ -94,6 +95,27 @@ public sealed class RetentionPoliciesController(
         [FromBody] UpdateRetentionPolicyRequest request,
         CancellationToken ct) =>
         Ok(ConfigurationResponseMapper.ToResponse(await service.UpdateAsync(id, request.RetentionDays ?? 0, ct)));
+
+    /// <summary>Recalculates <c>expiresAt</c>, using the policy's current retentionDays, for every document that carries it.</summary>
+    /// <remarks>
+    /// Asynchronous: this only records the request and returns; a worker processes the affected documents in
+    /// batches of 100 and answers back through the returned request's status. Only the documents whose duration
+    /// does not already match the policy are touched, so calling it again after a partial run just resumes it.
+    /// Each recalculated document gets a RETENTION_POLICY_REAPPLIED event on its timeline; its status is unchanged.
+    /// </remarks>
+    /// <param name="id">Identity of the policy.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="202">Accepted. Poll the request, once exposed, or check the documents' timeline.</response>
+    /// <response code="404">There is none with this id.</response>
+    [HttpPut("{id:guid}/reapply-to-existing")]
+    [ProducesResponseType(typeof(RetentionReapplyResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    public async Task<ActionResult<RetentionReapplyResponse>> ReapplyToExistingAsync(Guid id, CancellationToken ct)
+    {
+        var request = await reapplyService.EnqueueAsync(id, ct);
+
+        return Accepted(ConfigurationResponseMapper.ToResponse(request));
+    }
 
     /// <summary>Deletes a retention policy.</summary>
     /// <remarks>The global policy cannot be deleted. Documents that carried the deleted policy keep their purge date.</remarks>
