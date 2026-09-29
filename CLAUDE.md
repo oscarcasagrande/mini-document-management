@@ -217,10 +217,22 @@ a exatidão de tabela medida; fica desligado por padrão até um gatilho de revi
   não tem autenticação), ação, tipo e id do recurso, quando, IP, user agent e `changes` (metadado do que mudou, nunca conteúdo
   ou segredo). Por ora só o `GET .../connection-config` grava nele; é a base para a auditoria completa (tabela, endpoint de
   leitura, tela no BFF) quando o épico de OIDC/RBAC/auditoria for implementado.
-- Testes: 993 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
-  testes de backup/restore que precisam de `psql`/`pg_dump` (99 passam, 6 pulados) e os 3 de Azurite; com
-  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (109 no total, 106 passam, os 3 do Azurite
-  continuam pulados sem esse emulador).
+- **Cifra dos campos extraídos em repouso**: `raw_value` e `normalized_value` de `extracted_fields` (o CPF, nome, endereço etc.
+  que o OCR/extração leram do documento) são cifrados por `IFieldEncryptionProtector` (AES-256-GCM, mesmo formato de envelope
+  de `ISecretProtector`, compartilhado em `AesGcmEnvelope` para as duas implementações não divergirem), chave em
+  `EXTRACTED_FIELD_ENCRYPTION_KEY` — **separada** de `STORAGE_CONFIG_ENCRYPTION_KEY` de propósito, para girar uma sem a outra.
+  A cifra é transparente: um `ValueConverter` no EF Core (`ExtractedFieldConfiguration`) cifra ao gravar e decifra ao ler, sem
+  mudar nada em código que use `ExtractedField.RawValue`/`NormalizedValue`; a coluna cresceu de `varchar(2048)` para
+  `varchar(10000)` porque o envelope (JSON com nonce, tag e o texto em base64) é maior que o texto puro. O `ValueComparer` do
+  conversor compara o texto puro (não o envelope, que muda a cada gravação por causa do nonce aleatório), para o change
+  tracking do EF não gerar `UPDATE` à toa. **Não há recifra das linhas existentes**: a migration só alarga a coluna, não
+  decifra/recifra o que já estava em texto puro — uma linha gravada antes desta mudança fica ilegível (o `Unprotect` lança) até
+  o documento passar de novo pelo pipeline (`reprocess` ou `reclassify-and-extract`, que regravam os campos). Decisão
+  deliberada: PoC com dado sintético/mascarado, sem dataset real em produção para migrar.
+- Testes: 1009 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula 3
+  testes de backup/restore que precisam de `psql`/`pg_dump` e os 3 de Azurite (112 no total, 106 passam, 6 pulados);
+  com `postgresql-client-17` instalado na imagem, esses 3 de backup/restore também rodam (109 passam, os 3 do
+  Azurite continuam pulados sem esse emulador).
 
 ## Estrutura do repositório
 
@@ -427,6 +439,7 @@ Coisas que já custaram tempo e não se enxergam no código.
   ou rode `node arquivo.js`.
 - **Integração precisa de PostgreSQL alcançável.** Sem banco os 84 testes são pulados e o resumo diz "Zero tests ran". Rode dentro da rede do compose (`docker run --network docreader_internal ... -e DOCREADER_TEST_CONNECTION=...`, comando no README).
 - **Toda migration nova exige `-c Release` limpo.** O Docker compila com warnings-as-errors e doc XML: um `<param>` faltando (CS1573) só aparece no build de Release.
-- **A chave de cifra não pode mudar** depois de haver repositórios de armazenamento com configuração: o AES-GCM não decifra com outra chave, e a configuração cifrada se perde.
+- **A chave de cifra não pode mudar** depois de haver repositórios de armazenamento com configuração: o AES-GCM não decifra com outra chave, e a configuração cifrada se perde. O mesmo vale para `EXTRACTED_FIELD_ENCRYPTION_KEY` e os campos extraídos já gravados.
+- **O EF Core cacheia o modelo compilado por tipo de `DbContext`, não por instância**: o `ValueConverter` de `RawValue`/`NormalizedValue` fecha sobre o `IFieldEncryptionProtector` recebido no construtor, mas só o da primeira instância de `DocReaderDbContext` construída no processo entra no modelo — construir outra instância com um protetor diferente não reconstrói o modelo nem troca esse fechamento. Em produção isso não importa (uma chave, o processo inteiro); em teste, todo `DocReaderDbContext` construído à mão precisa usar a mesma chave (`TestFieldEncryptionKey` em `Fakes/StorageFakes.cs` nos unitários, `PostgresFixture.FieldEncryptionProtector` na integração), senão o teste que perder a corrida para construir o modelo primeiro decifra com a chave errada.
 - **Fixtures de OCR são texto real, não fabricado.** Depois de mudar engine, pré-processamento ou amostras,
   recapture com `scripts/capture-ocr-fixtures.py` antes de mexer nos extratores.

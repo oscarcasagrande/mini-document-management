@@ -405,9 +405,11 @@ public sealed class BackupRestoreTests(PostgresFixture fixture) : IAsyncLifetime
     }
 
     private static DocReaderDbContext ContextFor(string connectionString) =>
-        new(new DbContextOptionsBuilder<DocReaderDbContext>()
-            .UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(3, TimeSpan.FromSeconds(1), null))
-            .Options);
+        new(
+            new DbContextOptionsBuilder<DocReaderDbContext>()
+                .UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(3, TimeSpan.FromSeconds(1), null))
+                .Options,
+            PostgresFixture.FieldEncryptionProtector);
 
     private RepositoryFileStorage Facade(DocReaderDbContext context, string storageRoot) => new(
         new StorageRepositoryStore(context, _time),

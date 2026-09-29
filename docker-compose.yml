@@ -56,6 +56,9 @@ services:
       DocReader__Ocr__BaseUrl: http://ocr-service:8000
       # Encrypts the connection settings of the storage repositories. API and worker must share it.
       DocReader__Secrets__EncryptionKey: ${STORAGE_CONFIG_ENCRYPTION_KEY:-ZG9jcmVhZGVyLWxvY2FsLWRlbW8ta2V5LTMyYnl0ZXM=}
+      # Encrypts the raw and normalized value of every extracted field (CPF, name, address, ...). Separate key
+      # from above on purpose. API and worker must share it.
+      DocReader__FieldEncryption__EncryptionKey: ${EXTRACTED_FIELD_ENCRYPTION_KEY:-ZG9jcmVhZGVyLWZpZWxkLWVuYy1kZW1vLWtleS0zMmI=}
       # The API refuses webhook URLs the worker would refuse to call, so both read the same switch.
       DocReader__Webhooks__AllowPrivateNetworks: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-false}
       # The status endpoint reports "attempt N of M", so the API needs the same limit as the worker.
@@ -96,6 +99,7 @@ services:
       # service, so the service answers 504 first and the failure carries a precise code.
       DocReader__Ocr__PageTimeout: ${OCR_WORKER_PAGE_TIMEOUT:-00:02:30}
       DocReader__Secrets__EncryptionKey: ${STORAGE_CONFIG_ENCRYPTION_KEY:-ZG9jcmVhZGVyLWxvY2FsLWRlbW8ta2V5LTMyYnl0ZXM=}
+      DocReader__FieldEncryption__EncryptionKey: ${EXTRACTED_FIELD_ENCRYPTION_KEY:-ZG9jcmVhZGVyLWZpZWxkLWVuYy1kZW1vLWtleS0zMmI=}
       # Webhook notifications are sent by the worker. Private, loopback and link-local destinations are refused unless this is true.
       DocReader__Webhooks__AllowPrivateNetworks: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-false}
       DocReader__Queue__MaxAttempts: ${QUEUE_MAX_ATTEMPTS:-3}

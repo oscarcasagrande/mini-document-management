@@ -57,6 +57,12 @@ public static class ApplicationServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<SecretsOptions>, SecretsOptionsValidator>();
 
+        services.AddOptions<FieldEncryptionOptions>()
+            .Bind(configuration.GetSection(FieldEncryptionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<FieldEncryptionOptions>, FieldEncryptionOptionsValidator>();
+
         services.AddOptions<WebhookOptions>()
             .Bind(configuration.GetSection(WebhookOptions.SectionName))
             .ValidateDataAnnotations()

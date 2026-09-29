@@ -3,6 +3,7 @@ using DocReader.Application.Audit;
 using DocReader.Application.Options;
 using DocReader.Application.Webhooks;
 using DocReader.Infrastructure.Backup;
+using DocReader.Infrastructure.Encryption;
 using DocReader.Infrastructure.Files;
 using DocReader.Infrastructure.Ocr;
 using DocReader.Infrastructure.Persistence;
@@ -71,6 +72,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IStorageRepositoryStore, StorageRepositoryStore>();
         services.AddScoped<IStorageAdapterFactory, StorageAdapterFactory>();
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
+        services.AddSingleton<IFieldEncryptionProtector, AesGcmFieldEncryptionProtector>();
         services.AddSingleton<IPageCounter, DocumentPageCounter>();
 
         services.AddScoped<IBackupJobRepository, BackupJobRepository>();

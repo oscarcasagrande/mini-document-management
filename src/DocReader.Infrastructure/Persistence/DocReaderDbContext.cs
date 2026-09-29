@@ -1,3 +1,4 @@
+using DocReader.Application.Abstractions;
 using DocReader.Domain.Audit;
 using DocReader.Domain.Backup;
 using DocReader.Domain.Catalog;
@@ -9,6 +10,7 @@ using DocReader.Domain.Retention;
 using DocReader.Domain.Storage;
 using DocReader.Domain.StorageMigrations;
 using DocReader.Domain.Webhooks;
+using DocReader.Infrastructure.Persistence.Configurations;
 using DocReader.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +20,9 @@ namespace DocReader.Infrastructure.Persistence;
 /// Single database context of the PoC. Schema changes always go through a migration; nothing here
 /// ever calls EnsureCreated.
 /// </summary>
-public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> options) : DbContext(options)
+public sealed class DocReaderDbContext(
+    DbContextOptions<DocReaderDbContext> options,
+    IFieldEncryptionProtector fieldEncryptionProtector) : DbContext(options)
 {
     public DbSet<Document> Documents => Set<Document>();
 
@@ -62,6 +66,13 @@ public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(DocReaderDbContext).Assembly);
+        // ExtractedFieldConfiguration needs the field-encryption protector at model-build time (it wires the
+        // encrypted-at-rest value converter on RawValue/NormalizedValue), so it has no public parameterless
+        // constructor and the assembly scan below skips it; it is applied explicitly, with the protector, instead.
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(DocReaderDbContext).Assembly,
+            type => type != typeof(ExtractedFieldConfiguration));
+
+        modelBuilder.ApplyConfiguration(new ExtractedFieldConfiguration(fieldEncryptionProtector));
     }
 }
