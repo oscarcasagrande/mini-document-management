@@ -3,6 +3,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 
+import { auth } from "@/auth";
+import { isOidcConfigured } from "@/lib/auth-config";
+
 import type { ProblemDetails } from "./contracts";
 
 /**
@@ -50,14 +53,36 @@ export interface ApiRequest {
   raw?: boolean;
 }
 
+/**
+ * The Bearer token DocReader.Api expects once its own JWT bearer validation lands (out of scope here,
+ * a parallel effort): the access token NextAuth got from Keycloak, from the session of the current
+ * request. Anonymous mode (isOidcConfigured false) never calls auth() at all, so this stays a no-op
+ * exactly as before OIDC existed. Outside a request scope (e.g. a build step) auth() has nothing to
+ * read from and is skipped the same way currentCorrelationId() already skips headers().
+ */
+async function bearerAuthorizationHeader(): Promise<Record<string, string>> {
+  if (!isOidcConfigured) {
+    return {};
+  }
+
+  try {
+    const session = await auth();
+    return session?.accessToken ? { authorization: `Bearer ${session.accessToken}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 export async function callApi(request: ApiRequest): Promise<Response> {
   const correlationId = request.correlationId ?? (await currentCorrelationId());
+  const authorizationHeader = await bearerAuthorizationHeader();
 
   return fetch(`${API_BASE_URL}${request.path}`, {
     method: request.method ?? "GET",
     body: request.body,
     headers: {
       [CORRELATION_HEADER]: correlationId,
+      ...authorizationHeader,
       ...request.headers,
     },
     cache: "no-store",

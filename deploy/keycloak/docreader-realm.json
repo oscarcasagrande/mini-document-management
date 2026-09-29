@@ -1,0 +1,128 @@
+{
+  "realm": "docreader",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "roles": {
+    "realm": [
+      {
+        "name": "docreader-admin",
+        "description": "Full access, including the admin-only endpoints (backup/restore, storage migration, connection-config reveal)."
+      },
+      {
+        "name": "docreader-user",
+        "description": "Regular access to the document pipeline; no admin-only endpoints."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "docreader-bff",
+      "name": "DocReader web-bff",
+      "description": "Confidential client used by the Next.js BFF (apps/web-bff) for the Authorization Code + PKCE flow. Dev-only secret, not a real credential.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "docreader-bff-dev-only-not-a-real-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/api/auth/callback/keycloak"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*",
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "email",
+        "roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "docreader-bff-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "docreader-bff",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@docreader.local",
+      "email": "admin@docreader.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Docreader",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "docreader-admin",
+        "offline_access",
+        "uma_authorization"
+      ]
+    },
+    {
+      "username": "user@docreader.local",
+      "email": "user@docreader.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Docreader",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "docreader-user",
+        "offline_access",
+        "uma_authorization"
+      ]
+    }
+  ]
+}
