@@ -198,7 +198,7 @@ public sealed class RealDocumentExtractionTests
         // metadado estava ali) e a geometria cai para "abaixo do rótulo", onde o nome real do cliente está:
         // o próprio bug reportado corrige o valor, não só apaga o errado.
         Assert.Equal("VALID", name.ValidationStatus);
-        Assert.Equal("EXEMPLO COMERCIO DE PECAS LTDA", name.Normalized);
+        Assert.Equal("EMPRESA EXEMPLO LTDA", name.Normalized);
     }
 
     /// <summary>

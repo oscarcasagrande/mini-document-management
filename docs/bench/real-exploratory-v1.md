@@ -109,12 +109,16 @@ uma alteração contratual pontual não repita o NIRE do registro original, em v
 
 ## Correções aplicadas (rodada 2, 2026-09-29)
 
-Dos sete achados abaixo, três foram atacados nesta rodada, na ordem de gravidade pedida (resultado errado com
+Dos sete achados listados abaixo (o sétimo, sobre `city`/`state`, só apareceu ao investigar o terceiro — não
+estava na lista original), três foram atacados nesta rodada, na ordem de gravidade pedida (resultado errado com
 aparência de certo é pior que resultado vazio): os achados 3 e 5 primeiro (os dois produziam um resultado
-enganoso), depois o achado 6. Os três foram corrigidos, com fixture mascarada de OCR real + teste unitário de
-regressão para cada um, e **reverificados nos próprios documentos reais desta rodada** (reprocessados via
-`POST .../reprocess` depois do rebuild dos três serviços .NET/Python, não só nos testes). Os achados 1, 2 e 4
-continuam em aberto, sem alteração de código.
+enganoso), depois o achado 6. Os três foram corrigidos, com fixture mascarada por `scripts/pii/mask_ocr_fixture.py`
+(não mais à mão — ver CLAUDE.md) + teste unitário de regressão para cada um, e **reverificados nos próprios
+documentos reais desta rodada** (reprocessados via `POST .../reprocess` depois do rebuild dos três serviços
+.NET/Python, não só nos testes). Os achados 1, 2, 4 e 7 continuam em aberto, sem alteração de código: para os
+quatro, a razão de não corrigir agora é a mesma — são calibrações contra um único exemplar (ou par de exemplares,
+no caso do achado 4), e corrigir para um documento específico não generaliza. A decisão é esperar um conjunto
+real anotado antes de mexer nos extratores de novo; ver a nota de cada um na seção "Falhas encontradas" abaixo.
 
 - **Achado 3 (`nome do titular` com metadado de nota fiscal, `VALID`) — corrigido.** Duas mudanças em
   `LineSearch`/`FieldFactory`: `noiseMarkers` no `LineSearch` (substrings como "NOTA FISCAL", "SÉRIE", "DATA DE
@@ -129,8 +133,8 @@ continuam em aberto, sem alteração de código.
   agora `INVALID` em vez de `VALID`. Não é uma regressão de honestidade (era `VALID`-talvez-errado, virou
   `INVALID`-declaradamente-errado), mas é um candidato pior; fica para uma próxima calibração de `holderDocument`
   nesse layout de DANFE. Fixture `elektro-real.ocr.json`, testes em `RealDocumentExtractionTests.cs`.
-- **Achado novo (não estava na lista original): `city`/`state` do comprovante de residência usam o endereço da
-  concessionária, não do titular.** Achado pelo mesmo agente que corrigiu o achado 3, ao investigar por que o
+- **Achado 7 (novo, não estava na lista original): `city`/`state` do comprovante de residência usam o endereço
+  da concessionária, não do titular.** Achado pelo mesmo agente que corrigiu o achado 3, ao investigar por que o
   candidato de fallback batia. O `city`/`state` são lidos por varredura de formato (primeiro CEP+UF do
   documento, em ordem de leitura), e o cabeçalho do DANFE traz o endereço da Elektro antes do endereço do
   cliente. Downgrade para `UNCERTAIN` (achado 3) reduz o dano — ninguém confia cegamente no campo — mas o valor
@@ -172,22 +176,30 @@ tocaram no BFF nem na integração.
 
 ## Falhas encontradas, da mais barata para a mais cara de corrigir
 
-1. **[Baixo]** `mês de referência` do comprovante de residência não reconhece o mês por extenso
+1. **[Baixo] — ABERTO.** `mês de referência` do comprovante de residência não reconhece o mês por extenso
    ("Nome do mês/ano"), só o formato numérico. Mudança local: ensinar o leitor de valor desse campo a
-   reconhecer nomes de mês em português, com uma tabela de conversão.
-2. **[Baixo]** `NIRE` ausente na alteração contratual (documento 4). Pode ser que o documento genuinamente não
-   repita o campo — conferir isso antes de tratar como bug; se for um rótulo alternativo não coberto, é uma
-   mudança tão pontual quanto o item 1.
+   reconhecer nomes de mês em português, com uma tabela de conversão. Não corrigido nesta rodada: é uma
+   calibração contra um único exemplar (só o Elektro traz mês por extenso neste layout específico) — corrigir
+   para este documento não generaliza para outras concessionárias com formato de data diferente. A decisão é
+   esperar um conjunto real anotado (vários emissores) antes de mexer no leitor de novo.
+2. **[Baixo] — ABERTO.** `NIRE` ausente na alteração contratual (documento 4). Pode ser que o documento
+   genuinamente não repita o campo — conferir isso antes de tratar como bug; se for um rótulo alternativo não
+   coberto, é uma mudança tão pontual quanto o item 1. Não corrigido nesta rodada: mesma razão do item 1 —
+   calibração contra um único exemplar, não confirmada como bug generalizável até haver mais de um documento
+   desse tipo para comparar.
 3. **[Baixo-médio, prioridade alta] — CORRIGIDO (rodada 2).** `nome do titular` do comprovante de residência
    captura o texto da nota fiscal em vez do nome do cliente, com status `VALID`. É um ajuste pontual na busca
    pelo rótulo "NOME DO CLIENTE" neste layout (alcance errado ou falta de guarda contra candidato que contém
    texto de nota fiscal), mas prioridade alta apesar do esforço baixo: é exatamente o padrão que CLAUDE.md já
    registra como pior que `NOT_FOUND` — ninguém desconfia de um campo com status `VALID`. Ver a seção
    "Correções aplicadas" acima.
-4. **[Médio]** `objeto social` nunca foi encontrado em nenhum dos dois contratos sociais reais (documentos 3 e
-   4). O padrão do `ProseIndex` foi calibrado só com a amostra sintética; precisa olhar a redação real de
-   "objeto social" nesses dois documentos e ampliar o padrão — o mesmo tipo de trabalho já feito para CNH/RIC
-   na Etapa 5, ainda pendente para contrato social.
+4. **[Médio] — ABERTO.** `objeto social` nunca foi encontrado em nenhum dos dois contratos sociais reais
+   (documentos 3 e 4). O padrão do `ProseIndex` foi calibrado só com a amostra sintética; precisa olhar a
+   redação real de "objeto social" nesses dois documentos e ampliar o padrão — o mesmo tipo de trabalho já
+   feito para CNH/RIC na Etapa 5, ainda pendente para contrato social. Não corrigido nesta rodada: dois
+   exemplares não sustentam um padrão generalizável (ampliar o regex para bater com essas duas redações
+   específicas arrisca ficar tão específico quanto o padrão atual, só que para outro par de documentos). A
+   decisão é esperar um conjunto real anotado antes de mexer no extrator de novo.
 5. **[Médio] — CORRIGIDO (rodada 2).** A CNH digital (documento 1) tem camada nativa que passa no limiar de 20
    caracteres do RF-009 mas só contém cabeçalho, não os campos da pessoa — resultado silencioso: `UNKNOWN`,
    zero campos, nenhum aviso. Precisava de uma segunda heurística de suficiência da camada nativa (não só
@@ -200,6 +212,15 @@ tocaram no BFF nem na integração.
    confirmada: a rotação de 180° em todas as páginas degradou a leitura o bastante para o `ProseIndex` não
    reconhecer o padrão. Ver a seção "Correções aplicadas" acima para a causa real (ruído de OCR colado antes do
    nome, não rotação).
+7. **[Baixo-médio] — ABERTO.** `city`/`state` do comprovante de residência (documento 2) leem o endereço da
+   concessionária (Elektro), não o do titular — achado durante a correção do item 3, não estava na lista
+   original. A varredura de formato pega o primeiro CEP+UF em ordem de leitura, e o cabeçalho da DANFE traz o
+   endereço da Elektro antes do endereço do cliente. O downgrade para `UNCERTAIN` (item 3, "Correções
+   aplicadas") reduz o dano — ninguém confia cegamente no campo — mas o valor errado continua sendo o que sai.
+   Não corrigido nesta rodada: uma heurística de "mais perto do bloco do titular" calibrada só neste layout de
+   DANFE é uma calibração contra um único exemplar, e corrigir para este documento específico não generaliza
+   para outro leiaute de comprovante. A decisão é esperar um conjunto real anotado (vários tipos de
+   comprovante) antes de mexer no extrator de novo.
 
 **Observação à parte, não uma falha de extração:** a latência por página nos quatro documentos reais variou de
 8,7 s a 88,0 s, a maior parte acima do alvo de ≤18 s/página do ADR 0002. Medido nesta máquina com vários outros

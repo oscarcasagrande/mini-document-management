@@ -225,7 +225,7 @@ Produtos, Retenção, Repositórios, Webhooks). Nenhum guarda conteúdo document
 
 ## Rodar os testes
 
-Cinco suítes, todas em contêiner. Os comandos abaixo funcionam no bash e no PowerShell a partir da raiz do
+Seis suítes, todas em contêiner. Os comandos abaixo funcionam no bash e no PowerShell a partir da raiz do
 repositório; no Windows, use `powershell -File scripts/dotnet.ps1 ...` no lugar de `bash scripts/dotnet.sh ...`.
 
 | Suíte | Comando | O que cobre |
@@ -235,6 +235,7 @@ repositório; no Windows, use `powershell -File scripts/dotnet.ps1 ...` no lugar
 | OCR service | ver abaixo | API do serviço, páginas, perfis de modelo |
 | Interface | ver abaixo | `tsc --noEmit` (o gate de qualidade do front) |
 | Avaliador | ver abaixo | a ferramenta de avaliação |
+| Vazamento de PII | ver abaixo | `scripts/pii/scan.py` contra todo arquivo versionado (CPF/CNPJ/CEP/RG/CNH/título reais, nome real se `DOCREADER_PII_NAMES_FILE` estiver setada) |
 
 ```bash
 # build com warnings como erros
@@ -266,6 +267,13 @@ docker run --rm -v "$PWD/apps/web-bff:/work" -w /work node:22-alpine sh -c "npm 
 
 # avaliador
 docker run --rm -v "$PWD:/w" -w /w python:3.12-slim sh -c "pip install -q pytest && python -m pytest tests/accuracy -q"
+
+# vazamento de PII (scripts/pii/scan.py precisa do binário git; a imagem slim não vem com um)
+docker run --rm -v "$PWD:/w" -w /w python:3.12-slim sh -c \
+  "apt-get update -qq && apt-get install -qq -y git > /dev/null && git config --global --add safe.directory /w \
+   && pip install -q pytest && python -m pytest tests/pii_scan -q"
+# com a checagem de nomes reais desta sessão (arquivo fora do repositório, nunca versionado):
+#   -e DOCREADER_PII_NAMES_FILE=/names/arquivo.txt -v "/caminho/fora/do/repo:/names:ro"
 ```
 
 O `dotnet test` usa xunit v3 sobre Microsoft.Testing.Platform (o `global.json` faz o opt-in).

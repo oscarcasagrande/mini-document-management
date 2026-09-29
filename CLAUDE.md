@@ -394,6 +394,56 @@ uma linha para isto existir — a folga veio de `EnqueueAsync`/`CompleteAsync` j
 - Testes: 1086 unitários (1070 + 16 de seleção de provedor e cálculo de TTL, sem broker); 122 de integração, 116
   passam (110 + 6 novos contra RabbitMQ real) e 6 continuam pulados (psql/pg_dump e Azurite indisponíveis).
 
+**Proteção contra vazamento de PII em fixture.** Duas vezes nesta PoC um dado pessoal real de documento real
+escapou para o repositório — um CPF de cartão copiado para teste na Etapa 3, e cidade/bairro/CEP reais numa
+fixture "mascarada" à mão na rodada de correções dos achados do `real-exploratory-v1.md` — os dois pegos só na
+auditoria manual antes do push, nunca chegaram a `origin/main`. **Mascarar à mão não é mais aceitável**: toda
+fixture de documento real passa por `scripts/pii/mask_ocr_fixture.py`, e a suíte de testes tem uma varredura que
+roda sempre, não só na auditoria.
+
+- **`scripts/pii/scan.py`** varre todo arquivo versionado (`git ls-files`) atrás de CPF/CNPJ (formatado ou cru,
+  dígito verificador válido pelo mesmo algoritmo de `Cpf.cs`/`Cnpj.cs`), registro de CNH (`CnhRegistration.cs`),
+  título de eleitor (algoritmo do TSE, sem acesso à base oficial — mesma ressalva de `CnhRegistration.cs`), CEP e
+  RG (sem dígito verificador nacional: só formato). Um valor achado com dígito verificador válido só passa se
+  estiver em `scripts/pii/synthetic_values.py` — a lista foi construída auditando o repositório inteiro nesta
+  rodada, todo valor conferido um a um contra o algoritmo real antes de entrar. CPF e CNH têm 11 dígitos e
+  algoritmos diferentes: um valor sintético de um pode coincidentemente fechar o checksum do outro (aconteceu com
+  três vetores de `CnhRegistrationTests.cs`), então os dois são checados contra a união das duas listas, não cada
+  um contra a sua. Bare CPF/CNPJ/título excluem vizinhança de ponto decimal, senão a mantissa de um
+  `durations_ms` de benchmark vira falso positivo sempre que o resto do checksum fechar por coincidência (achado
+  medindo contra `docs/bench/*.json` de verdade).
+- **Nome de pessoa/empresa dos documentos reais desta sessão**: lido de um arquivo *fora do repositório*, nunca
+  no código do scanner, cujo caminho vem de `DOCREADER_PII_NAMES_FILE` — sem a variável, essa parte é pulada com
+  aviso, não falha a varredura. `python -m pytest tests/pii_scan -q` roda a varredura como teste (mais o
+  autoteste: injeta um CPF real calculado na hora, não sintético, e confere que é achado); comando completo,
+  com o binário `git` que a imagem `python:3.12-slim` não tem por padrão, no README.
+- **`scripts/pii/mask_ocr_fixture.py`** recebe uma captura de OCR real (mesmo formato de
+  `scripts/capture-ocr-fixtures.py` e do que `GET .../extraction-diagnostics` devolve em `pages[].blocks[]`) e
+  devolve a fixture mascarada. CPF, CNPJ, CEP, RG e registro de CNH: automático, por um valor já aprovado de
+  `synthetic_values.py` (nunca um valor novo inventado — assim a autoconferência do fim, que roda o próprio
+  `scan.py` sobre a saída, sempre fecha limpa por construção); mesmo valor real em todo o documento vira o mesmo
+  sintético, valores diferentes recebem sintéticos diferentes. Data (`DD/MM/AAAA` e `Mês/AAAA`): o ano vira
+  sintético, dia/mês ficam. Endereço (linha começando com R/RUA/AV/.../PRAÇA ou "CIDADE - UF - CEP..."):
+  heurística automática, ligada por padrão, cada substituição avisada em stderr para revisão. **Nome de pessoa ou
+  empresa não tem heurística automática**: testado contra um documento real, uma heurística de "2 a 6 palavras
+  maiúsculas" pegava tanto o nome do titular quanto rótulo de fatura em maiúsculas ("ITENS DE FATURA", "RESERVADO
+  AO FISCO", "TOTAL A PAGAR") e corrompia a estrutura da fixture — sem um modelo de NER (fora do escopo de um
+  script de só biblioteca padrão), não existe sinal confiável para distinguir os dois. `--names-file` é
+  obrigatório na prática: mesma convenção de `DOCREADER_PII_NAMES_FILE`, mas usado para *substituir* (`TEXTO REAL`
+  ou `TEXTO REAL => SUBSTITUTO`, um substituto genérico se faltar o `=>`). O passo final roda a própria
+  `scan.scan_paths` sobre o arquivo de saída: achado residual sai o arquivo (para inspeção) mas o script retorna 1
+  — nunca uma fixture "mascarada" que a própria varredura reprovaria. Foi assim que o script pegou a si mesmo
+  numa lacuna real: a primeira versão só mascarava CPF/CNPJ com pontuação, e um registro de CNH sem máscara
+  (formato comum nesses documentos) passou batido até a autoconferência reprovar.
+- `elektro-real.ocr.json` foi regerado pelo script a partir do mesmo documento real (não só mascarado de novo à
+  mão): prova de que o resultado por ferramenta é equivalente ao — e mais completo que — o mascarado à mão que
+  motivou este trabalho (a fixture antiga não mascarava data nenhuma; a nova mascara). `cnh-real.ocr.json` e
+  `ric-real.ocr.json` são de uma rodada anterior (Etapa 5) cujo documento de origem não está mais disponível
+  neste ambiente para regerar pelo script; ficaram só auditados pelo `scan.py` (limpos, todo CPF/CNH/RG neles já
+  cadastrado como sintético).
+- Testes: ver a contagem no fim do arquivo (unitários .NET, mais `tests/pii_scan` em Python, independente da
+  suíte do avaliador).
+
 ## Estrutura do repositório
 
 ```text
@@ -409,7 +459,7 @@ uma linha para isto existir — a folga veio de `EnqueueAsync`/`CompleteAsync` j
   /DocReader.Infrastructure  EF Core/Npgsql, migrations, storage local, fila no Postgres
   /DocReader.Api.Contracts   DTOs públicos (request/response) da API v1
 /tests
-  /unit /integration /e2e /accuracy
+  /unit /integration /e2e /accuracy /pii_scan
 /schemas/documents   JSON Schemas por tipo documental (campos, sinais de classificação, validações)
 /samples/synthetic   amostras sintéticas para teste manual
 /deploy/docker       Dockerfiles (contexto de build = raiz do repo)
@@ -418,6 +468,7 @@ uma linha para isto existir — a folga veio de `EnqueueAsync`/`CompleteAsync` j
   /adr               decisões de arquitetura
   /api               artefatos de contrato exportados
 /scripts             helpers de desenvolvimento
+  /pii               varredura de vazamento de PII e mascaramento de fixture de OCR real
 DocReader.slnx             solução (formato slnx, exige SDK 10.x)
 Directory.Build.props      TFM, nullable, warnings-as-errors
 Directory.Packages.props   versões centralizadas de pacote
@@ -612,4 +663,6 @@ Coisas que já custaram tempo e não se enxergam no código.
 - **A chave de cifra não pode mudar** depois de haver repositórios de armazenamento com configuração: o AES-GCM não decifra com outra chave, e a configuração cifrada se perde. O mesmo vale para `EXTRACTED_FIELD_ENCRYPTION_KEY` e os campos extraídos já gravados.
 - **O EF Core cacheia o modelo compilado por tipo de `DbContext`, não por instância**: o `ValueConverter` de `RawValue`/`NormalizedValue` fecha sobre o `IFieldEncryptionProtector` recebido no construtor, mas só o da primeira instância de `DocReaderDbContext` construída no processo entra no modelo — construir outra instância com um protetor diferente não reconstrói o modelo nem troca esse fechamento. Em produção isso não importa (uma chave, o processo inteiro); em teste, todo `DocReaderDbContext` construído à mão precisa usar a mesma chave (`TestFieldEncryptionKey` em `Fakes/StorageFakes.cs` nos unitários, `PostgresFixture.FieldEncryptionProtector` na integração), senão o teste que perder a corrida para construir o modelo primeiro decifra com a chave errada.
 - **Fixtures de OCR são texto real, não fabricado.** Depois de mudar engine, pré-processamento ou amostras,
-  recapture com `scripts/capture-ocr-fixtures.py` antes de mexer nos extratores.
+  recapture com `scripts/capture-ocr-fixtures.py` antes de mexer nos extratores. Se a captura vier de documento
+  real (não da amostra sintética), passe por `scripts/pii/mask_ocr_fixture.py` antes de versionar — nunca
+  mascare à mão (duas vezes já vazou dado real fazendo isso; ver a seção de proteção contra vazamento de PII).
