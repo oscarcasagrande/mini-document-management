@@ -87,13 +87,38 @@ medidos em documento real.**
   (`WEBHOOK_ALLOW_PRIVATE_NETWORKS`).
 - **Referência externa**: `GET /api/v1/documents/by-external-reference/{reference}` devolve o documento mais recente (exato, com
   diferença de caixa) ou 404; a lista filtra por `externalReference` (parcial). Índice parcial em `external_reference`.
-- Testes: 884 unitários, 84 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
+
+**Configuração Dinâmica.** Três itens que tiram classificação e extração do código:
+
+- **DocumentType** (`Domain/Catalog`): `code`/`name`/`schema`/`classificationRules`/`extractionRules`/`active`/`isBuiltIn`.
+  CRUD em `/api/v1/document-types`; os sete tipos de sempre migraram do código para a tabela como seed da migration
+  (`classificationRules` gerado de `DocumentTypeProfile.All`, `schema` copiado de `schemas/documents/*.json`, embutido em
+  `Migrations/Seeds` — a migration não depende de arquivo fora do assembly). `IsBuiltIn` impede exclusão (409
+  `DOCUMENT_TYPE_BUILT_IN_PROTECTED`; desative em vez de apagar), mas `PUT` edita as regras de um tipo embutido normalmente.
+  A **classificação** consulta a tabela a cada chamada (`DynamicDocumentClassifier`, `IDocumentClassifier` agora assíncrono),
+  não mais `DocumentTypeProfile.All` em memória: uma regra editada por `PUT` vale no próximo documento, sem deploy nem
+  reinício. `RulesDocumentClassifier` (o motor de pontuação puro, síncrono) e seus testes continuam intactos — é só quem o
+  alimenta com perfis que mudou. A **extração** continua por classe C# por tipo (`IDocumentExtractor`); `extractionRules` é
+  hoje só metadado, não interpretado em runtime.
+- **Recálculo de retenção**: `PUT /api/v1/retention-policies/{id}/reapply-to-existing` enfileira um
+  `RetentionReapplyRequest` (`Pending`) e devolve 202; `RetentionReapplyWorker` no worker reivindica pedidos pendentes
+  (`FOR UPDATE SKIP LOCKED`, poll de 2 s) e recalcula `expiresAt` dos documentos daquela política em lotes de 100
+  (`Document.ReapplyRetention`, que preserva o início do ciclo e só troca a duração), registrando `RETENTION_POLICY_REAPPLIED`
+  em cada um. Idempotente: um documento já no valor novo não é tocado de novo.
+- **Reclassificação**: `PUT /api/v1/documents/{id}/reclassify-and-extract` enfileira um novo job com as regras de tipo
+  documental atuais, do mesmo jeito que `/reprocess` (preserva o documento e as extrações anteriores), mas grava também o
+  evento `RECLASSIFICATION_TRIGGERED`. O tipo e os campos gravados mudam se a classificação ou a extração mudarem quando o
+  worker processar o job — não há lógica nova de pipeline, só o gatilho.
+- Tela de cadastro de tipos documentais no BFF (`/config/document-types`), no mesmo componente genérico das outras telas de
+  configuração; ganhou um tipo de campo `"json"` (textarea visível e sempre enviado, ao contrário do `"secretJson"` mascarado
+  e opcional que as outras telas usavam).
+- Testes: 929 unitários, 95 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
 
 **O que não foi feito, e por quê:** nenhuma medição em documento real (não há dataset; o framework existe para
 isso); a comparação opcional com Tesseract/Docling do PRD §26; e a decisão de continuidade e produção, que
 depende da medição. As amostras sintéticas provam que o pipeline funciona e que as regras não regridem, não
 que os extratores acertam em documento de outro estado, concessionária ou junta. Fora do escopo: PDF com camada
-de texto nativa (RF-009), orientação/deskew, PP-StructureV3 e `/document-types`.
+de texto nativa (RF-009), orientação/deskew e PP-StructureV3.
 
 ## Estrutura do repositório
 
