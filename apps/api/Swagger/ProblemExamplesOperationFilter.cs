@@ -89,7 +89,25 @@ public sealed class ProblemExamplesOperationFilter : IOperationFilter
         ("/extraction-diagnostics", "410", ("Document was purged", "document-content-unavailable", "DOCUMENT_PURGED",
             "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept.")),
         ("/reprocess", "409", ("Document already being processed", "conflict", "REPROCESS_CONFLICT",
-            "The document is queued or being processed, or it was rejected. Wait for it to finish before reprocessing."))
+            "The document is queued or being processed, or it was rejected. Wait for it to finish before reprocessing.")),
+        ("/admin/backup", "422", ("Content cannot be processed", "unprocessable-content", "BACKUP_TARGET_UNSUPPORTED",
+            "A backup cannot be saved in a DATABASE repository: it would live inside the database it protects, be dropped by a restore and be copied into every later backup. Name a FILE_SYSTEM, AZURE_BLOB_STORAGE or AWS_S3 repository in storageRepositoryId.")),
+        ("/admin/backup", "503", ("System is read-only", "system-read-only", "SYSTEM_READ_ONLY",
+            "A restore is replacing the database. Reads keep working; retry changes once the restore job has finished.")),
+        ("/admin/backup/{id}", "404", ("Resource not found", "document-not-found", "BACKUP_JOB_NOT_FOUND",
+            "No backup job matches the requested identifier.")),
+        ("/admin/backup/{id}/content", "404", ("Resource not found", "document-not-found", "BACKUP_JOB_NOT_FOUND",
+            "No backup job matches the requested identifier.")),
+        ("/admin/backup/{id}/content", "409", ("Conflict", "conflict", "BACKUP_NOT_COMPLETED",
+            "The backup has no archive yet: it is pending, running or failed. Poll the job until its status is COMPLETED.")),
+        ("/admin/restore", "400", ("Invalid backup archive", "invalid-backup-archive", "BACKUP_CHECKSUM_MISMATCH",
+            "The SHA-256 of data.sql does not match checksums.sha256: the archive is corrupted.")),
+        ("/admin/restore", "409", ("Conflict", "conflict", "RESTORE_ALREADY_IN_PROGRESS",
+            "Another restore is pending or running. Wait for it to finish before starting a new one.")),
+        ("/admin/restore", "413", ("Request body too large", "file-too-large", "REQUEST_TOO_LARGE",
+            "The request body exceeds the configured limit and was rejected before being read.")),
+        ("/admin/restore/{id}", "404", ("Resource not found", "document-not-found", "RESTORE_JOB_NOT_FOUND",
+            "No restore job matches the requested identifier."))
     ];
 
     public void Apply(OpenApiOperation operation, OperationFilterContext context)

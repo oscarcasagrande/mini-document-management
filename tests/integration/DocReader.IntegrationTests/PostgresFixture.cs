@@ -78,6 +78,8 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         // Configuration goes too, except what the migration seeds: the global retention policy stays, at its default.
         await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE retention_reapply_requests;");
+        await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE backup_jobs, restore_jobs;");
+        await context.Database.ExecuteSqlRawAsync("UPDATE system_state SET is_read_only = false;");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM retention_policies WHERE id <> '00000000-0000-7000-8000-000000000001';");
         await context.Database.ExecuteSqlRawAsync("UPDATE retention_policies SET retention_days = 365 WHERE id = '00000000-0000-7000-8000-000000000001';");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM webhook_subscriptions;");

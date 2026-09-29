@@ -136,6 +136,44 @@ public sealed class SuccessExamplesSchemaFilter : ISchemaFilter
             };
         }
 
+        if (type == typeof(BackupJobResponse))
+        {
+            return new JsonObject
+            {
+                ["id"] = "0199c1f0-6666-7a10-9c44-2f1d8e6b4a21",
+                ["status"] = "COMPLETED",
+                ["requestedAt"] = SampleInstant,
+                ["startedAt"] = "2026-09-24T22:00:02Z",
+                ["completedAt"] = "2026-09-24T22:00:41Z",
+                ["storageRepositoryId"] = "00000000-0000-7000-8000-0000000000d1",
+                ["storageKey"] = "documents/2026/09/24/0199c1f0-6666-7a10-9c44-2f1d8e6b4a21/original.tgz",
+                ["fileName"] = "backup-0199c1f0-6666-7a10-9c44-2f1d8e6b4a21.tar.gz",
+                ["sizeBytes"] = 48_213_004,
+                ["checksumSha256"] = "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+                ["documentCount"] = 1250,
+                ["filesArchived"] = 1180,
+                ["errorMessage"] = null,
+                ["downloadUrl"] = "/api/v1/admin/backup/0199c1f0-6666-7a10-9c44-2f1d8e6b4a21/content"
+            };
+        }
+
+        if (type == typeof(RestoreJobResponse))
+        {
+            return new JsonObject
+            {
+                ["id"] = "0199c1f0-7777-7a10-9c44-2f1d8e6b4a21",
+                ["status"] = "PENDING",
+                ["requestedAt"] = SampleInstant,
+                ["startedAt"] = null,
+                ["completedAt"] = null,
+                ["archiveSizeBytes"] = 48_213_004,
+                ["archiveChecksumSha256"] = "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+                ["documentCount"] = 1250,
+                ["filesRestored"] = null,
+                ["errorMessage"] = null
+            };
+        }
+
         if (type == typeof(StorageRepositoryResponse))
         {
             return BuildStorageRepository();
