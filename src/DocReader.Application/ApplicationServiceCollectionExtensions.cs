@@ -1,4 +1,5 @@
 using DocReader.Application.Abstractions;
+using DocReader.Application.Audit;
 using DocReader.Application.Backup;
 using DocReader.Application.Catalog;
 using DocReader.Application.Classification;
@@ -90,6 +91,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IDocumentExtractor, BrCcmeiExtractor>();
         services.AddScoped<IDocumentExtractor, BrSocialContractExtractor>();
 
+        services.AddScoped<AuditLogService>();
         services.AddScoped<ProductServiceService>();
         services.AddScoped<DocumentTypeService>();
         services.AddScoped<RetentionService>();

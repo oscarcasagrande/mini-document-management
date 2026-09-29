@@ -124,6 +124,34 @@ public sealed class StorageRepositoriesController(
         return Ok(ConfigurationResponseMapper.ToResponse(updated));
     }
 
+    /// <summary>Decrypts and returns the full connection settings.</summary>
+    /// <remarks>
+    /// TODO(RBAC): restrict to the docreader-admin role once OIDC/RBAC lands (see CLAUDE.md); today this is reachable
+    /// by anyone who can reach the API, like the rest of this anonymous PoC. Every call is recorded in the audit log
+    /// (<c>STORAGE_CONFIG_REVEALED</c>, who and when) but the value itself is never logged, and the response is
+    /// marked <c>Cache-Control: no-store</c>.
+    /// </remarks>
+    /// <param name="id">Identity.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="200">The settings, decrypted. An empty object when none are stored.</response>
+    /// <response code="404">There is none with this id.</response>
+    [HttpGet("{id:guid}/connection-config")]
+    [ProducesResponseType(typeof(Dictionary<string, string?>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    public async Task<ActionResult<Dictionary<string, string?>>> GetConnectionConfigAsync(Guid id, CancellationToken ct)
+    {
+        var config = await service.RevealConnectionConfigAsync(
+            id,
+            userId: User.Identity?.Name,
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
+            userAgent: Request.Headers.UserAgent.ToString(),
+            ct);
+
+        Response.Headers.CacheControl = "no-store";
+
+        return Ok(ToDictionary(config));
+    }
+
     /// <summary>Deletes a storage repository that nothing uses.</summary>
     /// <remarks>The default repository cannot be deleted. A repository with documents, or that a product or service names, cannot either: deactivate it instead.</remarks>
     /// <param name="id">Identity.</param>
@@ -154,6 +182,22 @@ public sealed class StorageRepositoriesController(
         foreach (var (key, value) in config)
         {
             result[key] = value is null ? null : JsonValue.Create(value);
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, string?> ToDictionary(JsonObject? config)
+    {
+        var result = new Dictionary<string, string?>();
+        if (config is null)
+        {
+            return result;
+        }
+
+        foreach (var (key, value) in config)
+        {
+            result[key] = value?.GetValue<string>();
         }
 
         return result;

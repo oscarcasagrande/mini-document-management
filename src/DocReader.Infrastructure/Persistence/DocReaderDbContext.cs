@@ -1,3 +1,4 @@
+using DocReader.Domain.Audit;
 using DocReader.Domain.Backup;
 using DocReader.Domain.Catalog;
 using DocReader.Domain.Documents;
@@ -56,6 +57,8 @@ public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> opti
     public DbSet<IdempotencyRecord> IdempotencyKeys => Set<IdempotencyRecord>();
 
     public DbSet<ProtocolSequence> ProtocolSequences => Set<ProtocolSequence>();
+
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

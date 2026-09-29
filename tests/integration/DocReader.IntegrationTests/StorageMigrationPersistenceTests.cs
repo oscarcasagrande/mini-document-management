@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using DocReader.Application.Abstractions;
+using DocReader.Application.Audit;
 using DocReader.Application.Errors;
 using DocReader.Application.Options;
 using DocReader.Application.Storage;
@@ -71,7 +72,12 @@ public sealed class StorageMigrationPersistenceTests(PostgresFixture fixture) : 
     private async Task<StorageRepository> CreateRepositoryAsync(string code, StorageProvider provider, JsonObject? config)
     {
         await using var write = fixture.CreateContext();
-        var service = new StorageRepositoryService(StoreOf(write), _protector, new FakeTimeProvider(Now), NullLogger<StorageRepositoryService>.Instance);
+        var service = new StorageRepositoryService(
+            StoreOf(write),
+            _protector,
+            new AuditLogService(new EfAuditLogStore(write), new FakeTimeProvider(Now)),
+            new FakeTimeProvider(Now),
+            NullLogger<StorageRepositoryService>.Instance);
 
         return await service.CreateAsync(code, code, provider, config, false, true, Ct);
     }

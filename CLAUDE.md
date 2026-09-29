@@ -206,9 +206,20 @@ a exatidão de tabela medida; fica desligado por padrão até um gatilho de revi
   interrompe cooperativamente antes do próximo lote e não desfaz o que já foi movido. Testado ao vivo: 55 de 56
   documentos reais migrados de FileSystem para um repositório Database (o restante já estava em outro repositório),
   conteúdo continuou acessível depois.
-- Testes: 990 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
-  testes de backup/restore que precisam de `psql`/`pg_dump` (98 passam, 6 pulados) e os 3 de Azurite; com
-  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (108 no total, 105 passam, os 3 do Azurite
+- **Revelar a configuração de um repositório**: `GET /api/v1/storage-repositories/{id}/connection-config` decifra e devolve a
+  configuração completa (`Cache-Control: no-store`), para a tela de edição poder mostrá-la sob demanda em vez de reenviar tudo
+  às cegas. O olhinho da tela de repositórios busca esse endpoint na primeira vez que é aberto; ocultar de novo esquece o valor
+  (limpa da tela, não só mascara), e salvar sem revelar/editar mantém o que já estava gravado (atualização parcial de sempre).
+  Cada chamada grava um `AuditLog` (`STORAGE_CONFIG_REVEALED`, quem, quando, nunca o valor). **TODO(RBAC)**: hoje esse endpoint
+  é anônimo como o resto da PoC — restringir ao papel `docreader-admin` quando OIDC/RBAC existir (mesmo TODO no código, em
+  `StorageRepositoriesController.GetConnectionConfigAsync` e `StorageRepositoryService.RevealConnectionConfigAsync`).
+- **AuditLog** (`Domain/Audit`, tabela `audit_logs`): registro append-only e genérico — quem (`userId`, nulo hoje porque a PoC
+  não tem autenticação), ação, tipo e id do recurso, quando, IP, user agent e `changes` (metadado do que mudou, nunca conteúdo
+  ou segredo). Por ora só o `GET .../connection-config` grava nele; é a base para a auditoria completa (tabela, endpoint de
+  leitura, tela no BFF) quando o épico de OIDC/RBAC/auditoria for implementado.
+- Testes: 993 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
+  testes de backup/restore que precisam de `psql`/`pg_dump` (99 passam, 6 pulados) e os 3 de Azurite; com
+  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (109 no total, 106 passam, os 3 do Azurite
   continuam pulados sem esse emulador).
 
 ## Estrutura do repositório

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DocReader.Application.Abstractions;
+using DocReader.Application.Audit;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
 using DocReader.Domain.Storage;
@@ -11,11 +12,13 @@ namespace DocReader.Application.Storage;
 /// <summary>
 /// Administration of the storage repositories. Three rules hold at all times: exactly one repository is the default,
 /// the default is active, and a repository documents live in is never deleted or repointed under them. The connection
-/// settings are secrets: they are encrypted before they are stored and never returned.
+/// settings are secrets: they are encrypted before they are stored and, other than through
+/// <see cref="RevealConnectionConfigAsync"/>, never returned.
 /// </summary>
 public sealed class StorageRepositoryService(
     IStorageRepositoryStore store,
     ISecretProtector protector,
+    AuditLogService auditLog,
     TimeProvider timeProvider,
     ILogger<StorageRepositoryService> logger)
 {
@@ -129,6 +132,41 @@ public sealed class StorageRepositoryService(
             becomesDefault || repository.IsDefault);
 
         return await GetAsync(id, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Decrypts and returns the full connection settings, so the UI can let someone check what is actually stored.
+    /// Every call is audited (who, when, which repository) but the value itself never reaches a log.
+    /// TODO(RBAC): restrict this to the docreader-admin role once OIDC/RBAC lands (CLAUDE.md tracks this).
+    /// </summary>
+    public async Task<JsonObject?> RevealConnectionConfigAsync(
+        Guid id,
+        string? userId,
+        string? ipAddress,
+        string? userAgent,
+        CancellationToken ct)
+    {
+        var repository = await GetAsync(id, ct).ConfigureAwait(false);
+
+        var config = repository.EncryptedConnectionConfig is null
+            ? null
+            : JsonNode.Parse(protector.Unprotect(repository.EncryptedConnectionConfig)) as JsonObject;
+
+        await auditLog.RecordAsync(
+            userId,
+            "STORAGE_CONFIG_REVEALED",
+            "StorageRepository",
+            repository.Id.ToString(),
+            ipAddress,
+            userAgent,
+            changes: null,
+            ct).ConfigureAwait(false);
+
+        logger.LogInformation(
+            "Storage repository connection config revealed. storageRepositoryId={StorageRepositoryId}",
+            repository.Id);
+
+        return config;
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)

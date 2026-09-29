@@ -1,4 +1,5 @@
 using DocReader.Application.Abstractions;
+using DocReader.Application.Audit;
 using DocReader.Application.Options;
 using DocReader.Application.Webhooks;
 using DocReader.Infrastructure.Backup;
@@ -66,6 +67,7 @@ public static class InfrastructureServiceCollectionExtensions
                     ConnectCallback = (context, ct) => HttpWebhookSender.ConnectGuardedAsync(context, webhooks.Value.AllowPrivateNetworks, ct)
                 };
             });
+        services.AddScoped<IAuditLogStore, EfAuditLogStore>();
         services.AddScoped<IStorageRepositoryStore, StorageRepositoryStore>();
         services.AddScoped<IStorageAdapterFactory, StorageAdapterFactory>();
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();

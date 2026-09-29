@@ -77,9 +77,11 @@ export default async function StorageRepositoriesPage() {
             name: "connectionConfig",
             label: "Configuração de conexão (JSON, segredo)",
             kind: "secretJson",
+            revealPath: "connection-config",
             placeholder: '{"directory": "clientes/acme"}',
             help:
-              "Nunca é exibida: só se sobrescreve. Ao editar, vale uma atualização parcial: informe só as chaves a mudar (null remove uma). " +
+              "Oculta por padrão; ao editar, clique no olho para decifrar e ver o valor salvo (fica só na tela, nunca em log; ocultar de novo esquece o que foi mostrado). " +
+              "Ao salvar vale uma atualização parcial: informe só as chaves a mudar (null remove uma). " +
               "Sistema de arquivos: directory (opcional, relativo à raiz). Banco: nenhuma. Azure: connectionString e container. S3: bucket, accessKeyId, secretAccessKey.",
           },
           { name: "isDefault", label: "Repositório padrão", kind: "boolean", defaultValue: false },

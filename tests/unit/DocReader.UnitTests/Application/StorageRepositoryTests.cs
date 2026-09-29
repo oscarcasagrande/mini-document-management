@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using DocReader.Application.Abstractions;
+using DocReader.Application.Audit;
 using DocReader.Application.Catalog;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
@@ -28,12 +29,13 @@ public sealed class StorageRepositoryTests
 
     private readonly InMemoryStorageRepositoryStore _store = new();
     private readonly FakeSecretProtector _protector = new();
+    private readonly InMemoryAuditLogStore _auditLogStore = new();
     private readonly FakeTimeProvider _clock = new(Now);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private StorageRepositoryService Service() =>
-        new(_store, _protector, _clock, NullLogger<StorageRepositoryService>.Instance);
+        new(_store, _protector, new AuditLogService(_auditLogStore, _clock), _clock, NullLogger<StorageRepositoryService>.Instance);
 
     private static JsonObject Config(params (string Key, string? Value)[] entries)
     {
@@ -370,6 +372,50 @@ public sealed class StorageRepositoryTests
         var error = await Assert.ThrowsAsync<ResourceNotFoundException>(() => Service().GetAsync(Guid.NewGuid(), Ct));
 
         Assert.Equal("storage-repository", error.Resource);
+    }
+
+    // ---- revelação da configuração ------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Revelar_devolve_a_configuracao_decifrada_e_grava_auditoria_sem_o_valor()
+    {
+        var created = await CreateAsync("com-config", StorageProvider.AzureBlobStorage,
+            Config(("connectionString", "AccountKey=SEGREDO-XYZ"), ("container", "docs")));
+
+        var revealed = await Service().RevealConnectionConfigAsync(created.Id, "alice", "10.0.0.5", "curl/8", Ct);
+
+        Assert.Equal("AccountKey=SEGREDO-XYZ", (string?)revealed!["connectionString"]);
+        Assert.Equal("docs", (string?)revealed["container"]);
+
+        var entry = Assert.Single(_auditLogStore.Entries);
+        Assert.Equal("STORAGE_CONFIG_REVEALED", entry.Action);
+        Assert.Equal("StorageRepository", entry.ResourceType);
+        Assert.Equal(created.Id.ToString(), entry.ResourceId);
+        Assert.Equal("alice", entry.UserId);
+        Assert.Equal("10.0.0.5", entry.IpAddress);
+        Assert.Equal("curl/8", entry.UserAgent);
+        Assert.Null(entry.Changes);
+        Assert.DoesNotContain("SEGREDO-XYZ", entry.Changes ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Revelar_repositorio_sem_configuracao_devolve_nulo_mas_ainda_audita()
+    {
+        var created = await CreateAsync("sem-config");
+
+        var revealed = await Service().RevealConnectionConfigAsync(created.Id, null, null, null, Ct);
+
+        Assert.Null(revealed);
+        Assert.Single(_auditLogStore.Entries);
+    }
+
+    [Fact]
+    public async Task Revelar_repositorio_inexistente_e_not_found()
+    {
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+            Service().RevealConnectionConfigAsync(Guid.NewGuid(), null, null, null, Ct));
+
+        Assert.Empty(_auditLogStore.Entries);
     }
 
     // ---- produto ---------------------------------------------------------------------------------------------------

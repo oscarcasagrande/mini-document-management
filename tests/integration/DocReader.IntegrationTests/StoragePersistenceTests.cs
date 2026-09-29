@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using DocReader.Application.Abstractions;
+using DocReader.Application.Audit;
 using DocReader.Application.Errors;
 using DocReader.Application.Options;
 using DocReader.Application.Storage;
@@ -347,7 +348,12 @@ public sealed class StoragePersistenceTests(PostgresFixture fixture) : IAsyncLif
 
         await using (var write = fixture.CreateContext())
         {
-            var service = new StorageRepositoryService(StoreOf(write), protector, new FakeTimeProvider(Now), NullLogger<StorageRepositoryService>.Instance);
+            var service = new StorageRepositoryService(
+                StoreOf(write),
+                protector,
+                new AuditLogService(new EfAuditLogStore(write), new FakeTimeProvider(Now)),
+                new FakeTimeProvider(Now),
+                NullLogger<StorageRepositoryService>.Instance);
             var created = await service.CreateAsync("cofre-fs", "Cofre", StorageProvider.FileSystem, new JsonObject { ["directory"] = "cofre" }, false, true, Ct);
             repository = created;
         }
@@ -384,5 +390,55 @@ public sealed class StoragePersistenceTests(PostgresFixture fixture) : IAsyncLif
         await facade.DeleteAsync(database.Id, saved.StorageKey, Ct);
         await Assert.ThrowsAsync<FileNotFoundException>(() => facade.OpenReadAsync(database.Id, saved.StorageKey, Ct));
         Assert.True(await facade.IsWritableAsync(Ct));
+    }
+
+    // ---- revelação da configuração --------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Revelar_decifra_o_valor_cadastrado_e_grava_auditoria_sem_vazar_o_segredo_no_banco_ou_no_log()
+    {
+        RequireDatabase(fixture);
+
+        var protector = new AesGcmSecretProtector(Options.Create(new SecretsOptions { EncryptionKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) }));
+        var listLogger = new ListLogger<StorageRepositoryService>();
+
+        Guid repositoryId;
+        await using (var write = fixture.CreateContext())
+        {
+            var service = new StorageRepositoryService(
+                StoreOf(write),
+                protector,
+                new AuditLogService(new EfAuditLogStore(write), new FakeTimeProvider(Now)),
+                new FakeTimeProvider(Now),
+                listLogger);
+
+            var created = await service.CreateAsync(
+                "azure-revelar",
+                "Azure revelar",
+                StorageProvider.AzureBlobStorage,
+                new JsonObject { ["connectionString"] = "AccountKey=SEGREDO-REAL-777", ["container"] = "docs" },
+                false,
+                true,
+                Ct);
+            repositoryId = created.Id;
+
+            var revealed = await service.RevealConnectionConfigAsync(repositoryId, "bob", "192.0.2.1", "xunit", Ct);
+
+            Assert.Equal("AccountKey=SEGREDO-REAL-777", (string?)revealed!["connectionString"]);
+            Assert.Equal("docs", (string?)revealed["container"]);
+        }
+
+        // Nothing logged by the service carries the secret.
+        Assert.DoesNotContain(listLogger.Entries, entry => entry.Message.Contains("SEGREDO-REAL-777", StringComparison.Ordinal));
+
+        await using var read = fixture.CreateContext();
+        var entry = await read.AuditLogs.AsNoTracking().SingleAsync(item => item.ResourceId == repositoryId.ToString(), Ct);
+
+        Assert.Equal("STORAGE_CONFIG_REVEALED", entry.Action);
+        Assert.Equal("StorageRepository", entry.ResourceType);
+        Assert.Equal("bob", entry.UserId);
+        Assert.Equal("192.0.2.1", entry.IpAddress);
+        Assert.Equal("xunit", entry.UserAgent);
+        Assert.Null(entry.Changes);
     }
 }

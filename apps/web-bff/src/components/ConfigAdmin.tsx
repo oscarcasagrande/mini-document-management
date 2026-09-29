@@ -25,6 +25,11 @@ export interface AdminField {
   help?: string;
   placeholder?: string;
   defaultValue?: string | number | boolean;
+  /**
+   * Only for "secretJson": the sub-path (relative to the item) that decrypts and returns the stored value, for the
+   * eye toggle to fetch when editing. Without it the eye only masks/unmasks whatever is currently typed.
+   */
+  revealPath?: string;
 }
 
 export type AdminColumnKind = "text" | "mono" | "boolean" | "instant" | "list";
@@ -197,6 +202,8 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
   /** Which secretJson fields are unmasked right now, for the eye toggle. Reset on open/close: never persisted. */
   const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
+  /** Which secretJson fields are mid-fetch of their revealPath, to disable the eye and avoid a double request. */
+  const [revealing, setRevealing] = useState<Record<string, boolean>>({});
 
   const isEditing = editing !== null && editing !== "new";
 
@@ -215,8 +222,48 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
     setVisibleFields({});
   }
 
-  function toggleVisible(name: string) {
-    setVisibleFields((current) => ({ ...current, [name]: !current[name] }));
+  /**
+   * Reveals or hides a secretJson field. When editing and the field has a revealPath, showing it for the first time
+   * fetches the decrypted value from the API; hiding it again forgets that value (and any edit made while it was
+   * shown) rather than leaving it sitting in memory. Without a revealPath, or while creating, it only masks/unmasks
+   * whatever is currently typed.
+   */
+  async function toggleVisible(field: AdminField) {
+    const name = field.name;
+
+    if (visibleFields[name]) {
+      setVisibleFields((current) => ({ ...current, [name]: false }));
+      if (isEditing && field.revealPath) {
+        setValues((current) => ({ ...current, [name]: "" }));
+      }
+      return;
+    }
+
+    const alreadyHasText = String(values[name] ?? "").trim().length > 0;
+    if (isEditing && field.revealPath && !alreadyHasText) {
+      setRevealing((current) => ({ ...current, [name]: true }));
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/bff/config/${resource}/${encodeURIComponent((editing as Item).id)}/${field.revealPath}`);
+
+        if (!response.ok) {
+          const problem = (await response.json()) as ProblemDetails;
+          setError(problem.detail ?? problem.title ?? `Falha com status ${response.status}.`);
+          return;
+        }
+
+        const config = (await response.json()) as unknown;
+        setValues((current) => ({ ...current, [name]: JSON.stringify(config, null, 2) }));
+      } catch {
+        setError("Não foi possível falar com o serviço.");
+        return;
+      } finally {
+        setRevealing((current) => ({ ...current, [name]: false }));
+      }
+    }
+
+    setVisibleFields((current) => ({ ...current, [name]: true }));
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -325,9 +372,10 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
                           <button
                             type="button"
                             className="icon-button"
-                            aria-label={visibleFields[field.name] ? "Ocultar" : "Mostrar"}
-                            title={visibleFields[field.name] ? "Ocultar" : "Mostrar"}
-                            onClick={() => toggleVisible(field.name)}
+                            disabled={revealing[field.name] === true}
+                            aria-label={revealing[field.name] ? "Carregando" : visibleFields[field.name] ? "Ocultar" : "Mostrar"}
+                            title={revealing[field.name] ? "Carregando..." : visibleFields[field.name] ? "Ocultar" : "Mostrar"}
+                            onClick={() => toggleVisible(field)}
                           >
                             <EyeIcon off={visibleFields[field.name] === true} />
                           </button>
@@ -375,7 +423,13 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
                           id={id}
                           rows={field.kind === "tags" ? 3 : field.kind === "json" ? 12 : 4}
                           value={String(value ?? "")}
-                          placeholder={field.kind === "secretJson" && isEditing ? "•••••• (deixe vazio para manter)" : field.placeholder}
+                          placeholder={
+                            field.kind === "secretJson" && isEditing
+                              ? field.revealPath
+                                ? "Salvo. Clique no olho para ver."
+                                : "•••••• (deixe vazio para manter)"
+                              : field.placeholder
+                          }
                           autoComplete="off"
                           spellCheck={false}
                           style={

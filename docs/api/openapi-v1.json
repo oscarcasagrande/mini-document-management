@@ -4123,6 +4123,80 @@
         }
       }
     },
+    "/api/v1/storage-repositories/{id}/connection-config": {
+      "get": {
+        "tags": [
+          "StorageRepositories"
+        ],
+        "summary": "Decrypts and returns the full connection settings.",
+        "description": "TODO(RBAC): restrict to the docreader-admin role once OIDC/RBAC lands (see CLAUDE.md); today this is reachable\nby anyone who can reach the API, like the rest of this anonymous PoC. Every call is recorded in the audit log\n(`STORAGE_CONFIG_REVEALED`, who and when) but the value itself is never logged, and the response is\nmarked `Cache-Control: no-store`.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/storage-repositories/{id}/connection-config",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The settings, decrypted. An empty object when none are stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/storage-repositories/{id}/connection-config",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhook-subscriptions": {
       "post": {
         "tags": [
