@@ -30,6 +30,18 @@ Endpoints da v1:
 | `GET` `POST` | `/api/v1/webhook-subscriptions` | extra |
 | `GET` `PUT` `DELETE` | `/api/v1/webhook-subscriptions/{id}` | extra |
 | `GET` | `/api/v1/webhook-subscriptions/{id}/deliveries` | extra |
+| `GET` `POST` | `/api/v1/document-types` | extra |
+| `GET` `PUT` `DELETE` | `/api/v1/document-types/{id}` | extra |
+| `PUT` | `/api/v1/retention-policies/{id}/reapply-to-existing` | extra |
+| `PUT` | `/api/v1/documents/{id}/reclassify-and-extract` | extra |
+| `POST` | `/api/v1/admin/backup` | extra |
+| `GET` | `/api/v1/admin/backup/{id}` | extra |
+| `GET` | `/api/v1/admin/backup/{id}/content` | extra |
+| `POST` | `/api/v1/admin/restore` | extra |
+| `GET` | `/api/v1/admin/restore/{id}` | extra |
+| `POST` | `/api/v1/admin/storage-migration` | extra |
+| `GET` | `/api/v1/admin/storage-migration/{jobId}` | extra |
+| `DELETE` | `/api/v1/admin/storage-migration/{jobId}/rollback` | extra |
 
 `/text`, `/result` e os dois `*-diagnostics` respondem `409` (`RESULT_NOT_READY`) enquanto não há extração; `/reprocess`
 responde `202`, `404` se o documento não existe e `409` (`REPROCESS_CONFLICT`) se o documento está na

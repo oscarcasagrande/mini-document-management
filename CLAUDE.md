@@ -77,9 +77,10 @@ medidos em documento real.**
   tempo e os jobs ficam como tombstone. `/content`, `/text`, `/result`, `/reprocess` e os `*-diagnostics` dão 410
   (`EnsureNotPurged` no `DocumentQueryService`); o `GET` do documento continua 200 com `PURGED`.
 - **StorageRepository** (`Domain/Storage`): `IFileStorage` virou fachada que escolhe o adaptador pelo `repositoryId` do documento
-  (herdado do produto ou do padrão). FileSystem e Database (`document_blobs`) implementados; Azure e S3 devolvem
-  `NotImplementedException` (501). A configuração é cifrada por `ISecretProtector` (AES-256-GCM, chave em
-  `STORAGE_CONFIG_ENCRYPTION_KEY`) e nunca sai numa resposta. Exatamente um repositório padrão (índice único parcial).
+  (herdado do produto ou do padrão). Os quatro provedores são implementados: FileSystem, Database (`document_blobs`),
+  AzureBlobStorage e AwsS3 — ver a seção de armazenamento em nuvem abaixo. A configuração é cifrada por `ISecretProtector`
+  (AES-256-GCM, chave em `STORAGE_CONFIG_ENCRYPTION_KEY`) e nunca sai numa resposta. Exatamente um repositório padrão
+  (índice único parcial).
 - **Webhooks** (`Domain/Webhooks`, `Application/Webhooks`): outbox transacional (`webhook_deliveries`, payload em `text`, **não**
   `jsonb`, para os bytes assinados não mudarem). O `WebhookDispatcher` do worker reivindica com `FOR UPDATE SKIP LOCKED`,
   com fencing; assinatura `sha256=<hex>` sobre o corpo exato; 4 tentativas (10 s/30 s/90 s); falha final vira o evento
@@ -149,6 +150,66 @@ isso); a comparação opcional com Tesseract/Docling do PRD §26; e a decisão d
 depende da medição. As amostras sintéticas provam que o pipeline funciona e que as regras não regridem, não
 que os extratores acertam em documento de outro estado, concessionária ou junta. PP-StructureV3 funciona mas piora
 a exatidão de tabela medida; fica desligado por padrão até um gatilho de revisão do ADR 0002 mudar isso.
+
+**Armazenamento em nuvem, backup/restore e migração entre repositórios.** Três itens sobre `StorageRepository`:
+
+- **Adaptadores Azure Blob e AWS S3** (`Infrastructure/Storage`): implementam `IStorageAdapter` com a mesma chave
+  `documents/yyyy/MM/dd/{id}/original{ext}` do adaptador de filesystem (`StorageKeyLayout`, compartilhada pelos três).
+  `connectionConfig` esperado, cifrado como qualquer outro repositório (`STORAGE_CONFIG_ENCRYPTION_KEY`):
+  **Azure** — `connectionString` e `container` (ambos obrigatórios); **S3** — `bucket`, `accessKeyId` e `secretAccessKey`
+  (obrigatórios), `region` e `serviceUrl` (opcionais — `serviceUrl` com `ForcePathStyle` também atende MinIO e outros
+  serviços compatíveis com S3). `StorageRepository.IsProviderImplemented` agora aceita os quatro provedores: Azure e S3
+  podem ser o repositório padrão. Testado de ponta a ponta (upload de 1 MB, download, exclusão) contra um Azurite real;
+  não havia um emulador de S3 alcançável neste ambiente (registry restrito), então o adaptador AWS tem só testes
+  unitários de construção/validação — mesmo formato de código do adaptador Azure.
+- **Backup e restore** (`Application/Backup`, `Domain/Backup`, `Infrastructure/Backup`): `POST /api/v1/admin/backup`
+  (repositório de destino opcional, padrão o repositório padrão do sistema; nunca um repositório `DATABASE`, 422 —
+  o backup ficaria dentro do banco que ele protege) enfileira um `BackupJob`; o worker roda `pg_dump --format=plain
+  --clean --if-exists` num snapshot consistente com o manifesto de documentos, empacota `data.sql` +
+  `storage_manifest.json` + os arquivos dos repositórios locais (FileSystem/Database — nuvem entra só como metadado no
+  manifesto, o blob não é baixado) + `checksums.sha256` num `.tar.gz` (`System.Formats.Tar`, sem depender de um binário
+  `tar`), assina a lista de checksums com uma chave derivada de `STORAGE_CONFIG_ENCRYPTION_KEY` (`checksums.sha256.hmac`
+  — sem isso, qualquer um monta um `.tar.gz` com SQL próprio e o SHA-256 bate) e grava o arquivo por `IFileStorage`
+  (mesmo mecanismo dos documentos, por isso "configurável para S3/Azure" não precisou de código novo). `GET
+  /api/v1/admin/backup/{id}` mostra o status; `GET .../{id}/content` baixa o `.tar.gz`. `POST /api/v1/admin/restore`
+  recebe o `.tar.gz` (multipart, até 2 GiB), valida checksum e assinatura **na hora** (400 se inválido, nada é
+  enfileirado) e só então cria um `RestoreJob` assíncrono. O worker liga um portão de somente-leitura em nível de
+  aplicação (`SystemState`, uma linha fixa; `ReadOnlyGateMiddleware` recusa POST/PUT/PATCH/DELETE em `/api` com 503
+  `SYSTEM_READ_ONLY` enquanto está ligado — leituras e o próprio endpoint de restore continuam liberados) e roda `psql
+  --single-transaction --set ON_ERROR_STOP=on -f data.sql`: qualquer erro faz o Postgres reverter a restauração
+  inteira, então "rollback" aqui é uma transação de verdade, não um remendo da aplicação. Confirmado com um teste real
+  de arquivo malicioso (SQL que teria apagado `documents`) e com `docker stop` no worker no meio de uma restauração —
+  os dois casos voltam o banco ao estado anterior e derrubam o portão no `finally`. Os arquivos são escritos de volta
+  reconstruindo a chave determinística a partir de `documentId`/extensão/data de upload; se não bater com a chave
+  gravada no manifesto (documento migrado de repositório, por exemplo), esse documento entra como falha em vez de
+  arriscar apontar para o arquivo errado. `DocReader:Backup` configura `WorkingDirectory` (pasta de rascunho, padrão
+  `docreader-backup` sob o temp do sistema), `PgDumpPath`/`PsqlPath` (nome no PATH ou caminho absoluto), `CommandTimeout`
+  (padrão 2 h) e `MaxExtractedBytes` (teto do que uma restauração extrai de um arquivo, padrão 20 GiB). A imagem do
+  worker precisou do `postgresql-client-17` do repositório apt do próprio PostgreSQL (PGDG): a base Ubuntu 24.04 só
+  tem a versão 16 por padrão, incompatível com o `postgres:17-alpine` do compose.
+  **Risco de segurança, não resolvido nesta etapa:** os endpoints de admin são anônimos como o resto da PoC
+  (`ALLOW_ANONYMOUS_ACCESS`), mas aqui o preço é maior — `/backup` baixa um dump com dado pessoal de todo documento, e
+  `/restore` roda SQL arbitrário como o papel do banco da aplicação, que no compose é superusuário. A assinatura
+  impede um arquivo forjado sem a chave, mas não autentica quem chama o endpoint. Não expor além de localhost sem
+  colocar autenticação na frente. O portão de somente-leitura também cobre só a API: os outros jobs do worker
+  (processamento, expurgo, webhooks, `RetentionReapplyWorker`, `StorageMigrationWorker`) continuam rodando durante
+  uma restauração.
+- **Migração entre repositórios** (`Application/StorageMigrations`, `Domain/StorageMigrations`): `POST
+  /api/v1/admin/storage-migration` (`sourceRepositoryId`, `targetRepositoryId`, filtro opcional por tipo/produto/data)
+  enfileira um `StorageMigrationJob`; o `StorageMigrationWorker` reivindica com `FOR UPDATE SKIP LOCKED` (mesmo padrão
+  do `RetentionReapplyWorker`) e move documentos em lotes de 10, cada um em sua própria transação: lê do repositório de
+  origem por `IFileStorage`, grava no destino, atualiza `storageRepositoryId`/`storageKey`
+  (`Document.MigrateStorageRepository`, que tirou `StorageKey`/`StorageRepositoryId` de `private init`) e registra
+  `STORAGE_MIGRATED` na linha do tempo — **nunca apaga do repositório de origem**. `migrationHistory` na resposta do
+  documento é derivado desses eventos, não é coluna nova. `DELETE
+  /api/v1/admin/storage-migration/{jobId}/rollback` só funciona em job `Pending`/`Running` (409 se já terminou),
+  interrompe cooperativamente antes do próximo lote e não desfaz o que já foi movido. Testado ao vivo: 55 de 56
+  documentos reais migrados de FileSystem para um repositório Database (o restante já estava em outro repositório),
+  conteúdo continuou acessível depois.
+- Testes: 990 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
+  testes de backup/restore que precisam de `psql`/`pg_dump` (98 passam, 6 pulados) e os 3 de Azurite; com
+  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (108 no total, 105 passam, os 3 do Azurite
+  continuam pulados sem esse emulador).
 
 ## Estrutura do repositório
 

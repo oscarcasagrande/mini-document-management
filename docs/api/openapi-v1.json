@@ -6,6 +6,710 @@
     "version": "v1"
   },
   "paths": {
+    "/api/v1/admin/backup": {
+      "post": {
+        "tags": [
+          "AdminBackup"
+        ],
+        "summary": "Starts a backup.",
+        "description": "Asynchronous: this records the job and returns; the worker runs `pg_dump`, builds the archive and saves it in\nthe default storage repository or in the one named in `storageRepositoryId` (an AZURE_BLOB_STORAGE or AWS_S3\nrepository makes an off-site copy). Poll the `Location` until the status is COMPLETED or FAILED. Documents\nstored in cloud repositories are listed in the manifest but their files are not downloaded into the archive.\nRefused with 503 while a restore is running.",
+        "requestBody": {
+          "description": "Optional target repository; the body may be omitted.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBackupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/backup",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted. The `Location` header points at the job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupJobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The named repository does not exist, is inactive, or is a DATABASE repository.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "A backup cannot be saved in a DATABASE repository: it would live inside the database it protects, be dropped by a restore and be copied into every later backup. Name a FILE_SYSTEM, AZURE_BLOB_STORAGE or AWS_S3 repository in storageRepositoryId.",
+                  "instance": "/api/v1/admin/backup",
+                  "errorCode": "BACKUP_TARGET_UNSUPPORTED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A restore is running and the system is read-only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/system-read-only",
+                  "title": "System is read-only",
+                  "status": 503,
+                  "detail": "A restore is replacing the database. Reads keep working; retry changes once the restore job has finished.",
+                  "instance": "/api/v1/admin/backup",
+                  "errorCode": "SYSTEM_READ_ONLY",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/backup/{id}": {
+      "get": {
+        "tags": [
+          "AdminBackup"
+        ],
+        "summary": "Returns the status of a backup.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the job.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/backup/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The job. Once COMPLETED it carries the size, the SHA-256 and the download URL of the archive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no backup with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No backup job matches the requested identifier.",
+                  "instance": "/api/v1/admin/backup/{id}",
+                  "errorCode": "BACKUP_JOB_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/backup/{id}/content": {
+      "get": {
+        "tags": [
+          "AdminBackup"
+        ],
+        "summary": "Downloads the archive of a completed backup.",
+        "description": "The archive holds personal data from the documents: keep it as protected as the database itself.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the job.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/backup/{id}/content",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The `.tar.gz`.",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no backup with this id, or its archive is gone from the repository.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No backup job matches the requested identifier.",
+                  "instance": "/api/v1/admin/backup/{id}/content",
+                  "errorCode": "BACKUP_JOB_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The backup is not completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "The backup has no archive yet: it is pending, running or failed. Poll the job until its status is COMPLETED.",
+                  "instance": "/api/v1/admin/backup/{id}/content",
+                  "errorCode": "BACKUP_NOT_COMPLETED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restore": {
+      "post": {
+        "tags": [
+          "AdminRestore"
+        ],
+        "summary": "Uploads a backup archive and starts restoring it. Replaces the current data.",
+        "description": "The archive is verified before anything is queued: the signature of its checksum list (it must come from an\ninstallation with the same `STORAGE_CONFIG_ENCRYPTION_KEY`) and the SHA-256 of every file in it; any\nmismatch answers 400. Then the worker, with the API in read-only mode (writes answer 503, reads keep working),\nreplays the SQL dump with `psql --single-transaction` (the first error rolls the whole restore back and the\ndatabase stays as it was), checks that every document of the manifest exists, and writes the archived files back.\nEverything the backup carried replaces what is there now; documents created since are gone. Backup and restore\njobs are not part of a backup and are kept.",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "File"
+                ],
+                "type": "object",
+                "properties": {
+                  "File": {
+                    "type": "string",
+                    "description": "A `.tar.gz` produced by `POST /api/v1/admin/backup` of an installation with the same encryption key.",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "File": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/restore",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Verified and accepted. The `Location` header points at the job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No file, or the archive is unreadable, altered, incomplete or signed with another key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/invalid-backup-archive",
+                  "title": "Invalid backup archive",
+                  "status": 400,
+                  "detail": "The SHA-256 of data.sql does not match checksums.sha256: the archive is corrupted.",
+                  "instance": "/api/v1/admin/restore",
+                  "errorCode": "BACKUP_CHECKSUM_MISMATCH",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another restore is pending or running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "Another restore is pending or running. Wait for it to finish before starting a new one.",
+                  "instance": "/api/v1/admin/restore",
+                  "errorCode": "RESTORE_ALREADY_IN_PROGRESS",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The archive is larger than 2 GiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/file-too-large",
+                  "title": "Request body too large",
+                  "status": 413,
+                  "detail": "The request body exceeds the configured limit and was rejected before being read.",
+                  "instance": "/api/v1/admin/restore",
+                  "errorCode": "REQUEST_TOO_LARGE",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restore/{id}": {
+      "get": {
+        "tags": [
+          "AdminRestore"
+        ],
+        "summary": "Returns the status of a restore.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the job.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/restore/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no restore with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No restore job matches the requested identifier.",
+                  "instance": "/api/v1/admin/restore/{id}",
+                  "errorCode": "RESTORE_JOB_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/storage-migration": {
+      "post": {
+        "tags": [
+          "AdminStorageMigration"
+        ],
+        "summary": "Starts moving documents from one storage repository to another.",
+        "description": "Asynchronous: this only records the job and returns it as PENDING; a worker copies the matching documents in\nbatches of 10, repoints each one at its copy and records a STORAGE_MIGRATED event on its timeline (which the\ndocument's `migrationHistory` shows). The original stays in the source repository: nothing is deleted.\nA document that fails to copy (an unreachable or misconfigured target, a missing original) stays where it was\nand is counted in `documentsFailed`; the others go on. Without `documentFilter`, every document\ncurrently on the source is moved; purged documents never are.",
+        "requestBody": {
+          "description": "Source, target and the optional filter.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStorageMigrationRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStorageMigrationRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStorageMigrationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/storage-migration",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted. The `Location` header points at the job; poll it for progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageMigrationJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is invalid, the source and the target are the same, or the date range is inverted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "Invalid request",
+                  "status": 400,
+                  "detail": "The source and the target repository are the same. Choose a different target.",
+                  "instance": "/api/v1/admin/storage-migration",
+                  "errorCode": "STORAGE_MIGRATION_SAME_REPOSITORY",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The source or the target does not exist, or the target is inactive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unprocessable-content",
+                  "title": "Content cannot be processed",
+                  "status": 422,
+                  "detail": "There is no storage repository with the id 0199c1f0-3333-7a10-9c44-2f1d8e6b4a21 (targetRepositoryId).",
+                  "instance": "/api/v1/admin/storage-migration",
+                  "errorCode": "STORAGE_REPOSITORY_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/storage-migration/{jobId}": {
+      "get": {
+        "tags": [
+          "AdminStorageMigration"
+        ],
+        "summary": "Returns one storage migration job, with its progress.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "description": "Identity of the job.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/storage-migration/{jobId}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageMigrationJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No storage migration job matches the requested identifier.",
+                  "instance": "/api/v1/admin/storage-migration/{jobId}",
+                  "errorCode": "STORAGE_MIGRATION_JOB_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/storage-migration/{jobId}/rollback": {
+      "delete": {
+        "tags": [
+          "AdminStorageMigration"
+        ],
+        "summary": "Cancels a pending or running storage migration job.",
+        "description": "Stops the job before its next batch and marks it CANCELLED. Documents already moved by earlier batches are not\nmoved back: they keep pointing at the target (whose copy they now use) and the source still has their original.\nA job that already ended (COMPLETED, FAILED or CANCELLED) answers 409.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "description": "Identity of the job.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/admin/storage-migration/{jobId}/rollback",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Cancelled; the job as it is now.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageMigrationJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Resource not found",
+                  "status": 404,
+                  "detail": "No storage migration job matches the requested identifier.",
+                  "instance": "/api/v1/admin/storage-migration/{jobId}/rollback",
+                  "errorCode": "STORAGE_MIGRATION_JOB_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The job already ended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "The storage migration job is COMPLETED and can no longer be cancelled. Only PENDING or RUNNING jobs can.",
+                  "instance": "/api/v1/admin/storage-migration/{jobId}/rollback",
+                  "errorCode": "STORAGE_MIGRATION_NOT_CANCELLABLE",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents": {
       "post": {
         "tags": [
@@ -1391,6 +2095,536 @@
         }
       }
     },
+    "/api/v1/documents/{id}/reclassify-and-extract": {
+      "put": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Runs classification and extraction again on a document, against the document-type rules in force now.",
+        "description": "Part of Configuração Dinâmica: a `DocumentType` row edited through\n`PUT /api/v1/document-types/{id}` only changes what the classifier and the extractor decide for a\ndocument once it is reclassified. Creates a new processing attempt and a new extraction, exactly like\n`/reprocess`; previous results are kept and the original file is never touched. If the new\nclassification finds a different type, or the new extraction finds different field values, those\nbecome the document's latest recorded result once the worker finishes the job. The timeline also gets\na `RECLASSIFICATION_TRIGGERED` entry, in addition to the usual `QUEUED` one, so this trigger\nis distinguishable from a plain reprocess. A document that is already queued or being processed\nanswers 409, so the same document is never processed twice at once.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the document.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/documents/{id}/reclassify-and-extract",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Queued again for reclassification. Poll `statusUrl` to follow it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadAcceptedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/documents/{id}/reclassify-and-extract",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The document is already queued or being processed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Idempotency-Key conflict",
+                  "status": 409,
+                  "detail": "This Idempotency-Key was already used with a different file. Use a new key or resend the original file.",
+                  "instance": "/api/v1/documents/{id}/reclassify-and-extract",
+                  "errorCode": "IDEMPOTENCY_KEY_CONFLICT",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/document-types": {
+      "post": {
+        "tags": [
+          "DocumentTypes"
+        ],
+        "summary": "Creates a document type.",
+        "description": "The code is unique without regard to case, is stored in upper case and cannot be changed later.",
+        "requestBody": {
+          "description": "Code, name, schema, classification and extraction rules, and the active flag.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentTypeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentTypeRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentTypeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/document-types",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created. The `Location` header points at it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTypeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The code, the name or one of the JSON fields is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/document-types",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The code is already taken.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Idempotency-Key conflict",
+                  "status": 409,
+                  "detail": "This Idempotency-Key was already used with a different file. Use a new key or resend the original file.",
+                  "instance": "/api/v1/document-types",
+                  "errorCode": "IDEMPOTENCY_KEY_CONFLICT",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "DocumentTypes"
+        ],
+        "summary": "Lists the document types, by code.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/document-types",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "One page of document types.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTypeResponsePagedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/document-types/{id}": {
+      "get": {
+        "tags": [
+          "DocumentTypes"
+        ],
+        "summary": "Returns one document type.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The document type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTypeResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "DocumentTypes"
+        ],
+        "summary": "Changes the name, the schema and the classification and extraction rules of a document type.",
+        "description": "The code is immutable. Classification consults these rules on the next document; a document already\nprocessed keeps its recorded type until it is reprocessed or reclassified.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New name, schema, rules and active flag.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentTypeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentTypeRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentTypeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTypeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name or one of the JSON fields is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/validation-failed",
+                  "title": "One or more validation errors occurred",
+                  "status": 400,
+                  "detail": "Check the errors property for the fields that were refused.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "VALIDATION_FAILED",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "DocumentTypes"
+        ],
+        "summary": "DESTRUCTIVE AND IRREVERSIBLE — Deletes a document type that nothing refers to.",
+        "description": "One of the seven built-in types cannot be deleted, only deactivated. A custom type with documents or\nretention policies pointing at its code cannot be deleted either.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It is a built-in type, or something still refers to it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/conflict",
+                  "title": "Idempotency-Key conflict",
+                  "status": 409,
+                  "detail": "This Idempotency-Key was already used with a different file. Use a new key or resend the original file.",
+                  "instance": "/api/v1/document-types/{id}",
+                  "errorCode": "IDEMPOTENCY_KEY_CONFLICT",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/product-services": {
       "post": {
         "tags": [
@@ -2321,13 +3555,84 @@
         }
       }
     },
+    "/api/v1/retention-policies/{id}/reapply-to-existing": {
+      "put": {
+        "tags": [
+          "RetentionPolicies"
+        ],
+        "summary": "Recalculates `expiresAt`, using the policy's current retentionDays, for every document that carries it.",
+        "description": "Asynchronous: this only records the request and returns; a worker processes the affected documents in\nbatches of 100 and answers back through the returned request's status. Only the documents whose duration\ndoes not already match the policy are touched, so calling it again after a partial run just resumes it.\nEach recalculated document gets a RETENTION_POLICY_REAPPLIED event on its timeline; its status is unchanged.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity of the policy.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/unexpected-error",
+                  "title": "Unexpected error",
+                  "status": 500,
+                  "detail": "The request could not be completed. Check the API logs using the correlation id of this response.",
+                  "instance": "/api/v1/retention-policies/{id}/reapply-to-existing",
+                  "errorCode": "UNEXPECTED_ERROR",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted. Poll the request, once exposed, or check the documents' timeline.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReapplyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is none with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                },
+                "example": {
+                  "type": "https://docreader.local/problems/document-not-found",
+                  "title": "Document not found",
+                  "status": 404,
+                  "detail": "No document matches the requested identifier.",
+                  "instance": "/api/v1/retention-policies/{id}/reapply-to-existing",
+                  "errorCode": "DOCUMENT_NOT_FOUND",
+                  "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/storage-repositories": {
       "post": {
         "tags": [
           "StorageRepositories"
         ],
         "summary": "Creates a storage repository.",
-        "description": "FILE_SYSTEM and DATABASE are implemented. AZURE_BLOB_STORAGE and AWS_S3 are registered so a repository can be\nconfigured for them, but their adapters are not implemented yet: uploading to one answers 501, and they cannot be\nthe default. The connection settings are validated per provider, encrypted before they are stored, and never\nreturned by any endpoint.",
+        "description": "FILE_SYSTEM, DATABASE, AZURE_BLOB_STORAGE and AWS_S3 are all implemented. The connection settings are\nvalidated per provider (AZURE_BLOB_STORAGE needs `connectionString` and `container`; AWS_S3 needs\n`bucket`, `accessKeyId` and `secretAccessKey`, with optional `region` and\n`serviceUrl` for MinIO and other S3-compatible services), encrypted before they are stored, and never\nreturned by any endpoint.",
         "requestBody": {
           "description": "Code, name, provider, settings and flags.",
           "content": {
@@ -2417,7 +3722,7 @@
             }
           },
           "422": {
-            "description": "The repository cannot be the default (provider not implemented, or inactive).",
+            "description": "The repository cannot be the default (inactive).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2716,7 +4021,7 @@
             }
           },
           "422": {
-            "description": "The repository cannot be the default (provider not implemented, or inactive).",
+            "description": "The repository cannot be the default (inactive).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3342,6 +4647,112 @@
   },
   "components": {
     "schemas": {
+      "BackupJobResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the run.",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BackupJobStatus"
+          },
+          "requestedAt": {
+            "type": "string",
+            "description": "When the backup was requested, in UTC.",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "When the worker picked it up, in UTC; null while pending.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "When it finished (successfully or not), in UTC; null while pending or running.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "storageRepositoryId": {
+            "type": "string",
+            "description": "Repository the archive is saved in.",
+            "format": "uuid"
+          },
+          "storageKey": {
+            "type": "string",
+            "description": "Key of the archive in that repository; null until completed.",
+            "nullable": true
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Download name of the archive; null until completed.",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "description": "Size of the archive; null until completed.",
+            "format": "int64",
+            "nullable": true
+          },
+          "checksumSha256": {
+            "type": "string",
+            "description": "SHA-256 (hex) of the archive file; null until completed.",
+            "nullable": true
+          },
+          "documentCount": {
+            "type": "integer",
+            "description": "Documents listed in the archive's storage manifest.",
+            "format": "int32",
+            "nullable": true
+          },
+          "filesArchived": {
+            "type": "integer",
+            "description": "Document files copied into the archive (file system and database repositories only; cloud-stored documents keep a manifest entry only).",
+            "format": "int32",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Why it failed; null unless FAILED.",
+            "nullable": true
+          },
+          "downloadUrl": {
+            "type": "string",
+            "description": "Where to download the archive; null until completed.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One backup run and, once completed, where its archive is.",
+        "example": {
+          "id": "0199c1f0-6666-7a10-9c44-2f1d8e6b4a21",
+          "status": "COMPLETED",
+          "requestedAt": "2026-09-24T22:00:00Z",
+          "startedAt": "2026-09-24T22:00:02Z",
+          "completedAt": "2026-09-24T22:00:41Z",
+          "storageRepositoryId": "00000000-0000-7000-8000-0000000000d1",
+          "storageKey": "documents/2026/09/24/0199c1f0-6666-7a10-9c44-2f1d8e6b4a21/original.tgz",
+          "fileName": "backup-0199c1f0-6666-7a10-9c44-2f1d8e6b4a21.tar.gz",
+          "sizeBytes": 48213004,
+          "checksumSha256": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+          "documentCount": 1250,
+          "filesArchived": 1180,
+          "errorMessage": null,
+          "downloadUrl": "/api/v1/admin/backup/0199c1f0-6666-7a10-9c44-2f1d8e6b4a21/content"
+        }
+      },
+      "BackupJobStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "type": "string",
+        "description": "Lifecycle of one DocReader.Domain.Backup.BackupJob."
+      },
       "ClassificationCandidateResponse": {
         "type": "object",
         "properties": {
@@ -3569,6 +4980,56 @@
         },
         "additionalProperties": false
       },
+      "CreateBackupRequest": {
+        "type": "object",
+        "properties": {
+          "storageRepositoryId": {
+            "type": "string",
+            "description": "Storage repository the archive is saved in: a FILE_SYSTEM, AZURE_BLOB_STORAGE or AWS_S3 one. Omit for the default\nrepository. A DATABASE repository is refused (the backup would live inside the database it protects).",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Where to save the backup archive. The whole body is optional."
+      },
+      "CreateDocumentTypeRequest": {
+        "required": [
+          "classificationRules",
+          "code",
+          "extractionRules",
+          "name",
+          "schema"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string",
+            "description": "Unique code: 1 to 64 letters, digits, dots, hyphens or underscores, starting with a letter or digit. Stored in upper case and immutable."
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "schema": {
+            "description": "The type's JSON Schema. Sent and stored as JSON, not as a string."
+          },
+          "classificationRules": {
+            "description": "What the classifier reads: `{ evidence: [{ name, weight, patterns }], counterEvidence: [...], threshold }`."
+          },
+          "extractionRules": {
+            "description": "Description of what the extractor reads. Send `{}` when there is nothing to record."
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateProductServiceRequest": {
         "required": [
           "code",
@@ -3628,6 +5089,29 @@
         },
         "additionalProperties": false
       },
+      "CreateStorageMigrationRequest": {
+        "required": [
+          "sourceRepositoryId",
+          "targetRepositoryId"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceRepositoryId": {
+            "type": "string",
+            "description": "Repository the documents are copied from. Nothing is deleted from it.",
+            "format": "uuid"
+          },
+          "targetRepositoryId": {
+            "type": "string",
+            "description": "Repository the documents are copied to and repointed at. Must be active and differ from the source.",
+            "format": "uuid"
+          },
+          "documentFilter": {
+            "$ref": "#/components/schemas/StorageMigrationDocumentFilterRequest"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateStorageRepositoryRequest": {
         "required": [
           "code",
@@ -3661,7 +5145,7 @@
           },
           "isDefault": {
             "type": "boolean",
-            "description": "Makes this the default repository; the previous default stops being one. Not allowed for a provider that is not implemented, or inactive.",
+            "description": "Makes this the default repository; the previous default stops being one. Not allowed for an inactive repository.",
             "default": false
           },
           "active": {
@@ -3957,6 +5441,13 @@
             },
             "description": "Ordered processing events."
           },
+          "migrationHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageMigrationHistoryEntryResponse"
+            },
+            "description": "Every move of the original between storage repositories, oldest first; empty when it never moved. Read from the STORAGE_MIGRATED events of the timeline."
+          },
           "links": {
             "$ref": "#/components/schemas/DocumentLinks"
           }
@@ -4027,6 +5518,7 @@
               "occurredAt": "2026-09-24T22:00:00Z"
             }
           ],
+          "migrationHistory": [ ],
           "links": {
             "self": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21",
             "status": "/api/v1/documents/0199c1f0-7b3a-7a10-9c44-2f1d8e6b4a21/status",
@@ -4074,6 +5566,17 @@
             "description": "Aggregated confidence between 0 and 1.",
             "format": "double",
             "nullable": true
+          },
+          "hasNativeTextLayer": {
+            "type": "boolean",
+            "description": "At least one page's text came from a PDF's own text layer, not OCR (RF-009)."
+          },
+          "preprocessing": {
+            "$ref": "#/components/schemas/PreprocessingResponse"
+          },
+          "ocrProcessedWithStructure": {
+            "type": "boolean",
+            "description": "At least one page was read with PP-StructureV3 instead of PP-OCRv5."
           },
           "extractedAt": {
             "type": "string",
@@ -4203,6 +5706,17 @@
             "description": "Aggregated confidence between 0 and 1.",
             "format": "double",
             "nullable": true
+          },
+          "hasNativeTextLayer": {
+            "type": "boolean",
+            "description": "At least one page's text came from a PDF's own text layer, not OCR (RF-009)."
+          },
+          "preprocessing": {
+            "$ref": "#/components/schemas/PreprocessingResponse"
+          },
+          "ocrProcessedWithStructure": {
+            "type": "boolean",
+            "description": "At least one page was read with PP-StructureV3 instead of PP-OCRv5."
           },
           "extractedAt": {
             "type": "string",
@@ -4694,6 +6208,10 @@
             "type": "string",
             "description": "Pipeline and library versions."
           },
+          "hasNativeTextLayer": {
+            "type": "boolean",
+            "description": "At least one page's text came from a PDF's own text layer, not OCR (RF-009). The text itself does not say which."
+          },
           "extractedAt": {
             "type": "string",
             "description": "Instant the text was persisted, in UTC.",
@@ -4746,6 +6264,87 @@
           }
         },
         "additionalProperties": false
+      },
+      "DocumentTypeResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity.",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Unique code, in upper case. Matches the value of `detectedType`/`expectedDocumentType` on a document."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "schema": {
+            "description": "The type's JSON Schema: fields, validations and the `x-docreader` extension."
+          },
+          "classificationRules": {
+            "description": "What the classifier reads: `{ evidence, counterEvidence, threshold }`."
+          },
+          "extractionRules": {
+            "description": "Description of what the extractor reads. Informational for the seven built-in types, whose extraction is C# code."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "An inactive type is skipped by classification and cannot be assigned to a new document."
+          },
+          "isBuiltIn": {
+            "type": "boolean",
+            "description": "One of the seven types migrated from code. Cannot be deleted, only deactivated or edited."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation instant, in UTC.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last change, in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A document type classification and extraction consult at runtime."
+      },
+      "DocumentTypeResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentTypeResponse"
+            },
+            "description": "Items of the current page, newest first."
+          },
+          "page": {
+            "type": "integer",
+            "description": "One based page number.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of items matching the filters.",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Number of pages for the current page size.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope of every paginated listing."
       },
       "DocumentUploadResponse": {
         "type": "object",
@@ -5070,6 +6669,22 @@
         },
         "additionalProperties": false
       },
+      "PreprocessingResponse": {
+        "type": "object",
+        "properties": {
+          "rotationDegrees": {
+            "type": "integer",
+            "description": "Cardinal rotation corrected before OCR read at least one page; null when none was needed.",
+            "format": "int32",
+            "nullable": true
+          },
+          "deskewed": {
+            "type": "boolean",
+            "description": "Whether a small tilt was also straightened on at least one page, on top of any cardinal rotation."
+          }
+        },
+        "additionalProperties": false
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -5253,6 +6868,85 @@
         },
         "additionalProperties": false
       },
+      "RestoreJobResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the run.",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RestoreJobStatus"
+          },
+          "requestedAt": {
+            "type": "string",
+            "description": "When the archive was uploaded and verified, in UTC.",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "When the worker picked it up, in UTC; null while pending.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "When it finished (successfully or not), in UTC; null while pending or running.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "archiveSizeBytes": {
+            "type": "integer",
+            "description": "Size of the uploaded archive.",
+            "format": "int64"
+          },
+          "archiveChecksumSha256": {
+            "type": "string",
+            "description": "SHA-256 (hex) of the uploaded archive file."
+          },
+          "documentCount": {
+            "type": "integer",
+            "description": "Documents listed in the archive's storage manifest.",
+            "format": "int32"
+          },
+          "filesRestored": {
+            "type": "integer",
+            "description": "Document files written back to their storage repository; null until finished.",
+            "format": "int32",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Why it failed; null unless FAILED.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One restore run.",
+        "example": {
+          "id": "0199c1f0-7777-7a10-9c44-2f1d8e6b4a21",
+          "status": "PENDING",
+          "requestedAt": "2026-09-24T22:00:00Z",
+          "startedAt": null,
+          "completedAt": null,
+          "archiveSizeBytes": 48213004,
+          "archiveChecksumSha256": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+          "documentCount": 1250,
+          "filesRestored": null,
+          "errorMessage": null
+        }
+      },
+      "RestoreJobStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "type": "string",
+        "description": "Lifecycle of one DocReader.Domain.Backup.RestoreJob."
+      },
       "RetentionPolicyReferenceResponse": {
         "type": "object",
         "properties": {
@@ -5395,6 +7089,58 @@
           "totalPages": 1
         }
       },
+      "RetentionReapplyResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the run.",
+            "format": "uuid"
+          },
+          "retentionPolicyId": {
+            "type": "string",
+            "description": "Policy the run applies.",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RetentionReapplyStatus"
+          },
+          "requestedAt": {
+            "type": "string",
+            "description": "When the run was requested, in UTC.",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "When the worker picked it up, in UTC; null while still pending.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "When the run finished (successfully or not), in UTC; null while pending or running.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "documentsUpdated": {
+            "type": "integer",
+            "description": "Documents whose `expiresAt` was recalculated so far.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One run that recalculates `expiresAt` on the documents of a retention policy."
+      },
+      "RetentionReapplyStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "type": "string",
+        "description": "Lifecycle of one DocReader.Domain.Retention.RetentionReapplyRequest run."
+      },
       "RetentionScope": {
         "enum": [
           "GLOBAL",
@@ -5404,6 +7150,172 @@
         ],
         "type": "string",
         "description": "What a retention policy applies to, from the most general to the most specific."
+      },
+      "StorageMigrationDocumentFilterRequest": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "maxLength": 64,
+            "type": "string",
+            "description": "Detected document type (BR_CPF_CARD, BR_CIN, BR_CNH, ...).",
+            "nullable": true
+          },
+          "productServiceId": {
+            "type": "string",
+            "description": "Id of the product or service the documents were uploaded for.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "uploadedFrom": {
+            "type": "string",
+            "description": "Inclusive lower bound of the upload instant, ISO 8601.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "uploadedTo": {
+            "type": "string",
+            "description": "Inclusive upper bound of the upload instant, ISO 8601.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Narrows the documents a migration moves. Every criterion is optional and they combine with AND."
+      },
+      "StorageMigrationDocumentFilterResponse": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "description": "Detected document type, or null for any.",
+            "nullable": true
+          },
+          "productServiceId": {
+            "type": "string",
+            "description": "Product or service, or null for any.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "uploadedFrom": {
+            "type": "string",
+            "description": "Inclusive lower bound of the upload instant, in UTC, or null.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "uploadedTo": {
+            "type": "string",
+            "description": "Inclusive upper bound of the upload instant, in UTC, or null.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The filter a migration job was created with."
+      },
+      "StorageMigrationHistoryEntryResponse": {
+        "type": "object",
+        "properties": {
+          "fromRepository": {
+            "type": "string",
+            "description": "Id of the repository the document was stored in.",
+            "format": "uuid"
+          },
+          "toRepository": {
+            "type": "string",
+            "description": "Id of the repository it was moved to.",
+            "format": "uuid"
+          },
+          "migratedAt": {
+            "type": "string",
+            "description": "When it was moved, in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One move of a document between storage repositories, read from its timeline."
+      },
+      "StorageMigrationJobResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identity of the job.",
+            "format": "uuid"
+          },
+          "sourceRepositoryId": {
+            "type": "string",
+            "description": "Repository the documents are copied from.",
+            "format": "uuid"
+          },
+          "targetRepositoryId": {
+            "type": "string",
+            "description": "Repository the documents are copied to.",
+            "format": "uuid"
+          },
+          "documentFilter": {
+            "$ref": "#/components/schemas/StorageMigrationDocumentFilterResponse"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StorageMigrationStatus"
+          },
+          "requestedAt": {
+            "type": "string",
+            "description": "When the job was requested, in UTC.",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "When the worker picked it up, in UTC; null while still pending.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "When the job ended (completed, failed or cancelled), in UTC; null while pending or running.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "documentsMigrated": {
+            "type": "integer",
+            "description": "Documents moved to the target so far.",
+            "format": "int32"
+          },
+          "documentsFailed": {
+            "type": "integer",
+            "description": "Per-document failures so far; those documents stay on the source.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One run that moves documents from a storage repository to another.",
+        "example": {
+          "id": "0199c1f0-6666-7a10-9c44-2f1d8e6b4a21",
+          "sourceRepositoryId": "00000000-0000-7000-8000-0000000000d1",
+          "targetRepositoryId": "0199c1f0-3333-7a10-9c44-2f1d8e6b4a21",
+          "documentFilter": {
+            "documentType": "BR_CNH",
+            "productServiceId": null,
+            "uploadedFrom": "2026-01-01T00:00:00Z",
+            "uploadedTo": null
+          },
+          "status": "PENDING",
+          "requestedAt": "2026-09-24T22:00:00Z",
+          "startedAt": null,
+          "completedAt": null,
+          "documentsMigrated": 0,
+          "documentsFailed": 0
+        }
+      },
+      "StorageMigrationStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "type": "string",
+        "description": "Lifecycle of one DocReader.Domain.StorageMigrations.StorageMigrationJob run."
       },
       "StorageProvider": {
         "enum": [
@@ -5468,7 +7380,7 @@
           },
           "isImplemented": {
             "type": "boolean",
-            "description": "False for the providers that are registered but whose adapter does not exist yet (AZURE_BLOB_STORAGE, AWS_S3): uploading to them answers 501."
+            "description": "True for every provider: FILE_SYSTEM, DATABASE, AZURE_BLOB_STORAGE and AWS_S3 all have a working adapter."
           },
           "createdAt": {
             "type": "string",
@@ -5549,6 +7461,29 @@
           "totalCount": 1,
           "totalPages": 1
         }
+      },
+      "UpdateDocumentTypeRequest": {
+        "required": [
+          "classificationRules",
+          "extractionRules",
+          "name",
+          "schema"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "schema": { },
+          "classificationRules": { },
+          "extractionRules": { },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       },
       "UpdateProductServiceRequest": {
         "required": [
@@ -6062,8 +7997,24 @@
   },
   "tags": [
     {
+      "name": "AdminBackup",
+      "description": "Backups of the database and of the locally stored document files. A backup is a `.tar.gz` with a plain SQL\ndump, a storage manifest, the document files of FILE_SYSTEM and DATABASE repositories, and a signed SHA-256 list of\neverything in it; restore it with `POST /api/v1/admin/restore`."
+    },
+    {
+      "name": "AdminRestore",
+      "description": "Restores a backup archive over the current database and document storage."
+    },
+    {
+      "name": "AdminStorageMigration",
+      "description": "Moves documents from one storage repository to another, in the background. The originals are copied, never\ndeleted from the source."
+    },
+    {
       "name": "Documents",
       "description": "Ingestion and consultation of documents. Every endpoint is anonymous in this proof of concept:\nthere is no login, no bearer token and no tenant."
+    },
+    {
+      "name": "DocumentTypes",
+      "description": "Registry of the document types classification and extraction consult at runtime (Configuração Dinâmica).\nEditing a type's rules here applies to the next document processed, without a deploy."
     },
     {
       "name": "ProductServices",

@@ -190,11 +190,14 @@ Produtos, Retenção, Repositórios, Webhooks). Nenhum guarda conteúdo document
   disso, `/content`, `/text`, `/result`, `/reprocess` e os dois `*-diagnostics` respondem `410` (`DOCUMENT_PURGED`), e
   `GET /documents/{id}` continua `200` com `status: PURGED`. Documentos expurgados por versões anteriores, que tinham
   perdido só o arquivo, têm o texto e os campos removidos por uma migration.
-- **Repositório de armazenamento** (`/api/v1/storage-repositories`). Provedor `FileSystem` ou `Database` (implementados),
-  `AzureBlobStorage` e `AwsS3` (cadastráveis, mas o adaptador responde `501` `STORAGE_PROVIDER_NOT_IMPLEMENTED`; há um TODO
-  no código). Exatamente um é o padrão. A configuração de conexão é cifrada (AES-256-GCM, chave em
-  `STORAGE_CONFIG_ENCRYPTION_KEY`), **nunca** volta num GET, e o PUT altera só as chaves enviadas. O produto pode apontar
-  para um repositório; o documento herda no upload e guarda o repositório de origem.
+- **Repositório de armazenamento** (`/api/v1/storage-repositories`). Os quatro provedores são implementados:
+  `FileSystem`, `Database`, `AzureBlobStorage` (`connectionString` + `container`) e `AwsS3` (`bucket` + `accessKeyId` +
+  `secretAccessKey`, com `region` e `serviceUrl` opcionais — `serviceUrl` também atende MinIO). Qualquer um pode ser o
+  padrão. A configuração de conexão é cifrada (AES-256-GCM, chave em `STORAGE_CONFIG_ENCRYPTION_KEY`), **nunca** volta
+  num GET, e o PUT altera só as chaves enviadas. O produto pode apontar para um repositório; o documento herda no
+  upload e guarda o repositório de origem. `POST /api/v1/admin/storage-migration` move documentos entre repositórios
+  em lotes, sem apagar do original; `POST /api/v1/admin/backup` e `/admin/restore` fazem backup/restore do banco e dos
+  arquivos locais — ver CLAUDE.md para os detalhes e o aviso de segurança sobre esses dois últimos.
 - **Webhook** (`/api/v1/webhook-subscriptions`). Eventos `document.completed`, `document.failed` e `document.purged`,
   com filtro opcional por produto. O worker envia por POST `{event, documentId, protocol, status, detectedDocumentType,
   productServiceCode, occurredAt}`; o cabeçalho `X-Webhook-Signature` é `sha256=` + HMAC-SHA256 (hex minúsculo) do corpo
