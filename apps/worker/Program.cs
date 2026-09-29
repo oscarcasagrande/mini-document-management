@@ -30,6 +30,7 @@ builder.Services.AddSingleton<IValidateOptions<PurgeOptions>, PurgeOptionsValida
 builder.Services.AddHostedService<ProcessingWorker>();
 builder.Services.AddHostedService<PurgeExpiredDocumentsJob>();
 builder.Services.AddHostedService<WebhookDispatcher>();
+builder.Services.AddHostedService<RetentionReapplyWorker>();
 builder.Services.AddHostedService<QueueDepthReporter>();
 
 builder.Services.AddHealthChecks()

@@ -92,6 +92,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<StorageRepositoryResolver>();
         services.AddScoped<IFileStorage, RepositoryFileStorage>();
         services.AddScoped<RetentionPolicyService>();
+        services.AddScoped<RetentionReapplyService>();
         services.AddScoped<DocumentPurgeService>();
         services.AddScoped<DocumentUploadService>();
         services.AddScoped<DocumentQueryService>();

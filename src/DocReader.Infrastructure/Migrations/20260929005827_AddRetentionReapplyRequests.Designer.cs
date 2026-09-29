@@ -3,6 +3,7 @@ using System;
 using DocReader.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocReader.Infrastructure.Migrations
 {
     [DbContext(typeof(DocReaderDbContext))]
-    partial class DocReaderDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929005827_AddRetentionReapplyRequests")]
+    partial class AddRetentionReapplyRequests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,67 +24,6 @@ namespace DocReader.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("DocReader.Domain.Catalog.DocumentType", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<bool>("Active")
-                        .HasColumnType("boolean")
-                        .HasColumnName("active");
-
-                    b.Property<string>("ClassificationRulesJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("classification_rules");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("code");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("ExtractionRulesJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("extraction_rules");
-
-                    b.Property<bool>("IsBuiltIn")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_built_in");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("name");
-
-                    b.Property<string>("SchemaJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("schema");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("ux_document_types_code");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("ix_document_types_created_at");
-
-                    b.ToTable("document_types", (string)null);
-                });
 
             modelBuilder.Entity("DocReader.Domain.Catalog.ProductService", b =>
                 {

@@ -71,6 +71,23 @@ public sealed class UpdateRetentionPolicyRequest
     public int? RetentionDays { get; init; }
 }
 
+/// <summary>One run that recalculates <c>expiresAt</c> on the documents of a retention policy.</summary>
+/// <param name="Id">Identity of the run.</param>
+/// <param name="RetentionPolicyId">Policy the run applies.</param>
+/// <param name="Status">PENDING, RUNNING, COMPLETED or FAILED.</param>
+/// <param name="RequestedAt">When the run was requested, in UTC.</param>
+/// <param name="StartedAt">When the worker picked it up, in UTC; null while still pending.</param>
+/// <param name="CompletedAt">When the run finished (successfully or not), in UTC; null while pending or running.</param>
+/// <param name="DocumentsUpdated">Documents whose <c>expiresAt</c> was recalculated so far.</param>
+public sealed record RetentionReapplyResponse(
+    Guid Id,
+    Guid RetentionPolicyId,
+    RetentionReapplyStatus Status,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt,
+    int DocumentsUpdated);
+
 public sealed class RetentionPolicyListRequest
 {
     [FromQuery(Name = "documentType")]

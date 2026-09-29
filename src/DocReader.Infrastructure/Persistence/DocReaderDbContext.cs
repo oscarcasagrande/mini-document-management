@@ -25,6 +25,8 @@ public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> opti
 
     public DbSet<RetentionPolicy> RetentionPolicies => Set<RetentionPolicy>();
 
+    public DbSet<RetentionReapplyRequest> RetentionReapplyRequests => Set<RetentionReapplyRequest>();
+
     public DbSet<StorageRepository> StorageRepositories => Set<StorageRepository>();
 
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();

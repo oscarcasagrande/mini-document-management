@@ -84,6 +84,15 @@ public static class ConfigurationResponseMapper
         policy.CreatedAt,
         policy.UpdatedAt);
 
+    public static RetentionReapplyResponse ToResponse(RetentionReapplyRequest request) => new(
+        request.Id,
+        request.RetentionPolicyId,
+        request.Status,
+        request.RequestedAt,
+        request.StartedAt,
+        request.CompletedAt,
+        request.DocumentsUpdated);
+
     /// <summary>The purge date of a document and the policy behind it; null when the document never had one.</summary>
     public static DocumentRetentionResponse? ToRetention(Document document) =>
         document.ExpiresAt is null || document.RetentionDays is null
