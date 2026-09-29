@@ -7,7 +7,7 @@ import type { ConfigResource } from "@/lib/config-resources";
 import type { ProblemDetails } from "@/lib/contracts";
 import { formatInstant } from "@/lib/format";
 
-export type AdminFieldKind = "text" | "number" | "boolean" | "select" | "multiselect" | "password" | "secretJson" | "tags";
+export type AdminFieldKind = "text" | "number" | "boolean" | "select" | "multiselect" | "password" | "secretJson" | "tags" | "json";
 
 export interface AdminField {
   /** Key of the request body. */
@@ -73,6 +73,8 @@ function initialValues(fields: AdminField[], item: Item | null): Values {
     } else if (field.kind === "password" || field.kind === "secretJson") {
       // Secrets never come back from the API, so there is nothing to show: the field only overwrites.
       values[field.name] = "";
+    } else if (field.kind === "json") {
+      values[field.name] = current === null || current === undefined ? "" : JSON.stringify(current, null, 2);
     } else {
       values[field.name] = current === null || current === undefined ? String(field.defaultValue ?? "") : String(current);
     }
@@ -119,6 +121,11 @@ function buildBody(fields: AdminField[], values: Values, isEditing: boolean): Re
         if (text.length > 0) {
           body[field.name] = JSON.parse(text) as unknown;
         }
+        break;
+      }
+      case "json": {
+        const text = String(raw).trim();
+        body[field.name] = JSON.parse(text) as unknown;
         break;
       }
       default: {
@@ -323,15 +330,21 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
                             );
                           })}
                         </div>
-                      ) : field.kind === "tags" || field.kind === "secretJson" ? (
+                      ) : field.kind === "tags" || field.kind === "secretJson" || field.kind === "json" ? (
                         <textarea
                           id={id}
-                          rows={field.kind === "tags" ? 3 : 4}
+                          rows={field.kind === "tags" ? 3 : field.kind === "json" ? 12 : 4}
                           value={String(value ?? "")}
                           placeholder={field.kind === "secretJson" && isEditing ? "•••••• (deixe vazio para manter)" : field.placeholder}
                           autoComplete="off"
                           spellCheck={false}
-                          style={field.kind === "secretJson" ? ({ WebkitTextSecurity: "disc" } as React.CSSProperties) : undefined}
+                          style={
+                            field.kind === "secretJson"
+                              ? ({ WebkitTextSecurity: "disc" } as React.CSSProperties)
+                              : field.kind === "json"
+                                ? { fontFamily: "monospace" }
+                                : undefined
+                          }
                           onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
                         />
                       ) : (
