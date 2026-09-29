@@ -222,6 +222,49 @@ a exatidão de tabela medida; fica desligado por padrão até um gatilho de revi
   `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (109 no total, 106 passam, os 3 do Azurite
   continuam pulados sem esse emulador).
 
+**OIDC/SSO no web-bff, em progresso.** Lado do BFF (NextAuth.js) e um Keycloak de desenvolvimento prontos; a validação
+de bearer token e `[Authorize(Roles=...)]` na API (`DocReader.Api`) são de um esforço paralelo, ainda não integrado
+a este checkout.
+
+- **Keycloak de desenvolvimento** (`docker-compose.dev.yml` apenas — nunca no compose de aceite): serviço `keycloak`
+  (`quay.io/keycloak/keycloak:26.0`, `start-dev --import-realm`), realm `docreader` importado de
+  `deploy/keycloak/docreader-realm.json` (cliente confidencial `docreader-bff` com PKCE, segredo de desenvolvimento
+  fixo no arquivo — nunca um segredo real —, papéis de realm `docreader-admin`/`docreader-user`, usuários
+  `admin@docreader.local`/`admin123` e `user@docreader.local`/`user123`, cada um com o papel correspondente, e um
+  protocol mapper que garante `realm_access.roles` no ID token, no access token e no userinfo — é ali, não no
+  caminho de papel padrão do ASP.NET Core, que o lado da API precisa ler o papel). Sobe com
+  `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d keycloak`, publicado em
+  `KEYCLOAK_PORT` (padrão 8081). `KC_HOSTNAME` fixa o `iss` de todo token no endereço público
+  (`http://localhost:8081/...`) não importa por qual URL a requisição chegou; `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true`
+  faz `token_endpoint`/`userinfo_endpoint`/`jwks_uri` responderem com o endereço de quem perguntou — confirmado
+  contra o contêiner real: uma descoberta feita de dentro da rede do compose devolve `issuer` público e
+  `token_endpoint` interno na mesma resposta. É o que permite o BFF chamar o token endpoint pela rede interna e
+  ainda validar o token contra o emissor que o navegador viu.
+- **NextAuth.js no BFF** (`next-auth@5.0.0-beta.32`, Auth.js — a única major com suporte real a App Router e
+  peer dependency explícita para `next@^16`; `apps/web-bff/src/auth.ts`): provedor OIDC construído à mão em vez de
+  `next-auth/providers/keycloak`, porque a descoberta automática (`/.well-known/openid-configuration`) usa um único
+  `issuer` tanto para o host que o navegador acessa quanto para o host que o contêiner acessa — que aqui **são
+  diferentes** (o problema clássico "Keycloak atrás do Docker"). `OIDC_AUTHORITY` (endereço interno,
+  contêiner-a-contêiner, no padrão de `DOCREADER_API_BASE_URL`) constrói `token`/`userinfo`; `NEXT_PUBLIC_OIDC_AUTHORITY`
+  (endereço público) constrói `authorization` (redirecionamento do navegador) **e** é o `issuer` passado ao provedor,
+  porque é esse o valor que bate com o `iss` de todo token (ver acima) — o comentário em `auth.ts` explica por que a
+  troca não pode ser feita ao contrário. `OIDC_AUTHORITY` vazio (padrão em todo lugar exceto o overlay de
+  desenvolvimento) mantém o modo anônimo de sempre: `proxy.ts` (sucessor do `middleware.ts`, que o Next 16 já marca
+  como obsoleto) não chama `auth()`, `layout.tsx` não lê sessão, `AnonymousAccessBanner` continua aparecendo. Com
+  OIDC configurado, `proxy.ts` exige sessão em toda rota exceto `/login`, `/api/auth` e `/api/health`;
+  `layout.tsx` (agora `async`, lê a sessão) mostra e-mail/papel e um botão "Sair"; `lib/api.ts#callApi` anexa
+  `Authorization: Bearer <access_token>` em toda chamada à API quando há sessão — é esse token que o lado da API
+  vai validar quando `[Authorize(Roles=...)]` existir. Fluxo completo (autorização, PKCE, login, callback, token
+  exchange pela rede interna do Docker, sessão com papel) testado ponta a ponta por `curl` contra um contêiner real,
+  para os dois usuários de teste; login interativo pelo navegador fica para conferência manual depois do merge.
+- Variáveis novas em `.env.example`: `OIDC_AUTHORITY`, `NEXT_PUBLIC_OIDC_AUTHORITY`, `OIDC_CLIENT_ID`,
+  `OIDC_CLIENT_SECRET`, `NEXTAUTH_SECRET` (gerar com `openssl rand -base64 32`), `KEYCLOAK_PORT` — todas
+  vazias/comentadas por padrão. **Pendência de integração**: o esforço paralelo da API precisa validar o access
+  token contra `realm_access.roles` (não o claim de papel padrão do ASP.NET) e concordar nos nomes acima; o jeito
+  mais simples de reaproveitar o comportamento de `iss` fixo do Keycloak descrito acima é a API também apontar seu
+  `Authority`/`MetadataAddress` para o endereço **interno** (mesma variável `OIDC_AUTHORITY`) e deixar o próprio
+  documento de descoberta informar o emissor público — sem precisar de um `ValidIssuer` manual.
+
 ## Estrutura do repositório
 
 ```text

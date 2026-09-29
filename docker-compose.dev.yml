@@ -1,9 +1,11 @@
 # Development overlay. It publishes the ports that the acceptance topology deliberately keeps closed,
-# so psql and the OCR service can be reached from the host:
+# so psql and the OCR service can be reached from the host, and it adds a self-hosted Keycloak for
+# testing real OIDC login end-to-end without any external identity provider account:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 #
-# Never use this overlay on a shared machine: it exposes the database.
+# Never use this overlay on a shared machine: it exposes the database and ships throwaway credentials
+# (Keycloak realm, admin bootstrap, test users) in plain text.
 
 services:
   postgres:
@@ -22,3 +24,71 @@ services:
   worker:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+
+  web-bff:
+    environment:
+      # Empty (the default in docker-compose.yml, which does not set these at all) keeps the BFF in
+      # anonymous mode, unchanged. Setting them here opts this dev overlay into real OIDC login against
+      # the keycloak service below.
+      #
+      # Two different base URLs for the *same* realm, because the browser and the containers cannot
+      # reach Keycloak the same way (see the keycloak service below for the full explanation):
+      #   OIDC_AUTHORITY          - reachable only from inside the compose network (container to
+      #                              container: web-bff, and whichever address the API side picks for
+      #                              its own JWT bearer validation). Used to actually call the token
+      #                              and userinfo endpoints.
+      #   NEXT_PUBLIC_OIDC_AUTHORITY - reachable from the host browser. Used to build the redirect to
+      #                              Keycloak's login page, and, because KC_HOSTNAME fixes Keycloak's
+      #                              issuer to this value no matter which URL was used to reach it, this
+      #                              is also the exact `iss` every token carries - so it is what
+      #                              NextAuth validates the token issuer against, not OIDC_AUTHORITY.
+      OIDC_AUTHORITY: http://keycloak:8080/realms/docreader
+      NEXT_PUBLIC_OIDC_AUTHORITY: http://localhost:${KEYCLOAK_PORT:-8081}/realms/docreader
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-docreader-bff}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-docreader-bff-dev-only-not-a-real-secret}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-}
+      NEXTAUTH_URL: http://localhost:${WEB_PORT:-3000}
+
+  # Self-hosted, realm auto-imported at startup: docreader realm, docreader-bff client, roles
+  # docreader-admin/docreader-user and two matching test users. Dev/testing only, never the acceptance
+  # compose - CLAUDE.md documents the realm, credentials and the anonymous-mode fallback contract.
+  #
+  # The browser-vs-container hostname problem: the browser reaches Keycloak at
+  # http://localhost:${KEYCLOAK_PORT}, but from inside the compose network that address is unreachable
+  # (it is the *host's* loopback, not this container). So KC_HOSTNAME fixes every *frontend* URL
+  # (issuer, authorization_endpoint) Keycloak hands out to the public, browser-facing address,
+  # regardless of which URL was used to ask for it, while KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true makes the
+  # *backchannel* endpoints (token, userinfo, jwks) reflect whichever host actually made the request -
+  # so a request coming from inside the network (web-bff, or the API's own token validation) gets back
+  # internal, reachable URLs for those, while the issuer stays the fixed public one that matches every
+  # token's `iss` claim either way. That is what lets NextAuth call the token endpoint over the internal
+  # network while still validating the token against the public issuer the browser saw.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    restart: unless-stopped
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8081}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8081}:8080"
+    networks:
+      - public
+    volumes:
+      - ./deploy/keycloak/docreader-realm.json:/opt/keycloak/data/import/docreader-realm.json:ro
+    healthcheck:
+      # The Keycloak image ships no curl/wget; a raw HTTP GET over /dev/tcp is the only always-available
+      # probe. /realms/docreader only answers 200 once the realm import finished.
+      test:
+        - "CMD-SHELL"
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /realms/docreader HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          head -c 15 <&3 | grep -q '200'
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
