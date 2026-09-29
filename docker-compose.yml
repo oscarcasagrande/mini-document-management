@@ -145,14 +145,25 @@ services:
       # oneDNN needs the paddlepaddle build pinned in requirements.txt; set false with any other build.
       OCR_ENABLE_MKLDNN: ${OCR_ENABLE_MKLDNN:-true}
       OMP_NUM_THREADS: ${OCR_THREADS:-4}
-      # RF-009: off by default (ADR 0002 — 2.5-3.9x slower than PP-OCRv5, OOM measured at >=1.17 MP even
-      # with 6 GiB). On demand only, gated by OCR_STRUCTURE_MAX_MEGAPIXELS below.
+      # RF-009: a PDF page whose text layer has at least this many letters and digits is read from it,
+      # without rasterization or OCR.
+      OCR_PDF_NATIVE_TEXT_MIN_CHARS: ${OCR_PDF_NATIVE_TEXT_MIN_CHARS:-20}
+      # RF-009: turn sideways/upside-down pages upright and straighten tilts between the two bounds
+      # (degrees) before OCR.
+      OCR_ORIENTATION_CORRECTION: ${OCR_ORIENTATION_CORRECTION:-true}
+      OCR_DESKEW_MIN_DEGREES: ${OCR_DESKEW_MIN_DEGREES:-0.5}
+      OCR_DESKEW_MAX_DEGREES: ${OCR_DESKEW_MAX_DEGREES:-20}
+      # RF-009: PP-StructureV3 re-reads a page PP-OCRv5 read as a table with low confidence. Off by
+      # default: 27-40 s per page on top of PP-OCRv5, and it needs OCR_MEMORY_LIMIT=6g (ADR 0002,
+      # addendum of 2026-09-29). 4.0 MP covers an A4 page at 200 DPI; larger pages keep PP-OCRv5.
       OCR_USE_PP_STRUCTUREV3_FOR_TABLES: ${OCR_USE_PP_STRUCTUREV3_FOR_TABLES:-false}
-      OCR_STRUCTURE_MAX_MEGAPIXELS: ${OCR_STRUCTURE_MAX_MEGAPIXELS:-1.17}
+      OCR_STRUCTURE_MAX_MEGAPIXELS: ${OCR_STRUCTURE_MAX_MEGAPIXELS:-4.0}
       OCR_STRUCTURE_TABLE_CONFIDENCE_THRESHOLD: ${OCR_STRUCTURE_TABLE_CONFIDENCE_THRESHOLD:-0.80}
     # Explicit memory ceiling: the measured peak is about 2.3 GB, and a runaway page must kill this
     # container (which restarts) instead of taking the machine with it. Swap is off so the limit is real.
-    # Raise this together with OCR_STRUCTURE_MAX_MEGAPIXELS if PP-StructureV3 is enabled for larger pages.
+    # With OCR_USE_PP_STRUCTUREV3_FOR_TABLES=true set OCR_MEMORY_LIMIT=6g: its child process peaks at
+    # 2.9 GB on an A4 page on top of the service. Below that the child is killed (it is the first OOM
+    # victim by design) and the page keeps its PP-OCRv5 result.
     mem_limit: ${OCR_MEMORY_LIMIT:-3g}
     memswap_limit: ${OCR_MEMORY_LIMIT:-3g}
     # No published port: the OCR service is reachable only from the internal network.

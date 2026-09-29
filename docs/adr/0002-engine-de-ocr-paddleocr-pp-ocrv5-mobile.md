@@ -2,7 +2,8 @@
 
 - **Status:** Aceita. A pendência de latência em A4 foi medida e resolvida em 2026-09-25 (ver "Latência em
   páginas A4: medição de seguimento"): o alvo é atingido sem limite de CPU e não é atingido com 4 CPUs
-- **Data:** 2026-09-25 (decisão); seguimento de latência e de exatidão na Etapa 3 em 2026-09-25
+- **Data:** 2026-09-25 (decisão); seguimento de latência e de exatidão na Etapa 3 em 2026-09-25; adendo do
+  RF-009 (texto nativo de PDF, orientação, PP-StructureV3 sob demanda) em 2026-09-29
 - **Contexto do plano:** Etapa 2 — OCR ponta a ponta
 - **Relacionada a:** PRD §10, RF-003, RF-009, RNF de latência (§ critérios de aceite), ADR 0001
 - **Evidência:** `docs/bench/README.md` e os JSONs `ocr-benchmark-v5-mobile.json`,
@@ -197,10 +198,103 @@ Um documento de várias páginas ocupa o job por dezenas de segundos. O desenho:
 - A imagem do `ocr-service` carrega os modelos: o build é lento e grande, mas a subida é previsível.
 - PDF com camada de texto nativa (RF-009) segue sem tratamento: todo PDF passa por raster e OCR.
 
+## Adendo de 2026-09-29: RF-009 no `ocr-service`
+
+O RF-009 tirou do "fora de escopo" três itens desta decisão: PDF com camada de texto nativa, orientação
+e deskew, e PP-StructureV3 sob demanda. O PP-OCRv5 mobile continua sendo a engine; o que muda é o que
+chega a ela e o que pode reler uma página depois dela. Medido na máquina de referência (8 threads, VM do
+Docker com 7,7 GiB), `paddlepaddle` 3.2.2, `paddleocr` 3.7.0, `paddlex` 3.7.2, amostras sintéticas.
+Script: `scripts/ocr_structure_memory.py`.
+
+### PDF com camada de texto nativa
+
+Uma página de PDF cujo texto embutido tem ao menos `OCR_PDF_NATIVE_TEXT_MIN_CHARS` (20) letras e dígitos é
+lida pelo `pdfplumber` 0.11.10, sem rasterizar nem chamar o PaddleOCR: **0,1 s** por página (0,03 s com
+o processo aquecido) contra 4 a 24 s de OCR. Os blocos vêm em coordenadas de pixel do mesmo espaço que a
+rasterização a `OCR_PDF_DPI` produziria (a margem de 72 pt cai em x = 200 px a 200 DPI, verificado contra o
+`pypdfium2`), confiança 1,0, uma linha partida onde há vão largo, como o detector faz. Vão para o OCR:
+camada vazia ou só com número de página, camada de lixo (`(cid:N)`), página coberta por imagem com pouco
+texto (digitalização com carimbo de assinatura digital) e página com `/Rotate` (o `pdfplumber` devolve
+coordenadas giradas com o tamanho não girado). Marca d'água diagonal e nota de margem vertical ficam de fora
+dos blocos. `provider` e `modelVersion` continuam os do PP-OCRv5, porque o .NET grava um por tentativa (o da
+última página); quem leu a página está em `raw.source = "pdfplumber"` e em `hasNativeTextLayer`.
+
+### Orientação e deskew
+
+Sem modelo, em `app/preprocess.py`, antes do OCR, em toda página que vai ao OCR. O eixo das linhas sai da
+variância do perfil de projeção (a melhor entre inclinações de até 20°, para uma página torta não parecer
+deitada); o deskew, da mediana ponderada dos segmentos de Hough quase horizontais, e é aplicado entre 0,5° e
+20°. A variância não distingue 0° de 180° (o perfil só se inverte), então o sentido vem de duas pistas:
+ascendentes contra descendentes (texto em caixa mista; só votam as linhas que têm faixa de altura-x) e
+margem esquerda alinhada contra direita irregular (que não se sobrepõe às letras, porque uma tabela com
+números alinhados à direita a inverte). Na grade de avaliação (15 imagens × 4 rotações × 5 inclinações, 300
+casos): **276 corretos, 224 de 224 inclinações endireitadas com resíduo < 0,5°, e nenhuma página em pé
+girada**. Os 24 erros são abstenções: página a 180° deixada como chegou (cartão em maiúsculas centralizado,
+tabela em maiúsculas com números à direita, tabela degradada, onde não há pista de sentido) ou página
+deitada em empate, virada para 90° quando era 270°. Custo: 46 a 149 ms por página na imagem do serviço. Ponta a ponta: cartão de CPF girado 90° volta com `rotationDegrees = 90` e o CPF
+lido; inclinado 10°, `deskewed = true` e confiança 0,999.
+
+### PP-StructureV3 sob demanda: medições
+
+1. **Não roda com o extra `ocr-core`.** Construir o pipeline falha ("A dependency error occurred during
+   pipeline creation"). O extra `ocr` da mesma `paddlex` 3.7.2 resolve: +~260 MB de pacotes Python, nenhum
+   peso de modelo (imagem 2,4 → 2,75 GB, com o `pdfplumber`).
+2. **Não roda com oneDNN.** Com oneDNN ligado o processo corrompe o heap (`malloc(): unsorted double linked
+   list corrupted`): segfault (139) numa execução, travado a 0% de CPU na outra. Com oneDNN desligado roda.
+   O serviço mantém o PP-OCRv5 com oneDNN e a variável é lida uma vez por processo; por isso o
+   PP-StructureV3 roda num **processo filho**.
+3. **O OOM de 2026-09-25 vinha dos modelos de texto server, não das tabelas.** Com os padrões do
+   PP-StructureV3 (detector e reconhecedor server), a `pagina-tabela.png` (1654 × 2339, **3,87 MP**; não
+   2,1 MP) volta a estourar 6 GiB (137). Com o detector mobile e o reconhecedor latino mobile, os do
+   serviço:
+
+   | Página | MP | Limite | Pico de RSS do processo | Inferência | Resultado |
+   |---|---:|---:|---:|---:|---|
+   | pagina-tabela, reduzida | 1,25 | 6 GiB | 2,07 GB | 27–29 s | 1 tabela, 58 células |
+   | pagina-tabela | 3,87 | 3 GiB | 2,84 GB | 34–40 s | 1 tabela, 57 células (todas) |
+   | pagina-tabela | 3,87 | 6 GiB | 2,84 GB | 35–37 s | idem |
+   | pagina-tabela-escaneada | 3,96 | 6 GiB | 2,91 GB | 32–36 s | 1 tabela, 58 células |
+   | pagina-texto-densa | 3,87 | 6 GiB | 2,78 GB | 41 s | 0 tabelas |
+
+   Carga do pipeline: 5 a 8 s, paga a cada chamada, porque o filho não fica residente.
+4. **No serviço** (processo principal com o PP-OCRv5 + filho): pico do contêiner de **4,49 a 4,72 GB** com
+   as três páginas de tabela. Com 6 GiB, nenhum OOM. Com os 3 GiB padrão, o kernel mata **o filho**
+   (`oom_kill 1` no cgroup; o filho se oferece com `oom_score_adj = 1000`), a página volta com o resultado do
+   PP-OCRv5 e status 200, e o contêiner não reinicia. A tabela degradada de 0,78 MP cabe em 3 GiB.
+5. **Tempo por página de tabela:** 36 a 53 s ponta a ponta (PP-OCRv5 + filho), contra 4 a 12 s só com o
+   PP-OCRv5.
+6. **O gatilho não dispara nas tabelas limpas.** O PP-OCRv5 lê `pagina-tabela.png` e a escaneada com
+   confiança média de 0,998 a 0,9995 na grade; com o limiar de 0,80 elas não vão ao PP-StructureV3. Para
+   exercitar o caminho foi criada `pagina-tabela-degradada.png` (0,78 MP, grade a 0,64), que dispara.
+7. **O benefício continua não demonstrado.** Das 57 células de valor conhecido, o texto exato encontrado
+   caiu com o PP-StructureV3: 55 → 52 na limpa, 56 → 54 na escaneada, 3 → 0 na degradada (ambos falham
+   nela). Ele entrega a estrutura (todas as células detectadas), não texto melhor.
+
+### Decisão
+
+1. `OCR_STRUCTURE_MAX_MEGAPIXELS` = **4,0**: cobre uma A4 a 200 DPI (3,87 MP), a maior página medida que
+   cabe. Acima disso, aviso no log e a página fica com o PP-OCRv5. Não medido acima de 4 MP.
+2. `OCR_MEMORY_LIMIT` padrão continua **3g**; quem liga `OCR_USE_PP_STRUCTUREV3_FOR_TABLES` precisa de
+   **6g** (pico medido de 4,72 GB). O serviço loga um aviso na subida se o limite for menor. Não subir o
+   padrão para todos por uma opção desligada.
+3. O PP-StructureV3 roda em processo filho, com oneDNN desligado, `oom_score_adj = 1000` e morto no prazo
+   da página. Qualquer falha (morto, travado, erro, modelos não baixados, outro filho rodando) mantém o
+   resultado do PP-OCRv5 com um aviso.
+4. Os pesos (~873 MB) não vão na imagem: com a opção ligada, são baixados em segundo plano na subida
+   (95 s medidos) para o volume de cache, sem carregar os modelos. Até terminar, nenhuma página é
+   enviada ao PP-StructureV3, e o `/health` informa `structureReady`.
+5. **A opção continua desligada por padrão.** Nas amostras ela custa 25 a 40 s por página de tabela e não
+   melhorou o texto. Quando dispara, substitui os blocos pelos do PP-StructureV3 (uma célula por bloco) e
+   guarda as duas cargas em `raw` (`v5` e `structureV3`).
+
 ## Gatilhos de revisão
 
 - Uma `paddlepaddle` 3.3.x com oneDNN funcionando em CPU.
 - A avaliação da Etapa 4 mostrar que o `ppocrv6-small` ou o `ppocrv6-tiny` mantém a exatidão em dataset
   real, o que os tornaria o padrão em máquinas com menos CPU.
 - Imposição de limite de CPU ao `ocr-service`.
-- Documento de tipo com tabela que o PP-OCRv5 puro não entregue (Etapa 3).
+- Documento de tipo com tabela que o PP-OCRv5 puro não entregue (Etapa 3). Em 2026-09-29 o PP-StructureV3
+  passou a caber na memória (adendo acima) mas não leu melhor que o PP-OCRv5 nas amostras: o gatilho segue
+  aberto até um documento real em que ele leia melhor. Se isso acontecer, rever também a substituição
+  integral dos blocos (uma fusão por região de tabela pode ser melhor).
+- PP-StructureV3 com oneDNN funcionando, o que tiraria a necessidade do processo filho.

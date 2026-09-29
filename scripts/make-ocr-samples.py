@@ -12,12 +12,16 @@ de manual, os nomes não existem e cada peça carrega uma marca de AMOSTRA SINT�
       "apt-get update -qq && apt-get install -y -qq fonts-dejavu-core >/dev/null \
        && pip install -q pillow && python scripts/make-ocr-samples.py"
 
+`--only pagina-tabela-degradada.png` (um ou mais nomes) regenera só as amostras citadas.
+
 Saída: samples/synthetic/ocr/
 """
 
 from __future__ import annotations
 
+import io
 import random
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -245,8 +249,32 @@ def build_table_page() -> Image.Image:
     return image
 
 
+def degraded_scan(image: Image.Image, *, scale: float, blur: float, noise: int, jpeg_quality: int) -> Image.Image:
+    """
+    Digitalização ruim de verdade: resolução baixa, borrão, ruído forte e JPEG agressivo. Serve para o
+    PP-OCRv5 ler a tabela com confiança baixa (0,64 na média da grade, medido) sem deixar de enxergá-la
+    como tabela, que é o caso em que o PP-StructureV3 sob demanda (RF-009) deve entrar.
+    """
+    small = image.resize((round(image.width * scale), round(image.height * scale)), Image.Resampling.BILINEAR)
+    gray = small.convert("L").filter(ImageFilter.GaussianBlur(blur))
+
+    pixels = gray.load()
+    rng = random.Random(20260929)
+    for y in range(gray.height):
+        for x in range(gray.width):
+            if rng.random() < 0.15:
+                pixels[x, y] = max(0, min(255, pixels[x, y] + rng.randint(-noise, noise)))
+
+    buffer = io.BytesIO()
+    gray.save(buffer, format="JPEG", quality=jpeg_quality)
+    return Image.open(io.BytesIO(buffer.getvalue())).convert("L")
+
+
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # --only nome.png regenera só essa amostra: as outras já estão versionadas e o PNG gerado pode
+    # mudar de bytes entre versões do Pillow sem mudar de conteúdo.
+    only = set(sys.argv[sys.argv.index("--only") + 1 :]) if "--only" in sys.argv else None
 
     card = build_cpf_card()
     text_page = build_text_page()
@@ -262,7 +290,11 @@ def main() -> None:
         # Tabela: mede o que o PP-StructureV3 entrega a mais.
         "pagina-tabela.png": table_page,
         "pagina-tabela-escaneada.png": scan_effect(table_page, angle=-0.6, noise=18, blur=0.6),
+        # Tabela mal digitalizada (0,78 MP): o gatilho do PP-StructureV3 sob demanda (RF-009).
+        "pagina-tabela-degradada.png": degraded_scan(table_page, scale=0.45, blur=1.6, noise=70, jpeg_quality=12),
     }
+    if only is not None:
+        artifacts = {name: image for name, image in artifacts.items() if name in only}
 
     for name, image in artifacts.items():
         path = OUTPUT_DIR / name

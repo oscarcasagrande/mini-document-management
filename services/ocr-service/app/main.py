@@ -20,7 +20,9 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, TypeVar
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -28,15 +30,46 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from .engine import EngineOutput, OcrEngine, PaddleOcrEngine
+from .engine import OcrEngine, PaddleOcrEngine, RecognizedBlock
+from .native_text import read_native_page
 from .pages import (
     PageOutOfRangeError,
     UnreadableFileError,
     UnsupportedFormatError,
     detect_kind,
+    limit_side,
     render_page,
 )
+from .preprocess import correct_orientation
 from .settings import Settings
+from .structure import StructureEngine, StructureError, SubprocessStructureEngine
+from .tables import assess_table
+
+# Page budget kept back when deciding whether PP-StructureV3 still fits before the page deadline, and
+# the least it must be left with to be worth starting (load alone is ~6 s, a page 27-40 s).
+STRUCTURE_DEADLINE_MARGIN_SECONDS = 3.0
+STRUCTURE_MIN_BUDGET_SECONDS = 20.0
+
+# Memory the container should have with PP-StructureV3 on (ADR 0002, addendum of 2026-09-29).
+STRUCTURE_RECOMMENDED_MEMORY_BYTES = 6 * 1024**3
+
+
+def container_memory_limit() -> int | None:
+    """The cgroup memory ceiling of this container, or None when there is none or it cannot be read."""
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            raw = Path(path).read_text().strip()
+        except OSError:
+            continue
+        if raw == "max":
+            return None
+        try:
+            value = int(raw)
+        except ValueError:
+            return None
+        # cgroup v1 reports "no limit" as a huge number rather than "max".
+        return value if value < 1 << 60 else None
+    return None
 
 SERVICE_NAME = "ocr-service"
 CORRELATION_HEADER = "X-Correlation-Id"
@@ -94,6 +127,12 @@ class HealthResponse(ApiModel):
     model_version: str | None = Field(default=None)
     model_load_ms: float | None = Field(default=None)
     max_concurrency: int = Field(examples=[1])
+    structure_enabled: bool = Field(
+        default=False, description="OCR_USE_PP_STRUCTUREV3_FOR_TABLES: PP-StructureV3 may re-read low-confidence tables."
+    )
+    structure_ready: bool = Field(
+        default=False, description="PP-StructureV3 models are downloaded; until then no page is sent to it."
+    )
     checked_at: datetime
 
 
@@ -114,7 +153,41 @@ class PageAnalysisResponse(ApiModel):
     model_version: str
     duration_ms: int = Field(description="Rasterization plus recognition, waiting for a slot excluded.")
     blocks: list[OcrBlockResponse]
-    raw: dict[str, Any] = Field(description="Untouched provider payload, preserved as required by RF-008.")
+    raw: dict[str, Any] = Field(
+        description=(
+            "Untouched provider payload, preserved as required by RF-008: the PP-OCRv5 result; "
+            '{"source": "pdfplumber", ...} for a page read from its text layer; '
+            '{"v5": ..., "structureV3": ...} for a page PP-StructureV3 re-read.'
+        )
+    )
+    has_native_text_layer: bool = Field(
+        default=False, description="The page was read from the PDF text layer; no rasterization and no OCR (RF-009)."
+    )
+    rotation_degrees: int = Field(
+        default=0, description="Clockwise cardinal correction applied before OCR: 0, 90, 180 or 270."
+    )
+    deskewed: bool = Field(default=False, description="A small tilt was also straightened before OCR.")
+    processed_with_structure: bool = Field(
+        default=False, description="Blocks come from PP-StructureV3, which re-read a low-confidence table."
+    )
+
+
+@dataclass(frozen=True)
+class PageOutcome:
+    """What the blocking part of a request produced, before it becomes the response."""
+
+    page_count: int
+    width: int
+    height: int
+    blocks: list[RecognizedBlock]
+    raw: dict[str, Any]
+    elapsed_ms: int
+    has_native_text_layer: bool = False
+    rotation_degrees: int = 0
+    deskewed: bool = False
+    processed_with_structure: bool = False
+    # Why PP-StructureV3 was considered and not used, for the log; None when it was not considered.
+    structure_skipped: str | None = None
 
 
 class ServiceError(Exception):
@@ -202,7 +275,11 @@ class ServiceState:
         self.load_error: str | None = None
 
 
-def create_app(engine: OcrEngine | None = None, settings: Settings | None = None) -> FastAPI:
+def create_app(
+    engine: OcrEngine | None = None,
+    settings: Settings | None = None,
+    structure_engine: StructureEngine | None = None,
+) -> FastAPI:
     settings = settings or Settings.from_environment()
     logger = configure_logging(settings.log_level)
     state = ServiceState()
@@ -212,6 +289,33 @@ def create_app(engine: OcrEngine | None = None, settings: Settings | None = None
         model_cache_dir=settings.model_cache_dir,
         profile=settings.model_profile,
     )
+    structure: StructureEngine | None = None
+    if settings.use_structure_for_tables:
+        structure = structure_engine or SubprocessStructureEngine(model_cache_dir=settings.model_cache_dir)
+
+    async def prepare_structure() -> None:
+        if structure is None:
+            return
+        limit = container_memory_limit()
+        if limit is not None and limit < STRUCTURE_RECOMMENDED_MEMORY_BYTES:
+            # Not fatal: the child is the first out-of-memory victim and pages fall back to PP-OCRv5.
+            logger.warning(
+                "PP-StructureV3 enabled under a small memory limit; table pages will likely fall back to "
+                "PP-OCRv5. memoryLimitBytes=%s recommendedBytes=%s",
+                limit,
+                STRUCTURE_RECOMMENDED_MEMORY_BYTES,
+            )
+        started = time.perf_counter()
+        try:
+            await asyncio.to_thread(structure.prepare)
+        except Exception as exception:  # noqa: BLE001 - the feature stays off, the service does not
+            logger.warning(
+                "PP-StructureV3 unavailable, tables stay with PP-OCRv5. error=%s code=%s",
+                type(exception).__name__,
+                getattr(exception, "code", None),
+            )
+            return
+        logger.info("PP-StructureV3 models ready. prepareMs=%s", round((time.perf_counter() - started) * 1000))
 
     async def load_model() -> None:
         started = time.perf_counter()
@@ -235,20 +339,31 @@ def create_app(engine: OcrEngine | None = None, settings: Settings | None = None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        logger.info("ocr-service starting. provider=%s profile=%s", settings.provider, settings.model_profile)
-        # Loading in the background keeps /health/live answering while the models come up.
+        logger.info(
+            "ocr-service starting. provider=%s profile=%s orientationCorrection=%s structureForTables=%s",
+            settings.provider,
+            settings.model_profile,
+            settings.orientation_correction,
+            settings.use_structure_for_tables,
+        )
+        # Loading in the background keeps /health/live answering while the models come up. The
+        # PP-StructureV3 download does not gate readiness: until it ends, tables stay with PP-OCRv5.
         loading = asyncio.create_task(load_model())
+        preparing = asyncio.create_task(prepare_structure())
         yield
         loading.cancel()
+        preparing.cancel()
         limiter.shutdown()
         logger.info("ocr-service stopping")
 
     app = FastAPI(
         title="DocReader OCR service",
-        version="0.2.0",
+        version="0.3.0",
         description=(
             "Internal OCR service of the DocReader proof of concept. Not exposed outside the Docker "
-            "network. Reads one page per call with PP-OCRv5 on CPU."
+            "network. Reads one page per call with PP-OCRv5 on CPU; a PDF page with a real text layer "
+            "is read from it instead, other pages are turned upright and deskewed first, and a "
+            "low-confidence table may be re-read by PP-StructureV3 (OCR_USE_PP_STRUCTUREV3_FOR_TABLES)."
         ),
         lifespan=lifespan,
     )
@@ -288,6 +403,8 @@ def create_app(engine: OcrEngine | None = None, settings: Settings | None = None
             model_version=active_engine.model_version if state.model_loaded else None,
             model_load_ms=state.model_load_ms,
             max_concurrency=settings.max_concurrency,
+            structure_enabled=structure is not None,
+            structure_ready=structure is not None and structure.ready,
             checked_at=datetime.now(tz=timezone.utc),
         )
 
@@ -354,45 +471,125 @@ def create_app(engine: OcrEngine | None = None, settings: Settings | None = None
         except UnsupportedFormatError as error:
             raise ServiceError(415, "UNSUPPORTED_FORMAT", "Unsupported format", str(error)) from error
 
-        def work() -> tuple[EngineOutput, int, int, int, int]:
+        def work() -> PageOutcome:
             started = time.perf_counter()
+
+            def elapsed() -> int:
+                return round((time.perf_counter() - started) * 1000)
+
+            if kind == "pdf":
+                native = read_native_page(
+                    content,
+                    page,
+                    dpi=settings.pdf_dpi,
+                    max_side=settings.max_image_side,
+                    min_chars=settings.pdf_native_text_min_chars,
+                )
+                if native is not None:
+                    return PageOutcome(
+                        native.page_count, native.width, native.height, native.blocks, native.raw, elapsed(),
+                        has_native_text_layer=True,
+                    )
+
             rendered = render_page(content, page, pdf_dpi=settings.pdf_dpi, max_side=settings.max_image_side)
-            output = active_engine.recognize(rendered.image)
-            elapsed = round((time.perf_counter() - started) * 1000)
-            return output, rendered.page_count, rendered.image.width, rendered.image.height, elapsed
+            image = rendered.image
+            rotation, deskewed = 0, False
+            if settings.orientation_correction:
+                oriented = correct_orientation(
+                    image,
+                    deskew_min_degrees=settings.deskew_min_degrees,
+                    deskew_max_degrees=settings.deskew_max_degrees,
+                )
+                # Turning a landscape page or growing the canvas to deskew can pass the side limit.
+                image = limit_side(oriented.image, settings.max_image_side)
+                rotation, deskewed = oriented.rotation_degrees, oriented.deskewed
+
+            output = active_engine.recognize(image)
+            blocks, raw = output.blocks, output.raw
+            with_structure, skipped = False, None
+
+            if structure is not None:
+                assessment = assess_table(blocks)
+                if assessment.triggers(settings.structure_table_confidence_threshold):
+                    megapixels = image.width * image.height / 1_000_000
+                    budget = settings.page_timeout_seconds - (time.perf_counter() - started) - STRUCTURE_DEADLINE_MARGIN_SECONDS
+                    if megapixels > settings.structure_max_megapixels:
+                        skipped = f"IMAGE_TOO_LARGE megapixels={megapixels:.2f} max={settings.structure_max_megapixels:g}"
+                    elif budget < STRUCTURE_MIN_BUDGET_SECONDS:
+                        skipped = f"NO_TIME_LEFT budgetSeconds={budget:.0f}"
+                    else:
+                        try:
+                            structured = structure.recognize(image, timeout_seconds=budget)
+                        except StructureError as error:
+                            skipped = error.code
+                        except Exception as error:  # noqa: BLE001 - never lose a page PP-OCRv5 already read
+                            skipped = f"UNEXPECTED_ERROR error={type(error).__name__}"
+                        else:
+                            blocks = structured.blocks
+                            raw = {"v5": output.raw, "structureV3": structured.raw}
+                            with_structure = True
+
+                    if skipped is not None:
+                        logger.warning(
+                            "table page kept with PP-OCRv5. reason=%s gridRows=%s columns=%s gridConfidence=%s",
+                            skipped,
+                            assessment.grid_rows,
+                            assessment.columns,
+                            assessment.grid_confidence,
+                            extra={"correlation_id": correlation_id},
+                        )
+
+            return PageOutcome(
+                rendered.page_count, image.width, image.height, blocks, raw, elapsed(),
+                rotation_degrees=rotation, deskewed=deskewed, processed_with_structure=with_structure,
+                structure_skipped=skipped,
+            )
 
         try:
-            output, page_count, width, height, elapsed_ms = await limiter.run(work)
+            outcome = await limiter.run(work)
         except PageOutOfRangeError as error:
             raise ServiceError(422, "PAGE_OUT_OF_RANGE", "Page out of range", str(error)) from error
         except UnreadableFileError as error:
             raise ServiceError(422, "UNREADABLE_FILE", "Unreadable file", str(error)) from error
 
         logger.info(
-            "page analyzed. kind=%s page=%s pageCount=%s width=%s height=%s blocks=%s durationMs=%s",
+            "page analyzed. kind=%s page=%s pageCount=%s width=%s height=%s blocks=%s durationMs=%s "
+            "nativeTextLayer=%s rotationDegrees=%s deskewed=%s processedWithStructure=%s",
             kind,
             page,
-            page_count,
-            width,
-            height,
-            len(output.blocks),
-            elapsed_ms,
+            outcome.page_count,
+            outcome.width,
+            outcome.height,
+            len(outcome.blocks),
+            outcome.elapsed_ms,
+            outcome.has_native_text_layer,
+            outcome.rotation_degrees,
+            outcome.deskewed,
+            outcome.processed_with_structure,
             extra={"correlation_id": correlation_id},
         )
 
         return PageAnalysisResponse(
             page=page,
-            page_count=page_count,
-            image_width=width,
-            image_height=height,
+            page_count=outcome.page_count,
+            image_width=outcome.width,
+            image_height=outcome.height,
+            # The engine's identity even for a page read from its text layer: the .NET side records one
+            # provider and model per attempt (the last page's), and a mixed PDF would otherwise be
+            # labelled by whichever kind of page came last. The native page says what read it in
+            # raw.source ("pdfplumber") and in hasNativeTextLayer.
             provider=settings.provider,
             model_version=active_engine.model_version,
-            duration_ms=elapsed_ms,
+            duration_ms=outcome.elapsed_ms,
             blocks=[
                 OcrBlockResponse(text=block.text, confidence=block.confidence, bounding_box=block.bounding_box)
-                for block in output.blocks
+                for block in outcome.blocks
             ],
-            raw=output.raw,
+            raw=outcome.raw,
+            has_native_text_layer=outcome.has_native_text_layer,
+            rotation_degrees=outcome.rotation_degrees,
+            deskewed=outcome.deskewed,
+            processed_with_structure=outcome.processed_with_structure,
         )
 
     return app

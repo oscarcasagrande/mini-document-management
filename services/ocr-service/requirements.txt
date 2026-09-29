@@ -8,6 +8,16 @@ uvicorn[standard]==0.53.0
 pydantic==2.13.5
 python-multipart==0.0.20
 pypdfium2==5.13.0
+# RF-009: reads the text layer of a digital PDF page, which then skips rasterization and OCR.
+pdfplumber==0.11.10
 paddlepaddle==3.2.2
 paddleocr==3.7.0
-paddlex[ocr-core]==3.7.2
+# ocr-core is PP-OCRv5. The ocr extra adds the Python packages PP-StructureV3 needs to be constructed at
+# all (without them paddlex refuses with a dependency error): ~260 MB, no model weights. The weights of
+# PP-StructureV3 (~873 MB) are downloaded only when OCR_USE_PP_STRUCTUREV3_FOR_TABLES is on (ADR 0002).
+paddlex[ocr-core,ocr]==3.7.2
+# Direct use by the orientation correction (app/preprocess.py). Both are already brought by paddlex, and
+# the pins are the versions it resolves: opencv-contrib-python is exactly what paddlex[ocr-core] requires
+# (a second OpenCV distribution such as opencv-python would install a competing cv2 module).
+opencv-contrib-python==4.10.0.84
+numpy==2.3.5

@@ -1,4 +1,10 @@
 # Test dependencies. The tests use a fake engine, so PaddleOCR itself is not needed to run them:
-#   pip install fastapi "uvicorn[standard]" pydantic python-multipart pypdfium2 pillow numpy -r requirements-dev.txt
+#   pip install fastapi "uvicorn[standard]" pydantic python-multipart pypdfium2 pdfplumber==0.11.10 \
+#     pillow numpy opencv-python-headless==4.10.0.84 -r requirements-dev.txt
+# (opencv-python-headless is the same cv2 4.10 API as the opencv-contrib-python of the image, without GUI
+# libraries, so it installs on python:3.12-slim.)
 pytest==8.4.2
 httpx==0.28.1
+# Builds PDFs with a real text layer in the native-text tests and in scripts/make-native-pdf-samples.py.
+# The service itself never generates PDFs.
+reportlab==5.0.1

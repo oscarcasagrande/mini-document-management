@@ -2,10 +2,14 @@
 #   docker build -f deploy/docker/Dockerfile.ocr-service .
 #
 # PaddleOCR with the PP-OCRv5 pipeline approved in ADR 0002 (mobile detector, Latin recognizer),
-# CPU only. PP-StructureV3 is deliberately not installed: it is out of scope and
-# would add gigabytes and an out-of-memory risk. The models are downloaded once, at build time, and
-# baked into the image, so the container starts offline and the first request never waits for a
-# download.
+# CPU only. The models are downloaded once, at build time, and baked into the image, so the container
+# starts offline and the first request never waits for a download.
+#
+# PP-StructureV3 (RF-009, on demand for low-confidence tables) has its Python packages installed but
+# its weights (~873 MB of layout and table models) deliberately NOT baked in: they would weigh on every
+# image while the feature is off by default. With OCR_USE_PP_STRUCTUREV3_FOR_TABLES=true the service
+# downloads them into OCR_MODEL_CACHE_DIR (a volume) in the background at startup, and runs the pipeline
+# in a child process with oneDNN off and the out-of-memory killer pointed at it (ADR 0002, addendum).
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \

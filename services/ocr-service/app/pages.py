@@ -74,7 +74,7 @@ def render_page(content: bytes, page: int, *, pdf_dpi: int, max_side: int) -> Re
     except Exception as exception:  # noqa: BLE001 - decoders raise many unrelated types
         raise UnreadableFileError(f"the {kind} file could not be decoded") from exception
 
-    return RenderedPage(_limit_side(rendered.image, max_side), rendered.page_count)
+    return RenderedPage(limit_side(rendered.image, max_side), rendered.page_count)
 
 
 def _render_pdf_page(content: bytes, page: int, dpi: int) -> RenderedPage:
@@ -123,7 +123,8 @@ def _flatten_to_rgb(image: Image.Image) -> Image.Image:
     return image.convert("RGB")
 
 
-def _limit_side(image: Image.Image, max_side: int) -> Image.Image:
+def limit_side(image: Image.Image, max_side: int) -> Image.Image:
+    """Downscales so the longest side is at most ``max_side``, keeping the aspect ratio."""
     longest = max(image.size)
     if max_side <= 0 or longest <= max_side:
         return image
@@ -132,3 +133,7 @@ def _limit_side(image: Image.Image, max_side: int) -> Image.Image:
     size = (max(1, round(image.width * ratio)), max(1, round(image.height * ratio)))
 
     return image.resize(size, Image.Resampling.LANCZOS)
+
+
+# The latency benchmark (scripts/ocr_benchmark.py) imports the original private name.
+_limit_side = limit_side
