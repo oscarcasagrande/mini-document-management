@@ -70,6 +70,18 @@ docker compose down -v                  # apaga também o banco e os originais e
 
 Para expor o banco e o OCR em desenvolvimento: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`.
 
+Para trocar a fila de PostgreSQL (ADR 0001, padrão) para RabbitMQ (ADR 0004):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.rabbitmq.yml up -d --build
+```
+
+Nenhuma variável de `.env` é obrigatória: o overlay já define `QUEUE_PROVIDER=RabbitMQ` e credenciais padrão
+(`RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD`/`RABBITMQ_VHOST`, todas `docreader`/`docreader`/`/`) sozinho. `.env.example`
+só documenta essas variáveis para quem quiser sobrescrevê-las (ou os `RABBITMQ_AMQP_PORT`/`RABBITMQ_MANAGEMENT_PORT`
+publicados) — nunca defina `QUEUE_PROVIDER=Postgres` no `.env` para usar este overlay, isso anularia o próprio
+propósito dele. UI de management do broker em http://localhost:15672 (mesmas credenciais).
+
 > **Sem autenticação.** Qualquer pessoa com acesso à URL pode enviar, listar, visualizar, baixar e
 > excluir documentos. Não publique na internet e use apenas documentos sintéticos, mascarados ou
 > autorizados. `ALLOW_ANONYMOUS_ACCESS=false` fecha `/api/v1` com `503`, porque a PoC não tem
