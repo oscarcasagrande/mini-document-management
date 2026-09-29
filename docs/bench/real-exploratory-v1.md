@@ -107,6 +107,69 @@ de que a extração de sócios funciona em documento real, não só na amostra s
 `NOT_FOUND` pelo mesmo motivo do documento 3 (padrão não bateu); `NIRE` também ficou de fora — pode ser que
 uma alteração contratual pontual não repita o NIRE do registro original, em vez de ser uma falha de leitura.
 
+## Correções aplicadas (rodada 2, 2026-09-29)
+
+Dos sete achados abaixo, três foram atacados nesta rodada, na ordem de gravidade pedida (resultado errado com
+aparência de certo é pior que resultado vazio): os achados 3 e 5 primeiro (os dois produziam um resultado
+enganoso), depois o achado 6. Os três foram corrigidos, com fixture mascarada de OCR real + teste unitário de
+regressão para cada um, e **reverificados nos próprios documentos reais desta rodada** (reprocessados via
+`POST .../reprocess` depois do rebuild dos três serviços .NET/Python, não só nos testes). Os achados 1, 2 e 4
+continuam em aberto, sem alteração de código.
+
+- **Achado 3 (`nome do titular` com metadado de nota fiscal, `VALID`) — corrigido.** Duas mudanças em
+  `LineSearch`/`FieldFactory`: `noiseMarkers` no `LineSearch` (substrings como "NOTA FISCAL", "SÉRIE", "DATA DE
+  EMISSÃO" nunca viram valor de campo, mesmo sem ser rótulo de outro campo) e `FieldFactory.Found` rebaixando
+  `VALID` para `UNCERTAIN` quando o achado depende de fallback sem rótulo por perto (`NO_LABEL_NEARBY`) — uma
+  leitura sem rótulo é uma heurística fraca mesmo que o formato bata. Reprocessado `ELEKTRO.PDF.pdf`:
+  `holderName` agora lê o nome real do titular, `VALID`, sem texto de nota fiscal; `city`/`state`, que antes
+  saíam `VALID` só por coincidência de formato, agora saem `UNCERTAIN` com `NO_LABEL_NEARBY` — mais honesto,
+  mesmo sem ficar `VALID`. Detalhe novo, não corrigido: com o bloco da nota fiscal fora de disputa, o candidato
+  de fallback do `holderDocument` mudou de um CNPJ com dígito verificador válido (mas potencialmente da própria
+  concessionária, não do titular — mesma suspeita do achado abaixo) para uma string sem formato de documento,
+  agora `INVALID` em vez de `VALID`. Não é uma regressão de honestidade (era `VALID`-talvez-errado, virou
+  `INVALID`-declaradamente-errado), mas é um candidato pior; fica para uma próxima calibração de `holderDocument`
+  nesse layout de DANFE. Fixture `elektro-real.ocr.json`, testes em `RealDocumentExtractionTests.cs`.
+- **Achado novo (não estava na lista original): `city`/`state` do comprovante de residência usam o endereço da
+  concessionária, não do titular.** Achado pelo mesmo agente que corrigiu o achado 3, ao investigar por que o
+  candidato de fallback batia. O `city`/`state` são lidos por varredura de formato (primeiro CEP+UF do
+  documento, em ordem de leitura), e o cabeçalho do DANFE traz o endereço da Elektro antes do endereço do
+  cliente. Downgrade para `UNCERTAIN` (achado 3) reduz o dano — ninguém confia cegamente no campo — mas o valor
+  em si continua sendo o da concessionária. Não corrigido nesta rodada: precisa de uma heurística de
+  proximidade ao bloco do titular, não só "primeiro candidato no documento".
+- **Achado 5 (CNH digital vira `UNKNOWN` em silêncio) — corrigido.** Duas constantes novas em
+  `native_text.py`: a camada nativa do PDF passa a ser rejeitada quando a cobertura de imagem da página chega a
+  15% **e** menos de 20 blocos de texto saíram do `pdfplumber` — a combinação dos dois limiares, calibrada para
+  deixar o exemplar medido (cobertura 0,3549, 10 blocos) bem dentro da região rejeitada. A página cai para OCR
+  automaticamente, na mesma passada, sem reprocessamento manual; o motivo fica na linha do tempo como
+  `NATIVE_TEXT_LAYER_REJECTED page=N reason=IMAGE_COVERAGE_WITH_SPARSE_TEXT imageCoverage=... blocks=...`.
+  Reprocessado `CNHE.PDF.pdf`: classificação agora `BR_CNH`, confiança 1,00 (era `UNKNOWN`, 0,25); extração leu
+  8 de 8 campos (`name`, `cpf`, `registrationNumber`, `category`, `birthDate`, `issueDate`, `expirationDate`,
+  `firstLicenseDate`), todos `VALID`, incluindo os dois dígitos verificadores. Documentado como medido contra um
+  único documento real, não uma bancada — revisar se aparecer um contra-exemplo. Testes novos em
+  `test_native_text.py` (Python, com um PDF sintético "capa sobre foto") e `DocumentProcessorTests.cs`/
+  `PaddleOcrServiceProviderTests.cs` (C#, travessia do motivo pela cadeia OCR → evento).
+- **Achado 6 (`partners[]` vazio no contrato de 11 páginas) — corrigido, causa diferente da suspeitada.**
+  A suspeita original (rotação de 180°) não se confirmou: os dois documentos reais têm ruído de OCR parecido
+  (um caractere solto de OCR grudado no texto), a diferença é só que no documento quebrado esse ruído caiu
+  colado imediatamente antes do nome do sócio, e no documento que sempre funcionou o ruído (um "b" solto) ficou
+  linhas antes, não colado. A causa real: o regex de `PartnerPattern()` exigia pontuação ou palavra exatas
+  (vírgula, "entre", "por" etc.) imediatamente antes do nome; um caractere de ruído ali quebrava o casamento
+  inteiro. Trocado para uma âncora negativa mais simples — não pode vir precedido de letra minúscula — porque o
+  discriminador de verdade já é a combinação de 2 a 8 palavras capitalizadas seguida de vírgula e palavra de
+  qualificação (sócio/sócia/administrador/etc.), que já é específica o bastante sem depender de pontuação exata.
+  Reprocessado `CONSOLIDACAO.16.12.25.PDF.pdf`: `partners[0].name`/`partners[0].cpf` agora saem `VALID` (era
+  `partners[]` vazio); `ULT.ALTERAOCONTRATUAL.PDF.pdf` (o documento que já funcionava) continua com os dois
+  sócios, sem regressão. Três testes novos em `BrSocialContractExtractorTests.cs`: reprodução do caso quebrado,
+  guarda de regressão do caso que já funcionava, e caso limpo sem ruído nenhum. Achado à parte, não corrigido:
+  `ExtractCompanyName`/`CompanyNamePattern` às vezes capturam uma palavra minúscula solta grudada na frente da
+  razão social — o mesmo tipo de ruído, em campo diferente; fica para outra rodada.
+
+Suítes verificadas depois das três correções, com os três serviços .NET/Python reconstruídos
+(`docker compose up --build -d`) e os três documentos reprocessados: 1095 testes unitários .NET (1092 + 3),
+99 do `pytest` do OCR (1 pulado, sem mudança), 49 do avaliador, `tsc --noEmit` do BFF e a suíte de integração
+contra PostgreSQL real — ver os números exatos no histórico de commits, já que os três primeiros times não
+tocaram no BFF nem na integração.
+
 ## Falhas encontradas, da mais barata para a mais cara de corrigir
 
 1. **[Baixo]** `mês de referência` do comprovante de residência não reconhece o mês por extenso
@@ -115,25 +178,28 @@ uma alteração contratual pontual não repita o NIRE do registro original, em v
 2. **[Baixo]** `NIRE` ausente na alteração contratual (documento 4). Pode ser que o documento genuinamente não
    repita o campo — conferir isso antes de tratar como bug; se for um rótulo alternativo não coberto, é uma
    mudança tão pontual quanto o item 1.
-3. **[Baixo-médio, prioridade alta]** `nome do titular` do comprovante de residência captura o texto da nota
-   fiscal em vez do nome do cliente, com status `VALID`. É um ajuste pontual na busca pelo rótulo "NOME DO
-   CLIENTE" neste layout (alcance errado ou falta de guarda contra candidato que contém texto de nota fiscal),
-   mas prioridade alta apesar do esforço baixo: é exatamente o padrão que CLAUDE.md já registra como pior que
-   `NOT_FOUND` — ninguém desconfia de um campo com status `VALID`.
+3. **[Baixo-médio, prioridade alta] — CORRIGIDO (rodada 2).** `nome do titular` do comprovante de residência
+   captura o texto da nota fiscal em vez do nome do cliente, com status `VALID`. É um ajuste pontual na busca
+   pelo rótulo "NOME DO CLIENTE" neste layout (alcance errado ou falta de guarda contra candidato que contém
+   texto de nota fiscal), mas prioridade alta apesar do esforço baixo: é exatamente o padrão que CLAUDE.md já
+   registra como pior que `NOT_FOUND` — ninguém desconfia de um campo com status `VALID`. Ver a seção
+   "Correções aplicadas" acima.
 4. **[Médio]** `objeto social` nunca foi encontrado em nenhum dos dois contratos sociais reais (documentos 3 e
    4). O padrão do `ProseIndex` foi calibrado só com a amostra sintética; precisa olhar a redação real de
    "objeto social" nesses dois documentos e ampliar o padrão — o mesmo tipo de trabalho já feito para CNH/RIC
    na Etapa 5, ainda pendente para contrato social.
-5. **[Médio]** A CNH digital (documento 1) tem camada nativa que passa no limiar de 20 caracteres do RF-009
-   mas só contém cabeçalho, não os campos da pessoa — resultado silencioso: `UNKNOWN`, zero campos, nenhum
-   aviso. Precisa de uma segunda heurística de suficiência da camada nativa (não só contagem de caracteres) ou
-   de um retrocesso automático para OCR completo quando a classificação sobre a camada nativa fica muito abaixo
-   do limiar.
-6. **[Médio-alto]** `partners[]` zerado no contrato social de 11 páginas (documento 3), mas correto no de 6
-   páginas (documento 4) — mesmo extrator, mesma versão. `sede`, `CEP da sede` e `capital social` também
-   falharam só no documento 3, o que sugere causa comum. Duas hipóteses a investigar antes de corrigir: a
-   rotação de 180° em todas as páginas degradou a leitura o bastante para o `ProseIndex` não reconhecer o
-   padrão, ou uma "consolidação" lista sócios de um jeito estruturalmente diferente de uma alteração pontual.
+5. **[Médio] — CORRIGIDO (rodada 2).** A CNH digital (documento 1) tem camada nativa que passa no limiar de 20
+   caracteres do RF-009 mas só contém cabeçalho, não os campos da pessoa — resultado silencioso: `UNKNOWN`,
+   zero campos, nenhum aviso. Precisava de uma segunda heurística de suficiência da camada nativa (não só
+   contagem de caracteres) ou de um retrocesso automático para OCR completo quando a classificação sobre a
+   camada nativa fica muito abaixo do limiar. Ver a seção "Correções aplicadas" acima.
+6. **[Médio-alto] — CORRIGIDO (rodada 2), causa diferente da suspeitada abaixo.** `partners[]` zerado no
+   contrato social de 11 páginas (documento 3), mas correto no de 6 páginas (documento 4) — mesmo extrator,
+   mesma versão. `sede`, `CEP da sede` e `capital social` também falharam só no documento 3 (esses três
+   continuam sem explicação — não foram investigados nesta rodada, só `partners[]`). Hipótese original, não
+   confirmada: a rotação de 180° em todas as páginas degradou a leitura o bastante para o `ProseIndex` não
+   reconhecer o padrão. Ver a seção "Correções aplicadas" acima para a causa real (ruído de OCR colado antes do
+   nome, não rotação).
 
 **Observação à parte, não uma falha de extração:** a latência por página nos quatro documentos reais variou de
 8,7 s a 88,0 s, a maior parte acima do alvo de ≤18 s/página do ADR 0002. Medido nesta máquina com vários outros
