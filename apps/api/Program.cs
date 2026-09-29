@@ -145,6 +145,10 @@ if (oidcConfigured)
         .AddJwtBearer(options =>
         {
             options.Authority = oidcOptions.Authority;
+            // JwtBearerOptions defaults RequireHttpsMetadata to true unconditionally: ASP.NET Core does not
+            // infer this from the hosting environment on its own. The dev-only Keycloak (docker-compose.dev.yml)
+            // is plain HTTP inside the compose network, so this must be explicit, not assumed.
+            options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
             // Keeps original claim names ("sub", "email", "realm_access", ...) instead of the legacy
             // WS-Federation URIs the handler otherwise remaps them to.
             options.MapInboundClaims = false;

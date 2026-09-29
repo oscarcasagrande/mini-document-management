@@ -335,8 +335,9 @@ a este checkout.
 - **Integração confirmada**: o lado da API (acima) já lê `realm_access.roles` do jeito que o Keycloak deste overlay emite
   (`KeycloakRoleClaims.ExpandRealmRoles`), então os dois lados batem sem ajuste — falta só a verificação ao vivo pelo
   navegador (login interativo com os dois usuários de teste, `docreader-admin` chegando até `[Authorize(Policy=AdminOnly)]`).
-- Testes: contagem final após juntar auditoria, OIDC/RBAC, cifra de campos e exclusão LGPD/GDPR — ver o número exato no
-  resultado do `dotnet test` mais recente (as quatro seções somaram testes novos sobre a mesma base de 993).
+- Testes: 1070 unitários (993 + 77 entre auditoria, OIDC/RBAC, cifra de campos e exclusão LGPD/GDPR juntos); 116 de
+  integração, 110 passam e 6 são pulados de sempre (psql/pg_dump e Azurite indisponíveis), medido com PostgreSQL
+  real na rede do compose depois de juntar as quatro seções.
 
 ## Estrutura do repositório
 

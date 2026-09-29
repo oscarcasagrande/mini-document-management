@@ -157,11 +157,13 @@ essa convenção de caminho (não-Keycloak) vai precisar desse trecho ajustado �
   convenção (`/oauth2/v2.0/authorize`, `/oauth2/v2.0/token`); com Azure AD configurado, o botão não vai
   funcionar até esse trecho ganhar descoberta real ou variáveis de override explícitas
   (`OIDC_AUTHORIZATION_ENDPOINT`/`OIDC_TOKEN_ENDPOINT`, cogitadas e não implementadas nesta etapa).
-- `RequireHttpsMetadata` não foi tocado: o `JwtBearerOptions` do framework usa o padrão de sempre
-  (`!Environment.IsDevelopment()`), então um Keycloak servido em `http://` só funciona com
-  `ASPNETCORE_ENVIRONMENT=Development`. O `docker-compose.yml` de aceite usa `Production` por padrão; um
-  Keycloak de desenvolvimento em HTTP atrás desse compose vai precisar de `ASPNETCORE_ENVIRONMENT=Development`
-  ou de um Keycloak com TLS.
+- `RequireHttpsMetadata = !builder.Environment.IsDevelopment()` é explícito em `Program.cs`: o `JwtBearerOptions`
+  do framework **não** infere isso do ambiente sozinho (o padrão é `true` incondicional) — a suposição original
+  deste ADR de que ele o faria estava errada, e só apareceu ao subir o Keycloak de desenvolvimento de verdade
+  (`InvalidOperationException: ... must use HTTPS unless disabled for development`). Um Keycloak servido em
+  `http://` só funciona com `ASPNETCORE_ENVIRONMENT=Development` (como o `docker-compose.dev.yml` já define para
+  `api`); o `docker-compose.yml` de aceite usa `Production` por padrão, então um Keycloak em HTTP atrás dele
+  exigiria TLS ou `ASPNETCORE_ENVIRONMENT=Development` explícito.
 - Este ADR não cobre o fluxo de login do BFF nem o contêiner Keycloak: são trabalho paralelo de outro
   agente, fora do escopo do lado `.NET`.
 
