@@ -22,14 +22,28 @@ RUN dotnet publish apps/worker/DocReader.Worker.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
+# Backup and restore run pg_dump and psql. Their major version must match the server (postgres:17-alpine in the
+# compose file): pg_dump refuses a newer server, and the plain dump of 17.6+ uses psql meta-commands (\restrict) that
+# older clients do not know. The base image is Ubuntu 24.04, whose own postgresql-client is 16, so the client comes
+# from the PostgreSQL project's apt repository (PGDG), pinned to major 17.
 RUN apt-get update \
- && apt-get install --yes --no-install-recommends curl \
+ && apt-get install --yes --no-install-recommends ca-certificates curl \
+ && install -d /usr/share/postgresql-common/pgdg \
+ && curl --fail --silent --show-error --location \
+      -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+ && . /etc/os-release \
+ && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update \
+ && apt-get install --yes --no-install-recommends postgresql-client-17 \
  && rm -rf /var/lib/apt/lists/*
 
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 \
-    DOTNET_NOLOGO=1
+    DOTNET_NOLOGO=1 \
+    DocReader__Backup__PgDumpPath=/usr/lib/postgresql/17/bin/pg_dump \
+    DocReader__Backup__PsqlPath=/usr/lib/postgresql/17/bin/psql
 
 WORKDIR /app
 COPY --from=build /app/publish ./

@@ -1,3 +1,4 @@
+using DocReader.Domain.Backup;
 using DocReader.Domain.Catalog;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Extractions;
@@ -31,6 +32,12 @@ public sealed class DocReaderDbContext(DbContextOptions<DocReaderDbContext> opti
     public DbSet<StorageRepository> StorageRepositories => Set<StorageRepository>();
 
     public DbSet<StorageMigrationJob> StorageMigrationJobs => Set<StorageMigrationJob>();
+
+    public DbSet<BackupJob> BackupJobs => Set<BackupJob>();
+
+    public DbSet<RestoreJob> RestoreJobs => Set<RestoreJob>();
+
+    public DbSet<SystemState> SystemStates => Set<SystemState>();
 
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
 

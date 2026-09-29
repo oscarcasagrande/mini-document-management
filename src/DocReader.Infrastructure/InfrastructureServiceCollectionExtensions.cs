@@ -1,6 +1,7 @@
 using DocReader.Application.Abstractions;
 using DocReader.Application.Options;
 using DocReader.Application.Webhooks;
+using DocReader.Infrastructure.Backup;
 using DocReader.Infrastructure.Files;
 using DocReader.Infrastructure.Ocr;
 using DocReader.Infrastructure.Persistence;
@@ -10,6 +11,7 @@ using DocReader.Infrastructure.Webhooks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DocReader.Infrastructure;
@@ -68,6 +70,19 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IStorageAdapterFactory, StorageAdapterFactory>();
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
         services.AddSingleton<IPageCounter, DocumentPageCounter>();
+
+        services.AddScoped<IBackupJobRepository, BackupJobRepository>();
+        services.AddScoped<IRestoreJobRepository, RestoreJobRepository>();
+        services.AddScoped<ISystemStateStore, SystemStateStore>();
+        services.AddSingleton<BackupSignature>();
+        services.AddSingleton(provider => new PostgresBackupTool(
+            connectionString,
+            provider.GetRequiredService<IOptions<BackupOptions>>(),
+            provider.GetRequiredService<ILogger<PostgresBackupTool>>()));
+        services.AddSingleton<IDatabaseDumper>(provider => provider.GetRequiredService<PostgresBackupTool>());
+        services.AddSingleton<IDatabaseRestorer>(provider => provider.GetRequiredService<PostgresBackupTool>());
+        services.AddScoped<IBackupArchiveBuilder, TarGzBackupArchiveBuilder>();
+        services.AddScoped<IBackupArchiveReader, TarGzBackupArchiveReader>();
 
         return services;
     }

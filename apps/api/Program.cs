@@ -83,6 +83,7 @@ builder.Services.AddControllers()
 builder.Services.AddSingleton<ProblemDetailsFactory, DocReaderProblemDetailsFactory>();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddSingleton<ReadOnlyGate>();
 
 builder.Services.AddHttpClient(OcrServiceHealthCheck.HttpClientName, (provider, client) =>
 {
@@ -176,6 +177,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseCors();
 app.UseMiddleware<AnonymousAccessGateMiddleware>();
+app.UseMiddleware<ReadOnlyGateMiddleware>();
 app.UseMiddleware<UploadSizeGuardMiddleware>();
 
 app.UseSwagger(options => options.RouteTemplate = "swagger/{documentName}/swagger.json");

@@ -19,4 +19,6 @@ public static class ProblemTypes
     public const string UnprocessableContent = "unprocessable-content";
     public const string ContentUnavailable = "document-content-unavailable";
     public const string Unexpected = "unexpected-error";
+    public const string SystemReadOnly = "system-read-only";
+    public const string InvalidBackupArchive = "invalid-backup-archive";
 }

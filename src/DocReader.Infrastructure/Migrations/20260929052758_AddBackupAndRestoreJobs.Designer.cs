@@ -3,6 +3,7 @@ using System;
 using DocReader.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocReader.Infrastructure.Migrations
 {
     [DbContext(typeof(DocReaderDbContext))]
-    partial class DocReaderDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929052758_AddBackupAndRestoreJobs")]
+    partial class AddBackupAndRestoreJobs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -913,79 +916,6 @@ namespace DocReader.Infrastructure.Migrations
                     b.ToTable("storage_repositories", (string)null);
                 });
 
-            modelBuilder.Entity("DocReader.Domain.StorageMigrations.StorageMigrationJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<int>("DocumentsFailed")
-                        .HasColumnType("integer")
-                        .HasColumnName("documents_failed");
-
-                    b.Property<int>("DocumentsMigrated")
-                        .HasColumnType("integer")
-                        .HasColumnName("documents_migrated");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text")
-                        .HasColumnName("error_message");
-
-                    b.Property<string>("FilterDocumentType")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("filter_document_type");
-
-                    b.Property<Guid?>("FilterProductServiceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("filter_product_service_id");
-
-                    b.Property<DateTimeOffset?>("FilterUploadedFrom")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("filter_uploaded_from");
-
-                    b.Property<DateTimeOffset?>("FilterUploadedTo")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("filter_uploaded_to");
-
-                    b.Property<DateTimeOffset>("RequestedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("requested_at");
-
-                    b.Property<Guid>("SourceRepositoryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("source_repository_id");
-
-                    b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("started_at");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid>("TargetRepositoryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("target_repository_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SourceRepositoryId");
-
-                    b.HasIndex("TargetRepositoryId");
-
-                    b.HasIndex("Status", "RequestedAt")
-                        .HasDatabaseName("ix_storage_migration_jobs_status_requested_at");
-
-                    b.ToTable("storage_migration_jobs", (string)null);
-                });
-
             modelBuilder.Entity("DocReader.Domain.Webhooks.WebhookDelivery", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1258,21 +1188,6 @@ namespace DocReader.Infrastructure.Migrations
                     b.HasOne("DocReader.Domain.Retention.RetentionPolicy", null)
                         .WithMany()
                         .HasForeignKey("RetentionPolicyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("DocReader.Domain.StorageMigrations.StorageMigrationJob", b =>
-                {
-                    b.HasOne("DocReader.Domain.Storage.StorageRepository", null)
-                        .WithMany()
-                        .HasForeignKey("SourceRepositoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DocReader.Domain.Storage.StorageRepository", null)
-                        .WithMany()
-                        .HasForeignKey("TargetRepositoryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

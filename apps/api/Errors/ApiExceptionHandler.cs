@@ -126,6 +126,13 @@ public sealed class ApiExceptionHandler(
             "DOCUMENT_PURGED",
             "The retention period of this document ended: its original file, the text read by OCR and the extracted fields were removed. The record, the metadata and the history are kept."),
 
+        BackupArchiveInvalidException archive => new ErrorDescriptor(
+            StatusCodes.Status400BadRequest,
+            "Invalid backup archive",
+            ProblemTypes.InvalidBackupArchive,
+            archive.ErrorCode,
+            archive.Message),
+
         RequestValidationException invalid => new ErrorDescriptor(
             StatusCodes.Status400BadRequest,
             "Invalid request",

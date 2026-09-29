@@ -1,4 +1,5 @@
 using DocReader.Application.Abstractions;
+using DocReader.Application.Backup;
 using DocReader.Application.Catalog;
 using DocReader.Application.Classification;
 using DocReader.Application.Documents;
@@ -70,6 +71,11 @@ public static class ApplicationServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<BackupOptions>()
+            .Bind(configuration.GetSection(BackupOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.TryAddTimeProvider();
 
         // Scoped, not singleton: it reads the document_types table on every call, so a rule edited
@@ -95,6 +101,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<RetentionPolicyService>();
         services.AddScoped<RetentionReapplyService>();
         services.AddScoped<StorageMigrationService>();
+        services.AddScoped<BackupService>();
+        services.AddScoped<RestoreService>();
         services.AddScoped<DocumentPurgeService>();
         services.AddScoped<DocumentUploadService>();
         services.AddScoped<DocumentQueryService>();
