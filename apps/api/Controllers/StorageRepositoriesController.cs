@@ -23,9 +23,10 @@ public sealed class StorageRepositoriesController(
 {
     /// <summary>Creates a storage repository.</summary>
     /// <remarks>
-    /// FILE_SYSTEM and DATABASE are implemented. AZURE_BLOB_STORAGE and AWS_S3 are registered so a repository can be
-    /// configured for them, but their adapters are not implemented yet: uploading to one answers 501, and they cannot be
-    /// the default. The connection settings are validated per provider, encrypted before they are stored, and never
+    /// FILE_SYSTEM, DATABASE, AZURE_BLOB_STORAGE and AWS_S3 are all implemented. The connection settings are
+    /// validated per provider (AZURE_BLOB_STORAGE needs <c>connectionString</c> and <c>container</c>; AWS_S3 needs
+    /// <c>bucket</c>, <c>accessKeyId</c> and <c>secretAccessKey</c>, with optional <c>region</c> and
+    /// <c>serviceUrl</c> for MinIO and other S3-compatible services), encrypted before they are stored, and never
     /// returned by any endpoint.
     /// </remarks>
     /// <param name="request">Code, name, provider, settings and flags.</param>
@@ -33,7 +34,7 @@ public sealed class StorageRepositoriesController(
     /// <response code="201">Created. The <c>Location</c> header points at it.</response>
     /// <response code="400">The code, the name or the settings are invalid for the provider.</response>
     /// <response code="409">The code is already taken.</response>
-    /// <response code="422">The repository cannot be the default (provider not implemented, or inactive).</response>
+    /// <response code="422">The repository cannot be the default (inactive).</response>
     [HttpPost]
     [ProducesResponseType(typeof(StorageRepositoryResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
@@ -100,7 +101,7 @@ public sealed class StorageRepositoriesController(
     /// <response code="400">The name or the settings are invalid for the provider.</response>
     /// <response code="404">There is none with this id.</response>
     /// <response code="409">It is the default, or documents are stored in it and the change would strand them.</response>
-    /// <response code="422">The repository cannot be the default (provider not implemented, or inactive).</response>
+    /// <response code="422">The repository cannot be the default (inactive).</response>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(StorageRepositoryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]

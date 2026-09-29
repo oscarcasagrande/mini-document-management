@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 using DocReader.Application.Abstractions;
 using DocReader.Domain.Storage;
@@ -13,8 +12,6 @@ namespace DocReader.Infrastructure.Storage;
 /// </summary>
 public sealed partial class FileSystemStorageAdapter : IStorageAdapter
 {
-    private const string OriginalFileName = "original";
-
     private readonly string _root;
     private readonly ILogger<FileSystemStorageAdapter> _logger;
 
@@ -29,7 +26,7 @@ public sealed partial class FileSystemStorageAdapter : IStorageAdapter
 
     public async Task<StoredFile> SaveAsync(Stream content, FileMetadata metadata, CancellationToken ct)
     {
-        var storageKey = BuildStorageKey(metadata);
+        var storageKey = StorageKeyLayout.BuildKey(metadata);
         var absolutePath = ResolveAbsolutePath(storageKey);
 
         Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
@@ -122,34 +119,6 @@ public sealed partial class FileSystemStorageAdapter : IStorageAdapter
     }
 
     /// <summary>
-    /// Builds a key of the form <c>documents/yyyy/MM/dd/{documentId}/original{ext}</c>. The date
-    /// prefix only keeps directories small; identity comes from the UUID.
-    /// </summary>
-    private static string BuildStorageKey(FileMetadata metadata)
-    {
-        var extension = NormalizeExtension(metadata.Extension);
-        var day = metadata.CreatedAt.UtcDateTime;
-
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"documents/{day:yyyy}/{day:MM}/{day:dd}/{metadata.DocumentId:D}/{OriginalFileName}{extension}");
-    }
-
-    private static string NormalizeExtension(string extension)
-    {
-        if (string.IsNullOrWhiteSpace(extension))
-        {
-            return string.Empty;
-        }
-
-        var candidate = extension.StartsWith('.') ? extension : "." + extension;
-
-        return SafeExtensionPattern().IsMatch(candidate)
-            ? candidate.ToLowerInvariant()
-            : throw new ArgumentException($"Extension {extension} is not a safe storage extension.", nameof(extension));
-    }
-
-    /// <summary>
     /// Maps a logical key to an absolute path and refuses anything that could escape the root.
     /// </summary>
     private string ResolveAbsolutePath(string storageKey)
@@ -214,10 +183,6 @@ public sealed partial class FileSystemStorageAdapter : IStorageAdapter
             directory = Path.GetDirectoryName(directory);
         }
     }
-
-    /// <summary>Only lowercase alphanumeric extensions of up to four characters are accepted.</summary>
-    [GeneratedRegex(@"^\.[a-z0-9]{1,4}$", RegexOptions.CultureInvariant)]
-    private static partial Regex SafeExtensionPattern();
 
     /// <summary>
     /// Keys are built by this class alone: forward slashes, no dot segments, no backslashes.

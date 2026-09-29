@@ -189,18 +189,17 @@ public sealed class StorageRepositoryTests
     [Theory]
     [InlineData(StorageProvider.AzureBlobStorage)]
     [InlineData(StorageProvider.AwsS3)]
-    public async Task Provedor_nao_implementado_nao_pode_ser_o_padrao_mas_pode_ser_criado(StorageProvider provider)
+    public async Task Provedor_de_nuvem_e_implementado_e_pode_ser_criado_e_ser_o_padrao(StorageProvider provider)
     {
         var config = provider == StorageProvider.AzureBlobStorage
             ? Config(("connectionString", "x"), ("container", "y"))
             : Config(("bucket", "b"), ("accessKeyId", "k"), ("secretAccessKey", "s"));
 
         var created = await CreateAsync("nuvem", provider, config);
-        var error = await Assert.ThrowsAsync<UnprocessableRequestException>(() => CreateAsync("nuvem-padrao", provider, config, isDefault: true));
+        var asDefault = await CreateAsync("nuvem-padrao", provider, config, isDefault: true);
 
-        Assert.False(created.IsImplemented);
-        Assert.Equal("STORAGE_PROVIDER_NOT_IMPLEMENTED", error.ErrorCode);
-        Assert.Equal(StorageRepository.DefaultRepositoryId, _store.Default.Id);
+        Assert.True(created.IsImplemented);
+        Assert.Equal(asDefault.Id, _store.Default.Id);
     }
 
     [Fact]
@@ -260,14 +259,22 @@ public sealed class StorageRepositoryTests
     }
 
     [Fact]
-    public async Task Tornar_padrao_um_repositorio_inativo_ou_nao_implementado_e_422()
+    public async Task Tornar_padrao_um_repositorio_inativo_e_422()
     {
         var inactive = await CreateAsync("off", active: false);
-        var cloud = await CreateAsync("azure", StorageProvider.AzureBlobStorage, Config(("connectionString", "x"), ("container", "y")));
 
         await Assert.ThrowsAsync<UnprocessableRequestException>(() => Service().UpdateAsync(inactive.Id, "off", false, isDefault: true, null, Ct));
-        await Assert.ThrowsAsync<UnprocessableRequestException>(() => Service().UpdateAsync(cloud.Id, "azure", true, isDefault: true, null, Ct));
         Assert.Equal(StorageRepository.DefaultRepositoryId, _store.Default.Id);
+    }
+
+    [Fact]
+    public async Task Tornar_padrao_um_repositorio_de_nuvem_ativo_e_permitido()
+    {
+        var cloud = await CreateAsync("azure", StorageProvider.AzureBlobStorage, Config(("connectionString", "x"), ("container", "y")));
+
+        var updated = await Service().UpdateAsync(cloud.Id, "azure", true, isDefault: true, null, Ct);
+
+        Assert.Equal(updated.Id, _store.Default.Id);
     }
 
     [Fact]

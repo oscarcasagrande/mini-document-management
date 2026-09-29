@@ -164,6 +164,16 @@ public sealed class StorageInfrastructureTests : IDisposable
             Factory().Create(StorageProvider.FileSystem, new JsonObject { ["directory"] = directory }));
     }
 
+    private static JsonObject AzureConfig() => new() { ["connectionString"] = "UseDevelopmentStorage=true", ["container"] = "docs" };
+
+    private static JsonObject S3Config() => new()
+    {
+        ["bucket"] = "docs",
+        ["accessKeyId"] = "AKIAEXAMPLE",
+        ["secretAccessKey"] = "secret",
+        ["region"] = "us-east-1"
+    };
+
     [Fact]
     public void A_fabrica_devolve_o_adapter_de_cada_provedor()
     {
@@ -171,31 +181,44 @@ public sealed class StorageInfrastructureTests : IDisposable
 
         Assert.IsType<FileSystemStorageAdapter>(factory.Create(StorageProvider.FileSystem, null));
         Assert.IsType<DatabaseStorageAdapter>(factory.Create(StorageProvider.Database, null));
-        Assert.IsType<AzureBlobStorageAdapter>(factory.Create(StorageProvider.AzureBlobStorage, null));
-        Assert.IsType<AwsS3StorageAdapter>(factory.Create(StorageProvider.AwsS3, null));
+        Assert.IsType<AzureBlobStorageAdapter>(factory.Create(StorageProvider.AzureBlobStorage, AzureConfig()));
+        Assert.IsType<AwsS3StorageAdapter>(factory.Create(StorageProvider.AwsS3, S3Config()));
     }
 
     [Fact]
-    public async Task Azure_e_s3_estao_registrados_mas_toda_operacao_e_not_implemented()
+    public void Azure_sem_as_chaves_obrigatorias_e_erro_claro_na_construcao()
     {
-        var metadata = new FileMetadata(Guid.CreateVersion7(Now), ".pdf", "application/pdf", Now);
-
-        foreach (var adapter in new IStorageAdapter[] { new AzureBlobStorageAdapter(), new AwsS3StorageAdapter() })
-        {
-            await using var content = new MemoryStream([1]);
-            await Assert.ThrowsAsync<NotImplementedException>(() => adapter.SaveAsync(content, metadata, Ct));
-            await Assert.ThrowsAsync<NotImplementedException>(() => adapter.OpenReadAsync("k", Ct));
-            await Assert.ThrowsAsync<NotImplementedException>(() => adapter.DeleteAsync("k", Ct));
-            await Assert.ThrowsAsync<NotImplementedException>(() => adapter.IsWritableAsync(Ct));
-        }
+        Assert.Throws<InvalidOperationException>(() => new AzureBlobStorageAdapter(null));
+        Assert.Throws<InvalidOperationException>(() => new AzureBlobStorageAdapter(new JsonObject { ["connectionString"] = "x" }));
     }
 
     [Fact]
-    public void Os_providers_implementados_sao_so_filesystem_e_database()
+    public void S3_sem_as_chaves_obrigatorias_e_erro_claro_na_construcao()
+    {
+        Assert.Throws<InvalidOperationException>(() => new AwsS3StorageAdapter(null));
+        Assert.Throws<InvalidOperationException>(() => new AwsS3StorageAdapter(new JsonObject { ["bucket"] = "docs" }));
+    }
+
+    [Fact]
+    public void S3_com_serviceUrl_usa_estilo_de_caminho_para_compatibilidade_com_MinIO()
+    {
+        // Construction alone (no network call) proves the config was accepted and parsed; the actual
+        // upload/download/delete/exists round trip against MinIO and Azurite is exercised in
+        // tests/integration, which needs those emulators reachable.
+        var config = S3Config();
+        config["serviceUrl"] = "http://localhost:9000";
+
+        var adapter = new AwsS3StorageAdapter(config);
+
+        Assert.IsType<AwsS3StorageAdapter>(adapter);
+    }
+
+    [Fact]
+    public void Os_providers_implementados_sao_filesystem_database_azure_e_s3()
     {
         Assert.True(StorageRepository.IsProviderImplemented(StorageProvider.FileSystem));
         Assert.True(StorageRepository.IsProviderImplemented(StorageProvider.Database));
-        Assert.False(StorageRepository.IsProviderImplemented(StorageProvider.AzureBlobStorage));
-        Assert.False(StorageRepository.IsProviderImplemented(StorageProvider.AwsS3));
+        Assert.True(StorageRepository.IsProviderImplemented(StorageProvider.AzureBlobStorage));
+        Assert.True(StorageRepository.IsProviderImplemented(StorageProvider.AwsS3));
     }
 }

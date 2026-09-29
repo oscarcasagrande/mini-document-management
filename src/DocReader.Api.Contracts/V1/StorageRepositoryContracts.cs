@@ -13,7 +13,7 @@ namespace DocReader.Api.Contracts.V1;
 /// <param name="IsDefault">Exactly one repository is the default; it stores the documents of every product that names none.</param>
 /// <param name="Active">An inactive repository keeps serving its documents but takes no new ones.</param>
 /// <param name="HasConnectionConfig">Whether connection settings are stored. Their content is never shown.</param>
-/// <param name="IsImplemented">False for the providers that are registered but whose adapter does not exist yet (AZURE_BLOB_STORAGE, AWS_S3): uploading to them answers 501.</param>
+/// <param name="IsImplemented">True for every provider: FILE_SYSTEM, DATABASE, AZURE_BLOB_STORAGE and AWS_S3 all have a working adapter.</param>
 /// <param name="CreatedAt">Creation instant, in UTC.</param>
 /// <param name="UpdatedAt">Last change, in UTC.</param>
 public sealed record StorageRepositoryResponse(
@@ -57,7 +57,7 @@ public sealed class CreateStorageRepositoryRequest
     /// </summary>
     public Dictionary<string, string?>? ConnectionConfig { get; init; }
 
-    /// <summary>Makes this the default repository; the previous default stops being one. Not allowed for a provider that is not implemented, or inactive.</summary>
+    /// <summary>Makes this the default repository; the previous default stops being one. Not allowed for an inactive repository.</summary>
     [DefaultValue(false)]
     public bool IsDefault { get; init; }
 

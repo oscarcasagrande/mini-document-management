@@ -44,11 +44,12 @@ public sealed class StorageRepository
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    /// <summary>Whether the adapter for the provider exists. Azure and S3 are registered, not implemented.</summary>
+    /// <summary>Whether the adapter for the provider exists.</summary>
     public bool IsImplemented => IsProviderImplemented(Provider);
 
     public static bool IsProviderImplemented(StorageProvider provider) =>
-        provider is StorageProvider.FileSystem or StorageProvider.Database;
+        provider is StorageProvider.FileSystem or StorageProvider.Database
+            or StorageProvider.AzureBlobStorage or StorageProvider.AwsS3;
 
     public static string? NormalizeCode(string? code) => ProductService.NormalizeCode(code);
 

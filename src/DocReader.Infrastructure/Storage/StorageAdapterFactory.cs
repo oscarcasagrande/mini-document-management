@@ -25,8 +25,8 @@ public sealed class StorageAdapterFactory(
             ResolveRoot(StorageConnectionConfig.DirectoryOf(connectionConfig)),
             loggerFactory.CreateLogger<FileSystemStorageAdapter>()),
         StorageProvider.Database => new DatabaseStorageAdapter(dbContext),
-        StorageProvider.AzureBlobStorage => new AzureBlobStorageAdapter(),
-        StorageProvider.AwsS3 => new AwsS3StorageAdapter(),
+        StorageProvider.AzureBlobStorage => new AzureBlobStorageAdapter(connectionConfig),
+        StorageProvider.AwsS3 => new AwsS3StorageAdapter(connectionConfig),
         _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unknown storage provider.")
     };
 
