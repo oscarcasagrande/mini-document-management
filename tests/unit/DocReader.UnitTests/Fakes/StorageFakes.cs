@@ -5,6 +5,18 @@ using DocReader.Domain.Storage;
 
 namespace DocReader.UnitTests.Fakes;
 
+/// <summary>
+/// One field-encryption key, shared by every unit test that builds a real <c>DocReaderDbContext</c>. EF Core caches
+/// the compiled model per DbContext CLR type, not per instance (the default <c>IModelCacheKeyFactory</c> only looks
+/// at the context's type), so the encrypted value converter's closure over whichever <c>IFieldEncryptionProtector</c>
+/// wins the race to build the model first is what every later context actually uses. Building every test context
+/// from this one key means it never matters which test runs first, or in what order xunit schedules them.
+/// </summary>
+public static class TestFieldEncryptionKey
+{
+    public const string Value = "ZG9jcmVhZGVyLXVuaXQtdGVzdC1maWVsZC1rZXktMzI=";
+}
+
 /// <summary>Reversible and readable, so a test can prove the stored text is not the plain settings.</summary>
 public sealed class FakeSecretProtector : ISecretProtector
 {

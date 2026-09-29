@@ -227,7 +227,19 @@ a exatidão de tabela medida; fica desligado por padrão até um gatilho de revi
   filtro por `userId`, `action` e intervalo de `occurredAt`, paginado como todo outro `PagedResponse`; mesmo `TODO(RBAC)` do
   endpoint de revelar configuração. Tela somente leitura no BFF em `/config/audit-logs`, fora do `ConfigAdmin` genérico (que é
   de criar/editar/excluir): filtro por usuário/ação/data e paginação, no mesmo estilo de `/documents`.
-- Testes: ver a contagem no fim da seção de autenticação abaixo (auditoria + OIDC/RBAC juntos).
+- **Cifra dos campos extraídos em repouso**: `raw_value` e `normalized_value` de `extracted_fields` (o CPF, nome, endereço etc.
+  que o OCR/extração leram do documento) são cifrados por `IFieldEncryptionProtector` (AES-256-GCM, mesmo formato de envelope
+  de `ISecretProtector`, compartilhado em `AesGcmEnvelope` para as duas implementações não divergirem), chave em
+  `EXTRACTED_FIELD_ENCRYPTION_KEY` — **separada** de `STORAGE_CONFIG_ENCRYPTION_KEY` de propósito, para girar uma sem a outra.
+  A cifra é transparente: um `ValueConverter` no EF Core (`ExtractedFieldConfiguration`) cifra ao gravar e decifra ao ler, sem
+  mudar nada em código que use `ExtractedField.RawValue`/`NormalizedValue`; a coluna cresceu de `varchar(2048)` para
+  `varchar(10000)` porque o envelope (JSON com nonce, tag e o texto em base64) é maior que o texto puro. O `ValueComparer` do
+  conversor compara o texto puro (não o envelope, que muda a cada gravação por causa do nonce aleatório), para o change
+  tracking do EF não gerar `UPDATE` à toa. **Não há recifra das linhas existentes**: a migration só alarga a coluna, não
+  decifra/recifra o que já estava em texto puro — uma linha gravada antes desta mudança fica ilegível (o `Unprotect` lança) até
+  o documento passar de novo pelo pipeline (`reprocess` ou `reclassify-and-extract`, que regravam os campos). Decisão
+  deliberada: PoC com dado sintético/mascarado, sem dataset real em produção para migrar.
+- Testes: ver a contagem no fim da seção de autenticação abaixo (auditoria + OIDC/RBAC + cifra de campos juntos).
 
 **Autenticação (SSO na API).** JWT bearer na API, ainda sem o login do BFF nem o Keycloak de desenvolvimento (trabalho
 paralelo de outro agente); decisão e alternativas em `docs/adr/0003-oidc-jwt-bearer-na-api.md`:
@@ -259,8 +271,8 @@ paralelo de outro agente); decisão e alternativas em `docs/adr/0003-oidc-jwt-be
   validação de `OidcOptions`, o achatamento de `realm_access.roles` a partir de um JWT assinado de verdade
   (`System.IdentityModel.Tokens.Jwt`) e o mapeamento de `/me`; ficam em `tests/unit/DocReader.UnitTests/Api`, que
   agora referencia `apps/api` diretamente (sem `WebApplicationFactory`, que este repositório ainda não usa).
-- Testes: contagem após juntar auditoria e OIDC/RBAC — ver o número exato no resultado do `dotnet test` mais recente
-  (as duas seções somaram testes novos sobre a mesma base de 993).
+- Testes: contagem após juntar auditoria, OIDC/RBAC e cifra de campos — ver o número exato no resultado do `dotnet test`
+  mais recente (as três seções somaram testes novos sobre a mesma base de 993).
 
 ## Estrutura do repositório
 
@@ -467,6 +479,7 @@ Coisas que já custaram tempo e não se enxergam no código.
   ou rode `node arquivo.js`.
 - **Integração precisa de PostgreSQL alcançável.** Sem banco os 84 testes são pulados e o resumo diz "Zero tests ran". Rode dentro da rede do compose (`docker run --network docreader_internal ... -e DOCREADER_TEST_CONNECTION=...`, comando no README).
 - **Toda migration nova exige `-c Release` limpo.** O Docker compila com warnings-as-errors e doc XML: um `<param>` faltando (CS1573) só aparece no build de Release.
-- **A chave de cifra não pode mudar** depois de haver repositórios de armazenamento com configuração: o AES-GCM não decifra com outra chave, e a configuração cifrada se perde.
+- **A chave de cifra não pode mudar** depois de haver repositórios de armazenamento com configuração: o AES-GCM não decifra com outra chave, e a configuração cifrada se perde. O mesmo vale para `EXTRACTED_FIELD_ENCRYPTION_KEY` e os campos extraídos já gravados.
+- **O EF Core cacheia o modelo compilado por tipo de `DbContext`, não por instância**: o `ValueConverter` de `RawValue`/`NormalizedValue` fecha sobre o `IFieldEncryptionProtector` recebido no construtor, mas só o da primeira instância de `DocReaderDbContext` construída no processo entra no modelo — construir outra instância com um protetor diferente não reconstrói o modelo nem troca esse fechamento. Em produção isso não importa (uma chave, o processo inteiro); em teste, todo `DocReaderDbContext` construído à mão precisa usar a mesma chave (`TestFieldEncryptionKey` em `Fakes/StorageFakes.cs` nos unitários, `PostgresFixture.FieldEncryptionProtector` na integração), senão o teste que perder a corrida para construir o modelo primeiro decifra com a chave errada.
 - **Fixtures de OCR são texto real, não fabricado.** Depois de mudar engine, pré-processamento ou amostras,
   recapture com `scripts/capture-ocr-fixtures.py` antes de mexer nos extratores.

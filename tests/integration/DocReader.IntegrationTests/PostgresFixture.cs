@@ -1,5 +1,10 @@
+using System.Security.Cryptography;
+using DocReader.Application.Abstractions;
+using DocReader.Application.Options;
+using DocReader.Infrastructure.Encryption;
 using DocReader.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Xunit;
 
@@ -22,6 +27,17 @@ public sealed class PostgresFixture : IAsyncLifetime
     private static readonly string AdminConnectionString =
         Environment.GetEnvironmentVariable(EnvironmentVariable)
         ?? "Host=localhost;Port=5432;Database=postgres;Username=docreader;Password=docreader;Timeout=3";
+
+    /// <summary>
+    /// One key for the whole test run, so a row written through one <see cref="CreateContext"/> decrypts
+    /// correctly when read back through another. Exposed so a test can build its own protector with the same
+    /// key to verify decryption independently of the context's own converter.
+    /// </summary>
+    public static readonly IFieldEncryptionProtector FieldEncryptionProtector =
+        new AesGcmFieldEncryptionProtector(Options.Create(new FieldEncryptionOptions
+        {
+            EncryptionKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+        }));
 
     private string _databaseName = string.Empty;
 
@@ -106,7 +122,7 @@ public sealed class PostgresFixture : IAsyncLifetime
                 npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(1), null))
             .Options;
 
-        return new DocReaderDbContext(options);
+        return new DocReaderDbContext(options, FieldEncryptionProtector);
     }
 
     public async ValueTask DisposeAsync()

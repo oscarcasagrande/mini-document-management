@@ -4,8 +4,10 @@ using System.Text.Json.Nodes;
 using DocReader.Application.Abstractions;
 using DocReader.Application.Options;
 using DocReader.Domain.Storage;
+using DocReader.Infrastructure.Encryption;
 using DocReader.Infrastructure.Persistence;
 using DocReader.Infrastructure.Storage;
+using DocReader.UnitTests.Fakes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -122,9 +124,13 @@ public sealed class StorageInfrastructureTests : IDisposable
 
     private StorageAdapterFactory Factory()
     {
-        // No connection is opened: the context is only handed to the database adapter.
+        // No connection is opened: the context is only handed to the database adapter. The field-encryption key is
+        // the one every unit test shares (see TestFieldEncryptionKey): EF Core caches the compiled model per
+        // DbContext type, not per instance, so whichever protector wins the race to build it first is the one
+        // every later context's encrypted converter actually uses.
         var context = new DocReaderDbContext(
-            new DbContextOptionsBuilder<DocReaderDbContext>().UseNpgsql("Host=localhost;Database=unused").Options);
+            new DbContextOptionsBuilder<DocReaderDbContext>().UseNpgsql("Host=localhost;Database=unused").Options,
+            new AesGcmFieldEncryptionProtector(Options.Create(new FieldEncryptionOptions { EncryptionKey = TestFieldEncryptionKey.Value })));
 
         return new StorageAdapterFactory(context, Options.Create(new StorageOptions { RootPath = _root }), NullLoggerFactory.Instance);
     }

@@ -105,6 +105,7 @@ Todas em `.env` (ver `.env.example`, que explica cada uma):
 | `ALLOW_ANONYMOUS_ACCESS` | `true` | `false` fecha a API |
 | `PURGE_SCHEDULE_CRON` | `0 2 * * *` | Quando o worker expurga documentos vencidos (cron de cinco campos, UTC) |
 | `STORAGE_CONFIG_ENCRYPTION_KEY` | chave de demonstração | Base64 de 32 bytes; cifra a configuração dos repositórios. **Troque fora da demonstração**; perdê-la perde a configuração |
+| `EXTRACTED_FIELD_ENCRYPTION_KEY` | chave de demonstração | Base64 de 32 bytes; cifra `raw_value`/`normalized_value` de `extracted_fields` (chave separada da acima, de propósito). **Troque fora da demonstração**; perdê-la perde os valores extraídos já gravados |
 | `WEBHOOK_ALLOW_PRIVATE_NETWORKS` | `false` | `true` permite webhook para localhost e redes privadas (só para teste) |
 
 ### Depurar uma classificação
