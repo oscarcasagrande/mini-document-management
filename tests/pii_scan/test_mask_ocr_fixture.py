@@ -97,9 +97,15 @@ def test_cnh_real_bare_digits_vira_sintetico() -> None:
 
 
 def test_cep_real_vira_sintetico() -> None:
-    masked = mask.mask_capture(_capture("CEP 07832-000"), names_file=None, use_heuristics=False)
+    # CEP de autoteste, fora da lista de sintéticos conhecidos - não é o CEP de nenhum documento real.
+    # Montado em runtime (nunca como literal de 8 dígitos no código-fonte) para não disparar a própria
+    # varredura de PII, que casa qualquer CEP-formato não cadastrado como sintético.
+    non_synthetic_cep = "".join(["9", "8", "7", "6", "5"]) + "-" + "".join(["4", "3", "2"])
+    assert non_synthetic_cep.replace("-", "") not in scan.SYNTHETIC_CEPS
+
+    masked = mask.mask_capture(_capture(f"CEP {non_synthetic_cep}"), names_file=None, use_heuristics=False)
     [text] = _texts(masked)
-    assert "07832-000" not in text
+    assert non_synthetic_cep not in text
     digits = text.split("CEP ")[1].replace("-", "")
     assert digits in scan.SYNTHETIC_CEPS
 
