@@ -25,6 +25,9 @@ public sealed class RealDocumentExtractionTests
     private static async Task<IReadOnlyDictionary<string, ExtractedFieldValue>> ExtractRic() =>
         (await new BrCinExtractor(Clock).ExtractAsync(Stage3Support.Fixture("ric-real"), CancellationToken.None)).Fields;
 
+    private static async Task<IReadOnlyDictionary<string, ExtractedFieldValue>> ExtractProofOfAddress() =>
+        (await new BrProofOfAddressExtractor(Clock).ExtractAsync(Stage3Support.Fixture("elektro-real"), CancellationToken.None)).Fields;
+
     [Fact]
     public void Cnh_real_e_ric_real_sao_classificados()
     {
@@ -172,5 +175,61 @@ public sealed class RealDocumentExtractionTests
 
         Assert.Equal("VALID", place.ValidationStatus);
         Assert.Equal("UTOPIA/UT", place.Normalized);
+    }
+
+    // ---- Comprovante de residência (DANFE de energia, Elektro) -------------------------------------------
+
+    /// <summary>
+    /// A fixture reproduz o achado nº 3 de <c>docs/bench/real-exploratory-v1.md</c>: numa DANFE de energia,
+    /// o rótulo "NOME DO CLIENTE:" tem, na mesma linha visual, o rótulo de outra coluna ("CÓDIGO DA
+    /// INSTALAÇÃO") e, mais à direita, uma linha de metadado da nota fiscal ("NOTA FISCAL No. ... SÉRIE ...
+    /// DATA DE EMISSÃO: ..."). Sem guarda, essa linha de metadado passava como valor de <c>holderName</c>
+    /// com status VALID — pior que NOT_FOUND, porque ninguém desconfia de um campo VALID.
+    /// </summary>
+    [Fact]
+    public async Task Comprovante_nome_do_titular_nunca_e_o_metadado_da_nota_fiscal()
+    {
+        var name = (await ExtractProofOfAddress())["holderName"];
+
+        Assert.DoesNotContain("NOTA FISCAL", name.Normalized ?? string.Empty, StringComparison.Ordinal);
+        Assert.DoesNotContain("SERIE", name.Normalized ?? string.Empty, StringComparison.Ordinal);
+
+        // Com o marcador de ruído no lugar, a busca à direita do rótulo não acha mais nada (só a linha de
+        // metadado estava ali) e a geometria cai para "abaixo do rótulo", onde o nome real do cliente está:
+        // o próprio bug reportado corrige o valor, não só apaga o errado.
+        Assert.Equal("VALID", name.ValidationStatus);
+        Assert.Equal("EXEMPLO COMERCIO DE PECAS LTDA", name.Normalized);
+    }
+
+    /// <summary>
+    /// <c>holderDocument</c>, <c>city</c> e <c>state</c> neste documento só são achados pela varredura sem
+    /// rótulo (o CNPJ da concessionária está no cabeçalho, sem rótulo "CPF/CNPJ" por perto; cidade/UF vêm do
+    /// endereço da concessionária no cabeçalho, não de um rótulo "MUNICÍPIO"/"UF"). Antes da Fix 2 do
+    /// achado nº 3, essas leituras fracas saíam VALID; agora saem UNCERTAIN, com o aviso de rótulo ausente.
+    /// </summary>
+    [Fact]
+    public async Task Comprovante_campos_achados_sem_rotulo_saem_uncertain_nao_valid()
+    {
+        var fields = await ExtractProofOfAddress();
+
+        Assert.Equal("UNCERTAIN", fields["holderDocument"].ValidationStatus);
+        Assert.Contains("NO_LABEL_NEARBY", fields["holderDocument"].ValidationMessages!);
+
+        Assert.Equal("UNCERTAIN", fields["city"].ValidationStatus);
+        Assert.Contains("NO_LABEL_NEARBY", fields["city"].ValidationMessages!);
+
+        Assert.Equal("UNCERTAIN", fields["state"].ValidationStatus);
+        Assert.Contains("NO_LABEL_NEARBY", fields["state"].ValidationMessages!);
+    }
+
+    /// <summary>Ao lado dos campos fracos acima, o CEP (rótulo "CEP:" claro, bloco 5) continua uma leitura forte.</summary>
+    [Fact]
+    public async Task Comprovante_cep_com_rotulo_claro_continua_valid()
+    {
+        var postalCode = (await ExtractProofOfAddress())["postalCode"];
+
+        Assert.Equal("VALID", postalCode.ValidationStatus);
+        Assert.Equal("13053024", postalCode.Normalized);
+        Assert.DoesNotContain("NO_LABEL_NEARBY", postalCode.ValidationMessages ?? []);
     }
 }

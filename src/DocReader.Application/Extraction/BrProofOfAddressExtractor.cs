@@ -42,6 +42,16 @@ public sealed class BrProofOfAddressExtractor(TimeProvider timeProvider) : IDocu
         "AMOSTRA SINTETICA - SEM VALOR LEGAL", "AMOSTRA SINTETICA SEM VALOR LEGAL"
     ];
 
+    /// <summary>
+    /// Metadado de nota fiscal/DANFE que aparece perto do rótulo do titular em layouts de concessionária
+    /// (número, série, data de emissão, chave de acesso, código de barras), mas não é rótulo de nenhum
+    /// campo próprio e por isso não entra em <see cref="KnownLabels"/>: uma linha inteira como "NOTA FISCAL
+    /// No. 26084885 - SÉRIE 0 DATA DE EMISSÃO: 24/03/2026" não é igual nem prefixo de um rótulo curto, então
+    /// só um <c>Contains</c> a descarta como candidato a valor.
+    /// </summary>
+    private static readonly string[] NoiseMarkers =
+        ["NOTA FISCAL", "SERIE", "DATA DE EMISSAO", "CHAVE DE ACESSO", "CODIGO DE BARRAS"];
+
     /// <summary>Famílias de serviço e as palavras que as identificam.</summary>
     private static readonly (string Service, string[] Keywords)[] ServiceKeywords =
     [
@@ -64,7 +74,7 @@ public sealed class BrProofOfAddressExtractor(TimeProvider timeProvider) : IDocu
         ArgumentNullException.ThrowIfNull(result);
 
         var lines = OcrTextLine.From(result);
-        var search = new LineSearch(lines, KnownLabels, trace);
+        var search = new LineSearch(lines, KnownLabels, trace, NoiseMarkers);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
 
         var postalCode = search.Field("postalCode", () => ExtractPostalCode(search));

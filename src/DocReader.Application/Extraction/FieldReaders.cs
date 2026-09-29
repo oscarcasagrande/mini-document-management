@@ -263,7 +263,12 @@ internal static class FieldReaders
         return FieldFactory.NotFound();
     }
 
-    /// <summary>Um CPF ou CNPJ, o que aparecer: comprovantes de residência e certificados trazem qualquer um dos dois.</summary>
+    /// <summary>
+    /// Um CPF ou CNPJ, o que aparecer: comprovantes de residência e certificados trazem qualquer um dos dois.
+    /// VALID vence INVALID, que vence UNCERTAIN (achado por uma leitura fraca, por exemplo sem rótulo perto -
+    /// ver <see cref="FieldFactory.Found"/> - mas ainda um achado, não deve virar NOT_FOUND só porque a outra
+    /// família de documento não achou nada).
+    /// </summary>
     public static ExtractedFieldValue CpfOrCnpj(LineSearch search, IReadOnlyList<string> labels)
     {
         var cnpj = Cnpj(search, labels);
@@ -275,6 +280,8 @@ internal static class FieldReaders
             (_, "VALID") => cpf,
             ("INVALID", _) => cnpj,
             (_, "INVALID") => cpf,
+            ("UNCERTAIN", _) => cnpj,
+            (_, "UNCERTAIN") => cpf,
             _ => FieldFactory.NotFound()
         };
     }

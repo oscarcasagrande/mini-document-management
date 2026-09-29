@@ -16,8 +16,11 @@ internal static class FieldFactory
     public const decimal FallbackConfidencePenalty = 0.30m;
 
     /// <summary>
-    /// Campo encontrado. Uma penalidade de fallback significa que o valor foi achado sem rótulo, e o
-    /// aviso <see cref="NoLabelNearby"/> acompanha a confiança menor.
+    /// Campo encontrado. Uma penalidade de fallback significa que o valor foi achado sem rótulo por perto:
+    /// o aviso <see cref="NoLabelNearby"/> acompanha a confiança menor e, quando o chamador pedia VALID,
+    /// o status desce para UNCERTAIN — uma leitura sem rótulo é uma heurística fraca, mesmo que o formato
+    /// bata, e "achado, mas duvidoso" descreve isso melhor do que "válido". INVALID e outros status não são
+    /// tocados: aqui é só sobre degradar um positivo, não sobre mudar um resultado negativo.
     /// </summary>
     public static ExtractedFieldValue Found(
         string raw,
@@ -27,9 +30,11 @@ internal static class FieldFactory
         FieldValidationStatus status,
         params string[] messages)
     {
-        string[] reasons = penalty >= FallbackConfidencePenalty ? [.. messages, NoLabelNearby] : messages;
+        var isWeakRead = penalty >= FallbackConfidencePenalty;
+        string[] reasons = isWeakRead ? [.. messages, NoLabelNearby] : messages;
+        var effectiveStatus = isWeakRead && status == FieldValidationStatus.Valid ? FieldValidationStatus.Uncertain : status;
 
-        return Build(raw, normalized, line, penalty, status, reasons);
+        return Build(raw, normalized, line, penalty, effectiveStatus, reasons);
     }
 
     /// <summary>Como <see cref="Found"/>, com os motivos exatos, sem deduzir aviso pela penalidade.</summary>

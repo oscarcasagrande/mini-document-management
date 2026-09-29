@@ -37,12 +37,27 @@ internal sealed partial class LineSearch
 
     private readonly IReadOnlyList<OcrTextLine> _lines;
     private readonly string[] _knownLabels;
+    private readonly string[] _noiseMarkers;
     private readonly ExtractionTrace? _trace;
 
-    public LineSearch(IReadOnlyList<OcrTextLine> lines, IEnumerable<string> knownLabels, ExtractionTrace? trace = null)
+    /// <summary>
+    /// <paramref name="noiseMarkers"/> são substrings de documento-metadado (número de nota fiscal, série,
+    /// "chave de acesso" etc.) que nunca são valor de campo, mesmo sem ser rótulo de outro campo. Diferente de
+    /// <see cref="IsKnownLabel"/> (que casa uma linha que É outro rótulo inteiro, por igualdade ou prefixo),
+    /// aqui o casamento é por <c>Contains</c>: a linha inteira não precisa ser o marcador, só contê-lo. Sem
+    /// marcadores (o padrão), o comportamento é idêntico ao de antes desta capacidade existir.
+    /// </summary>
+    public LineSearch(
+        IReadOnlyList<OcrTextLine> lines,
+        IEnumerable<string> knownLabels,
+        ExtractionTrace? trace = null,
+        IEnumerable<string>? noiseMarkers = null)
     {
         _lines = lines;
         _knownLabels = [.. knownLabels.Distinct(StringComparer.Ordinal)];
+        _noiseMarkers = noiseMarkers is null
+            ? []
+            : [.. noiseMarkers.Select(TextNormalization.ForMatching).Where(marker => marker.Length > 0).Distinct(StringComparer.Ordinal)];
         _trace = trace;
     }
 
@@ -161,6 +176,10 @@ internal sealed partial class LineSearch
 
     public bool IsKnownLabel(OcrTextLine line) => _knownLabels.Any(label => MatchLabel(line, label) is not null);
 
+    /// <summary>A linha contém um marcador de ruído configurado (ver o construtor) e nunca é valor de campo.</summary>
+    private bool IsNoise(OcrTextLine line) =>
+        _noiseMarkers.Length > 0 && _noiseMarkers.Any(marker => line.Normalized.Contains(marker, StringComparison.Ordinal));
+
     private IEnumerable<LabelledValue> Around(OcrTextLine label, int lookahead)
     {
         var spatial = 0;
@@ -205,6 +224,7 @@ internal sealed partial class LineSearch
                 && candidate.PageNumber == label.PageNumber
                 && !candidate.IsEmpty
                 && !IsKnownLabel(candidate)
+                && !IsNoise(candidate)
                 && candidate.Box is { } other
                 && !IsRotated(other, height)
                 && Math.Abs(other.CenterY - box.CenterY) <= 0.6m * height
@@ -226,6 +246,7 @@ internal sealed partial class LineSearch
                 && candidate.PageNumber == label.PageNumber
                 && !candidate.IsEmpty
                 && !IsKnownLabel(candidate)
+                && !IsNoise(candidate)
                 && candidate.Box is { } other
                 && !IsRotated(other, height)
                 && other.Top >= box.Bottom - (0.35m * height)
@@ -280,6 +301,7 @@ internal sealed partial class LineSearch
                     && candidate.PageNumber == seed.PageNumber
                     && !candidate.IsEmpty
                     && !IsKnownLabel(candidate)
+                    && !IsNoise(candidate)
                     && candidate.Box is { } other
                     && Math.Abs(other.CenterY - box.CenterY) <= 0.5m * height
                     && other.Left >= box.Right - (0.3m * height)
@@ -328,7 +350,7 @@ internal sealed partial class LineSearch
         for (var offset = 1; offset <= count && label.Index + offset < _lines.Count; offset++)
         {
             var candidate = _lines[label.Index + offset];
-            if (candidate.PageNumber != label.PageNumber || candidate.IsEmpty || IsKnownLabel(candidate))
+            if (candidate.PageNumber != label.PageNumber || candidate.IsEmpty || IsKnownLabel(candidate) || IsNoise(candidate))
             {
                 continue;
             }

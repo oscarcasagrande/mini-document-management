@@ -19,11 +19,13 @@
     },
     "city": {
       "normalized": "SAO PAULO",
-      "status": "VALID"
+      "status": "UNCERTAIN",
+      "messages": ["NO_LABEL_NEARBY"]
     },
     "state": {
       "normalized": "SP",
-      "status": "VALID"
+      "status": "UNCERTAIN",
+      "messages": ["NO_LABEL_NEARBY"]
     },
     "postalCode": {
       "normalized": "04000000",
