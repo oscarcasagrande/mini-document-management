@@ -7,6 +7,7 @@ export const configResources = [
   "retention-policies",
   "storage-repositories",
   "webhook-subscriptions",
+  "document-types",
 ] as const;
 
 export type ConfigResource = (typeof configResources)[number];

@@ -88,6 +88,20 @@ export interface ProductService extends ProductServiceReference {
   updatedAt: string;
 }
 
+/** An entry of the document type registry: schema, classification rules and extraction rules. */
+export interface DocumentType {
+  id: string;
+  code: string;
+  name: string;
+  schema: Record<string, unknown>;
+  classificationRules: Record<string, unknown>;
+  extractionRules: Record<string, unknown>;
+  active: boolean;
+  isBuiltIn: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DocumentLinks {
   self: string;
   status: string;
