@@ -215,11 +215,21 @@ a exatidão de tabela medida; fica desligado por padrão até um gatilho de revi
   `StorageRepositoriesController.GetConnectionConfigAsync` e `StorageRepositoryService.RevealConnectionConfigAsync`).
 - **AuditLog** (`Domain/Audit`, tabela `audit_logs`): registro append-only e genérico — quem (`userId`, nulo hoje porque a PoC
   não tem autenticação), ação, tipo e id do recurso, quando, IP, user agent e `changes` (metadado do que mudou, nunca conteúdo
-  ou segredo). Por ora só o `GET .../connection-config` grava nele; é a base para a auditoria completa (tabela, endpoint de
-  leitura, tela no BFF) quando o épico de OIDC/RBAC/auditoria for implementado.
-- Testes: 993 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
-  testes de backup/restore que precisam de `psql`/`pg_dump` (99 passam, 6 pulados) e os 3 de Azurite; com
-  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (109 no total, 106 passam, os 3 do Azurite
+  ou segredo). `AuditActionTypes` (`Domain/Audit`) centraliza os nomes de ação, no mesmo espírito do `DocumentEventTypes`.
+  Além do `GET .../connection-config` (que grava o seu próprio `STORAGE_CONFIG_REVEALED` na mão), um filtro genérico de ação
+  (`AuditedAttribute`, `IAsyncActionFilter` em `apps/api/Audit`) audita toda rota mutante que o decora — upload, reprocessamento,
+  reclassificação e exclusão de documento; criação/edição/exclusão de política de retenção e o gatilho de reaplicação; criação/
+  edição/exclusão de repositório de armazenamento, produto/serviço, tipo documental e assinatura de webhook; início de backup,
+  restore e migração de armazenamento, e o rollback desta última — só em resposta `2xx`. A decisão de **o quê** gravar
+  (`resourceId` da rota `id`/`jobId` ou, na falta dela, da propriedade `Id` do corpo da resposta; `changes` num `PUT` como os
+  nomes de propriedade que o corpo da requisição carregou, nunca o valor) é `AuditDecision` (`Application/Audit`), uma função
+  pura sem tipo do ASP.NET Core, testada sem subir o pipeline MVC. `GET /api/v1/audit-logs` (`AuditLogsController`) lista com
+  filtro por `userId`, `action` e intervalo de `occurredAt`, paginado como todo outro `PagedResponse`; mesmo `TODO(RBAC)` do
+  endpoint de revelar configuração. Tela somente leitura no BFF em `/config/audit-logs`, fora do `ConfigAdmin` genérico (que é
+  de criar/editar/excluir): filtro por usuário/ação/data e paginação, no mesmo estilo de `/documents`.
+- Testes: 1022 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
+  testes de backup/restore que precisam de `psql`/`pg_dump` (100 passam, 6 pulados) e os 3 de Azurite; com
+  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (110 no total, 107 passam, os 3 do Azurite
   continuam pulados sem esse emulador).
 
 ## Estrutura do repositório

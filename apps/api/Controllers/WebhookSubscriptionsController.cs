@@ -1,8 +1,10 @@
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.Options;
 using DocReader.Application.Webhooks;
+using DocReader.Domain.Audit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -39,6 +41,7 @@ public sealed class WebhookSubscriptionsController(
     /// <response code="400">The URL, the events or the secret are invalid.</response>
     /// <response code="422">The product or service does not exist.</response>
     [HttpPost]
+    [Audited(AuditActionTypes.WebhookSubscriptionCreated, "WebhookSubscription")]
     [ProducesResponseType(typeof(WebhookSubscriptionCreatedResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity, ProblemTypes.ContentType)]
@@ -94,6 +97,7 @@ public sealed class WebhookSubscriptionsController(
     /// <response code="404">There is none with this id.</response>
     /// <response code="422">The product or service does not exist.</response>
     [HttpPut("{id:guid}")]
+    [Audited(AuditActionTypes.WebhookSubscriptionUpdated, "WebhookSubscription")]
     [ProducesResponseType(typeof(WebhookSubscriptionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
@@ -111,6 +115,7 @@ public sealed class WebhookSubscriptionsController(
     /// <response code="204">Deleted.</response>
     /// <response code="404">There is none with this id.</response>
     [HttpDelete("{id:guid}")]
+    [Audited(AuditActionTypes.WebhookSubscriptionDeleted, "WebhookSubscription")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken ct)

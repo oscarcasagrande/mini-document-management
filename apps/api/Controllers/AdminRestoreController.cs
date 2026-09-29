@@ -1,8 +1,10 @@
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.Backup;
 using DocReader.Application.Errors;
+using DocReader.Domain.Audit;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DocReader.Api.Controllers;
@@ -37,6 +39,7 @@ public sealed class AdminRestoreController(RestoreService service) : ControllerB
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxArchiveBytes + (1024 * 1024))]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxArchiveBytes + (1024 * 1024))]
+    [Audited(AuditActionTypes.RestoreStarted, "RestoreJob")]
     [ProducesResponseType(typeof(RestoreJobResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]

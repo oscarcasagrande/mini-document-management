@@ -1,3 +1,4 @@
+using DocReader.Application.Documents;
 using DocReader.Domain.Audit;
 
 namespace DocReader.Application.Audit;
@@ -26,4 +27,8 @@ public sealed class AuditLogService(IAuditLogStore store, TimeProvider timeProvi
 
         return store.AddAsync(entry, ct);
     }
+
+    /// <summary>Lists recorded entries, newest first, for <c>GET /api/v1/audit-logs</c>.</summary>
+    public Task<PagedResult<AuditLog>> ListAsync(AuditLogFilter filter, CancellationToken ct) =>
+        store.ListAsync(filter, ct);
 }

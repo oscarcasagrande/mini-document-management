@@ -240,6 +240,19 @@ export interface UploadAccepted {
   contentUrl: string;
 }
 
+/** One recorded action of the audit trail: who did what, to what, and when. Never a document value or a secret. */
+export interface AuditLog {
+  id: string;
+  userId: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  occurredAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  changes: string | null;
+}
+
 export interface PagedResponse<T> {
   items: T[];
   page: number;

@@ -1,9 +1,11 @@
 using System.Text.Json.Nodes;
+using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.Options;
 using DocReader.Application.Storage;
+using DocReader.Domain.Audit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -36,6 +38,7 @@ public sealed class StorageRepositoriesController(
     /// <response code="409">The code is already taken.</response>
     /// <response code="422">The repository cannot be the default (inactive).</response>
     [HttpPost]
+    [Audited(AuditActionTypes.StorageRepositoryCreated, "StorageRepository")]
     [ProducesResponseType(typeof(StorageRepositoryResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
@@ -103,6 +106,7 @@ public sealed class StorageRepositoriesController(
     /// <response code="409">It is the default, or documents are stored in it and the change would strand them.</response>
     /// <response code="422">The repository cannot be the default (inactive).</response>
     [HttpPut("{id:guid}")]
+    [Audited(AuditActionTypes.StorageRepositoryUpdated, "StorageRepository")]
     [ProducesResponseType(typeof(StorageRepositoryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
@@ -160,6 +164,7 @@ public sealed class StorageRepositoriesController(
     /// <response code="404">There is none with this id.</response>
     /// <response code="409">It is the default, or something still uses it.</response>
     [HttpDelete("{id:guid}")]
+    [Audited(AuditActionTypes.StorageRepositoryDeleted, "StorageRepository")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]

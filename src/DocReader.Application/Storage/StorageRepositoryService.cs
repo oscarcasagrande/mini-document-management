@@ -4,6 +4,7 @@ using DocReader.Application.Abstractions;
 using DocReader.Application.Audit;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
+using DocReader.Domain.Audit;
 using DocReader.Domain.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -154,7 +155,7 @@ public sealed class StorageRepositoryService(
 
         await auditLog.RecordAsync(
             userId,
-            "STORAGE_CONFIG_REVEALED",
+            AuditActionTypes.StorageConfigRevealed,
             "StorageRepository",
             repository.Id.ToString(),
             ipAddress,
