@@ -1,16 +1,25 @@
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
+using DocReader.Api.Security;
 using DocReader.Application.Backup;
 using DocReader.Application.Errors;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DocReader.Api.Controllers;
 
 /// <summary>Restores a backup archive over the current database and document storage.</summary>
+/// <remarks>
+/// Requires the <c>docreader-admin</c> role (<c>OIDC_ADMIN_ROLE</c>) once OIDC is configured; anonymous when it is not
+/// (ADR 0003).
+/// </remarks>
 [ApiController]
 [Route("api/v1/admin/restore")]
 [Produces("application/json")]
+[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemTypes.ContentType)]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden, ProblemTypes.ContentType)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError, ProblemTypes.ContentType)]
 public sealed class AdminRestoreController(RestoreService service) : ControllerBase
 {

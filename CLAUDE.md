@@ -217,10 +217,41 @@ a exatidão de tabela medida; fica desligado por padrão até um gatilho de revi
   não tem autenticação), ação, tipo e id do recurso, quando, IP, user agent e `changes` (metadado do que mudou, nunca conteúdo
   ou segredo). Por ora só o `GET .../connection-config` grava nele; é a base para a auditoria completa (tabela, endpoint de
   leitura, tela no BFF) quando o épico de OIDC/RBAC/auditoria for implementado.
-- Testes: 993 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
-  testes de backup/restore que precisam de `psql`/`pg_dump` (99 passam, 6 pulados) e os 3 de Azurite; com
-  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (109 no total, 106 passam, os 3 do Azurite
-  continuam pulados sem esse emulador).
+- Testes: 1012 unitários (993 + 19 de OIDC/RBAC, seção abaixo); a integração varia com a imagem do SDK usada — o
+  comando documentado (SDK puro) pula os 6 testes de backup/restore que precisam de `psql`/`pg_dump` (99 passam, 6
+  pulados) e os 3 de Azurite; com `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (109 no total,
+  106 passam, os 3 do Azurite continuam pulados sem esse emulador).
+
+**Autenticação (SSO na API).** JWT bearer na API, ainda sem o login do BFF nem o Keycloak de desenvolvimento (trabalho
+paralelo de outro agente); decisão e alternativas em `docs/adr/0003-oidc-jwt-bearer-na-api.md`:
+
+- `OIDC_AUTHORITY` vazio (padrão) mantém o modo anônimo exatamente como sempre foi: nenhum esquema JWT é registrado,
+  `AnonymousAccessGateMiddleware` continua gatendo `/api` por `ALLOW_ANONYMOUS_ACCESS`. `OIDC_AUTHORITY` preenchido
+  registra `AddJwtBearer` (nunca `AddOpenIdConnect`: a API é resource server puro, quem faz login é o BFF) e faz o
+  gate anônimo sair da frente por completo — os dois modos nunca se sobrepõem. `OIDC_CLIENT_ID` (dobra como audiência
+  esperada do token), `OIDC_ADMIN_ROLE` (padrão `docreader-admin`) e `OIDC_USER_ROLE` (padrão `docreader-user`, ainda
+  não exigido em endpoint nenhum) completam `DocReader:Security:Oidc` (`OidcOptions`/`OidcOptionsValidator` em
+  `apps/api/Options`).
+- Com OIDC ligado, uma `FallbackPolicy` (`RequireAuthenticatedUser`) passa a exigir token válido em todo controller;
+  `AdminBackupController`, `AdminRestoreController` e `AdminStorageMigrationController` (os três `/api/v1/admin/*`)
+  ganharam além disso `[Authorize(Policy = AuthorizationPolicies.AdminOnly)]`, que exige o papel `OIDC_ADMIN_ROLE`.
+  Sem OIDC, essa mesma policy é uma assertiva sempre-verdadeira: os três controllers continuam funcionando sem token,
+  provado por teste. Nenhum outro controller ganhou `[Authorize(Roles=...)]` — RBAC granular neles é trabalho futuro
+  (o `TODO(RBAC)` de `StorageRepositoriesController.GetConnectionConfigAsync` continua de pé).
+- Keycloak aninha papéis em `realm_access.roles`, que o tratamento padrão de JWT do ASP.NET Core não entende como
+  papel: `KeycloakRoleClaims.ExpandRealmRoles` achata isso em claims `ClaimTypes.Role`, aplicado pela
+  `KeycloakRealmRolesClaimsTransformation` (`IClaimsTransformation`, só registrada com OIDC ligado).
+- `GET /api/v1/me` devolve `{ userId, email, name, roles }` do principal autenticado; em modo anônimo devolve `200`
+  com payload fixo vazio em vez de `401` (não há token para ler).
+- 401 sem token e 403 sem o papel exigido respondem `application/problem+json` (`UNAUTHENTICATED`/`FORBIDDEN`), não o
+  corpo texto padrão do framework — `JwtBearerEvents.OnChallenge`/`OnForbidden` via `AuthProblemWriter`, mesmo
+  formato do `ApiExceptionHandler`.
+- Swagger ganha o botão "Authorize" (OAuth2 authorization code + PKCE) só quando `OIDC_AUTHORITY` está configurada;
+  as URLs seguem a convenção de caminho do Keycloak, não uma descoberta real (ver limites no ADR 0003).
+- Testes cobrem a policy `AdminOnly` nos dois modos (via `IAuthorizationService` real, sem `TestServer`), a
+  validação de `OidcOptions`, o achatamento de `realm_access.roles` a partir de um JWT assinado de verdade
+  (`System.IdentityModel.Tokens.Jwt`) e o mapeamento de `/me`; ficam em `tests/unit/DocReader.UnitTests/Api`, que
+  agora referencia `apps/api` diretamente (sem `WebApplicationFactory`, que este repositório ainda não usa).
 
 ## Estrutura do repositório
 

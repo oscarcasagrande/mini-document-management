@@ -15,6 +15,10 @@ public sealed class ProblemExamplesOperationFilter : IOperationFilter
         {
             ["400"] = ("One or more validation errors occurred", "validation-failed", "VALIDATION_FAILED",
                 "Check the errors property for the fields that were refused."),
+            ["401"] = ("Authentication required", "unauthenticated", "UNAUTHENTICATED",
+                "This request requires a valid bearer token issued by the configured OIDC provider (OIDC_AUTHORITY)."),
+            ["403"] = ("Insufficient role", "forbidden", "FORBIDDEN",
+                "The authenticated user does not have the role this endpoint requires."),
             ["404"] = ("Document not found", "document-not-found", "DOCUMENT_NOT_FOUND",
                 "No document matches the requested identifier."),
             ["409"] = ("Idempotency-Key conflict", "conflict", "IDEMPOTENCY_KEY_CONFLICT",

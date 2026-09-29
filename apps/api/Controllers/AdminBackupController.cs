@@ -1,7 +1,9 @@
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
+using DocReader.Api.Security;
 using DocReader.Application.Backup;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -12,9 +14,16 @@ namespace DocReader.Api.Controllers;
 /// dump, a storage manifest, the document files of FILE_SYSTEM and DATABASE repositories, and a signed SHA-256 list of
 /// everything in it; restore it with <c>POST /api/v1/admin/restore</c>.
 /// </summary>
+/// <remarks>
+/// Requires the <c>docreader-admin</c> role (<c>OIDC_ADMIN_ROLE</c>) once OIDC is configured; anonymous when it is not
+/// (ADR 0003).
+/// </remarks>
 [ApiController]
 [Route("api/v1/admin/backup")]
 [Produces("application/json")]
+[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemTypes.ContentType)]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden, ProblemTypes.ContentType)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError, ProblemTypes.ContentType)]
 public sealed class AdminBackupController(BackupService service) : ControllerBase
 {
