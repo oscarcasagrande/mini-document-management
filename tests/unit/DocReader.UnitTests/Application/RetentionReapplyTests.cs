@@ -53,7 +53,8 @@ public sealed class RetentionReapplyTests
     [Fact]
     public async Task Enfileirar_cria_um_pedido_pendente()
     {
-        var policy = await new RetentionPolicyService(_policies, new InMemoryProductServiceStore(), _clock, NullLogger<RetentionPolicyService>.Instance)
+        var policy = await new RetentionPolicyService(
+                _policies, new InMemoryProductServiceStore(), InMemoryDocumentTypeStore.WithBuiltIns(), _clock, NullLogger<RetentionPolicyService>.Instance)
             .CreateAsync("BR_CNH", null, 365, Ct);
 
         var request = await Service(Requests()).EnqueueAsync(policy.Id, Ct);
