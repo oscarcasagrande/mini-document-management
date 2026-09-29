@@ -5,6 +5,7 @@ using DocReader.Application.Catalog;
 using DocReader.Application.Classification;
 using DocReader.Application.Documents;
 using DocReader.Application.Extraction;
+using DocReader.Application.GdprDeletion;
 using DocReader.Application.Options;
 using DocReader.Application.Processing;
 using DocReader.Application.Retention;
@@ -83,6 +84,11 @@ public static class ApplicationServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<GdprDeletionOptions>()
+            .Bind(configuration.GetSection(GdprDeletionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.TryAddTimeProvider();
 
         // Scoped, not singleton: it reads the document_types table on every call, so a rule edited
@@ -116,6 +122,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<DocumentQueryService>();
         services.AddScoped<DocumentDeletionService>();
         services.AddScoped<DocumentReprocessingService>();
+        services.AddScoped<GdprDeletionRequestService>();
+        services.AddScoped<GdprDeletionExecutionService>();
 
         return services;
     }

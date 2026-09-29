@@ -121,7 +121,17 @@ public sealed class ProblemExamplesOperationFilter : IOperationFilter
         ("/admin/restore", "413", ("Request body too large", "file-too-large", "REQUEST_TOO_LARGE",
             "The request body exceeds the configured limit and was rejected before being read.")),
         ("/admin/restore/{id}", "404", ("Resource not found", "document-not-found", "RESTORE_JOB_NOT_FOUND",
-            "No restore job matches the requested identifier."))
+            "No restore job matches the requested identifier.")),
+        ("/gdpr-delete", "400", ("Invalid request", "validation-failed", "RETENTION_NOT_EXPIRED",
+            "Wait until 2026-12-31T00:00:00Z to request deletion.")),
+        ("/gdpr-delete", "409", ("Conflict", "conflict", "DOCUMENT_IN_USE_BY_PRODUCT_SERVICE",
+            "Document in use by product Conta PJ.")),
+        ("/gdpr-deletion-requests/{requestId}", "404", ("Resource not found", "document-not-found", "GDPR_DELETION_REQUEST_NOT_FOUND",
+            "No gdpr-deletion-request matches the requested identifier.")),
+        ("/gdpr-deletion-requests/{requestId}/approve", "409", ("Conflict", "conflict", "GDPR_DELETION_REQUEST_NOT_PENDING",
+            "The request is APPROVED and can no longer be approved.")),
+        ("/gdpr-deletion-requests/{requestId}/reject", "409", ("Conflict", "conflict", "GDPR_DELETION_REQUEST_NOT_PENDING",
+            "The request is EXECUTED and can no longer be rejected."))
     ];
 
     public void Apply(OpenApiOperation operation, OperationFilterContext context)

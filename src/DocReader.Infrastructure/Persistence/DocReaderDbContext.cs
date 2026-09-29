@@ -4,6 +4,7 @@ using DocReader.Domain.Backup;
 using DocReader.Domain.Catalog;
 using DocReader.Domain.Documents;
 using DocReader.Domain.Extractions;
+using DocReader.Domain.GdprDeletion;
 using DocReader.Domain.Idempotency;
 using DocReader.Domain.Processing;
 using DocReader.Domain.Retention;
@@ -33,6 +34,8 @@ public sealed class DocReaderDbContext(
     public DbSet<RetentionPolicy> RetentionPolicies => Set<RetentionPolicy>();
 
     public DbSet<RetentionReapplyRequest> RetentionReapplyRequests => Set<RetentionReapplyRequest>();
+
+    public DbSet<GdprDeletionRequest> GdprDeletionRequests => Set<GdprDeletionRequest>();
 
     public DbSet<StorageRepository> StorageRepositories => Set<StorageRepository>();
 

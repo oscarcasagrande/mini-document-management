@@ -3,6 +3,7 @@ using DocReader.Api.Contracts.V1;
 using DocReader.Application.Documents;
 using DocReader.Domain.Catalog;
 using DocReader.Domain.Documents;
+using DocReader.Domain.GdprDeletion;
 using DocReader.Domain.Retention;
 using DocReader.Domain.Storage;
 using DocReader.Domain.StorageMigrations;
@@ -93,6 +94,17 @@ public static class ConfigurationResponseMapper
         request.StartedAt,
         request.CompletedAt,
         request.DocumentsUpdated);
+
+    public static GdprDeletionRequestResponse ToResponse(GdprDeletionRequest request) => new(
+        request.Id,
+        request.DocumentId,
+        request.RequestedBy,
+        request.RequestedAt,
+        request.Reason,
+        request.Status,
+        request.ApprovedBy,
+        request.DecidedAt,
+        request.ExecutedAt);
 
     public static StorageMigrationJobResponse ToResponse(StorageMigrationJob job) => new(
         job.Id,

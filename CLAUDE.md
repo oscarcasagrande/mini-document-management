@@ -88,6 +88,22 @@ medidos em documento real.**
   (`WEBHOOK_ALLOW_PRIVATE_NETWORKS`).
 - **Referência externa**: `GET /api/v1/documents/by-external-reference/{reference}` devolve o documento mais recente (exato, com
   diferença de caixa) ou 404; a lista filtra por `externalReference` (parcial). Índice parcial em `external_reference`.
+- **Exclusão LGPD/GDPR** (`Domain/GdprDeletion`, `Application/GdprDeletion`): `DELETE /api/v1/documents/{id}` continua a
+  limpeza rápida e incondicional de sempre (RF-014). Ao lado dela, `DELETE /api/v1/documents/{id}/gdpr-delete` não apaga
+  nada: cria um `GdprDeletionRequest` `PENDING` (409 se o documento está vinculado a um `ProductService` ativo, 400 se
+  `expiresAt` ainda não venceu). `POST /api/v1/gdpr-deletion-requests/{requestId}/approve` (**TODO(RBAC)**, mesmo estilo do
+  endpoint de revelar configuração) ou `.../reject` decide o pedido; sem decisão em `GDPR_AUTO_APPROVE_AFTER_HOURS` horas
+  (padrão 24, `DocReader:GdprDeletion:AutoApproveAfterHours`), o `GdprDeletionWorker` aprova sozinho
+  (`approvedBy=system:auto-approve-24h`, distinguível de um operador real). Aprovado, o mesmo worker reivindica com
+  `FOR UPDATE` (lock-e-reconfere, o idioma de `MarkPurgedAsync`/`RetentionReapplyRequestRepository`) e executa: apaga o
+  arquivo primeiro (nunca grava "apagado" antes de apagar de verdade), depois o texto do OCR e os campos extraídos — a
+  extração mesma que a rotina de expurgo apaga, via `ExtractionCleanup` compartilhado entre as duas. O documento reaproveita
+  o status `PURGED` (mesmo tombstone, mesmo 410 em `/content`, `/text`, `/result`, `/reprocess` e os `*-diagnostics` via
+  `EnsureNotPurged`), mas grava `GDPR_DELETION_EXECUTED` na linha do tempo em vez de `PURGED`, com `reason=GDPR_REQUEST` e o
+  id do pedido — por isso as duas origens continuam distinguíveis apesar do status compartilhado. Cada transição
+  (`GDPR_DELETION_REQUESTED/APPROVED/REJECTED/EXECUTED`) grava também um `AuditLog`. `GET
+  /api/v1/documents/{id}/gdpr-deletion-requests` lista os pedidos de um documento; `GET
+  /api/v1/gdpr-deletion-requests/{requestId}` busca um pelo id.
 
 **Configuração Dinâmica.** Três itens que tiram classificação e extração do código:
 
@@ -316,6 +332,11 @@ a este checkout.
   mais simples de reaproveitar o comportamento de `iss` fixo do Keycloak descrito acima é a API também apontar seu
   `Authority`/`MetadataAddress` para o endereço **interno** (mesma variável `OIDC_AUTHORITY`) e deixar o próprio
   documento de descoberta informar o emissor público — sem precisar de um `ValidIssuer` manual.
+- **Integração confirmada**: o lado da API (acima) já lê `realm_access.roles` do jeito que o Keycloak deste overlay emite
+  (`KeycloakRoleClaims.ExpandRealmRoles`), então os dois lados batem sem ajuste — falta só a verificação ao vivo pelo
+  navegador (login interativo com os dois usuários de teste, `docreader-admin` chegando até `[Authorize(Policy=AdminOnly)]`).
+- Testes: contagem final após juntar auditoria, OIDC/RBAC, cifra de campos e exclusão LGPD/GDPR — ver o número exato no
+  resultado do `dotnet test` mais recente (as quatro seções somaram testes novos sobre a mesma base de 993).
 
 ## Estrutura do repositório
 

@@ -116,6 +116,8 @@ services:
       # Daily purge of the documents whose retention period ended (five-field cron, UTC). Default: 02:00 every day.
       DocReader__Purge__ScheduleCron: ${PURGE_SCHEDULE_CRON:-0 2 * * *}
       DocReader__Classification__MinimumScore: ${CLASSIFICATION_MIN_SCORE:-0}
+      # A PENDING GDPR/LGPD deletion request nobody decided on is auto-approved by the worker after this many hours.
+      DocReader__GdprDeletion__AutoApproveAfterHours: ${GDPR_AUTO_APPROVE_AFTER_HOURS:-24}
     networks:
       - internal
     volumes:

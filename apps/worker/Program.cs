@@ -31,6 +31,7 @@ builder.Services.AddHostedService<ProcessingWorker>();
 builder.Services.AddHostedService<PurgeExpiredDocumentsJob>();
 builder.Services.AddHostedService<WebhookDispatcher>();
 builder.Services.AddHostedService<RetentionReapplyWorker>();
+builder.Services.AddHostedService<GdprDeletionWorker>();
 builder.Services.AddHostedService<QueueDepthReporter>();
 builder.Services.AddHostedService<StorageMigrationWorker>();
 builder.Services.AddHostedService<BackupWorker>();

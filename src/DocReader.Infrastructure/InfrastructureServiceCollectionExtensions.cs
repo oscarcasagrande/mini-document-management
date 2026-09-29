@@ -47,6 +47,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDocumentTypeRepository, DocumentTypeRepository>();
         services.AddScoped<IRetentionPolicyRepository, RetentionPolicyRepository>();
         services.AddScoped<IRetentionReapplyRequestRepository, RetentionReapplyRequestRepository>();
+        services.AddScoped<IGdprDeletionRequestRepository, GdprDeletionRequestRepository>();
         services.AddScoped<IStorageMigrationJobRepository, StorageMigrationJobRepository>();
         services.AddScoped<IIdempotencyStore, PostgresIdempotencyStore>();
         services.AddScoped<IProtocolGenerator, PostgresProtocolGenerator>();

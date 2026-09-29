@@ -3,6 +3,7 @@ using System;
 using DocReader.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocReader.Infrastructure.Migrations
 {
     [DbContext(typeof(DocReaderDbContext))]
-    partial class DocReaderDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929115756_AddGdprDeletionRequests")]
+    partial class AddGdprDeletionRequests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -663,8 +666,8 @@ namespace DocReader.Infrastructure.Migrations
                         .HasColumnName("field_path");
 
                     b.Property<string>("NormalizedValue")
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
                         .HasColumnName("normalized_value");
 
                     b.Property<int?>("PageNumber")
@@ -672,8 +675,8 @@ namespace DocReader.Infrastructure.Migrations
                         .HasColumnName("page_number");
 
                     b.Property<string>("RawValue")
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
                         .HasColumnName("raw_value");
 
                     b.Property<string>("ValidationMessagesJson")

@@ -16,6 +16,10 @@ public enum DocumentStatus
     Failed = 8,
     Rejected = 9,
 
-    /// <summary>The retention period ended and the original file was removed. The metadata and the history stay.</summary>
+    /// <summary>
+    /// The original file, the OCR text and the extracted fields were removed, either because the retention period
+    /// ended or because a GDPR/LGPD deletion request was executed. The timeline says which (<c>PURGED</c> vs.
+    /// <c>GDPR_DELETION_EXECUTED</c>); the metadata and the history stay either way.
+    /// </summary>
     Purged = 10
 }
