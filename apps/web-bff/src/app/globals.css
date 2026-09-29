@@ -204,6 +204,22 @@ button.danger {
   color: var(--error);
 }
 
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+}
+
+.icon-button:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
 .dropzone {
   border: 2px dashed var(--border);
   border-radius: var(--radius);

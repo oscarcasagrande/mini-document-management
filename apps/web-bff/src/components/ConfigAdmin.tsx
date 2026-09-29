@@ -138,6 +138,27 @@ function buildBody(fields: AdminField[], values: Values, isEditing: boolean): Re
   return body;
 }
 
+/** Feather-style "eye" / "eye-off" icons (inline, no icon package: this is the only place that needs one). */
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {off ? (
+        <>
+          <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+          <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68" />
+          <path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61" />
+          <line x1="2" y1="2" x2="22" y2="22" />
+        </>
+      ) : (
+        <>
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+          <circle cx="12" cy="12" r="3" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function renderCell(item: Item, column: AdminColumn) {
   const value = pathValue(item, column.key);
 
@@ -174,6 +195,8 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   /** A secret the API generated and will never show again: shown once, until the next action. */
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
+  /** Which secretJson fields are unmasked right now, for the eye toggle. Reset on open/close: never persisted. */
+  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
 
   const isEditing = editing !== null && editing !== "new";
 
@@ -183,11 +206,17 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
     setError(null);
     setNotice(null);
     setRevealedSecret(null);
+    setVisibleFields({});
   }
 
   function close() {
     setEditing(null);
     setError(null);
+    setVisibleFields({});
+  }
+
+  function toggleVisible(name: string) {
+    setVisibleFields((current) => ({ ...current, [name]: !current[name] }));
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -289,9 +318,20 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
                     </label>
                   ) : (
                     <>
-                      <label htmlFor={id}>
+                      <label htmlFor={id} style={field.kind === "secretJson" ? { display: "flex", alignItems: "center", gap: 6 } : undefined}>
                         {field.label}
                         {field.required && !readOnly ? " *" : ""}
+                        {field.kind === "secretJson" && (
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label={visibleFields[field.name] ? "Ocultar" : "Mostrar"}
+                            title={visibleFields[field.name] ? "Ocultar" : "Mostrar"}
+                            onClick={() => toggleVisible(field.name)}
+                          >
+                            <EyeIcon off={visibleFields[field.name] === true} />
+                          </button>
+                        )}
                       </label>
                       {field.kind === "select" ? (
                         <select
@@ -340,7 +380,7 @@ export function ConfigAdmin({ resource, noun, fields, columns, items, undeletabl
                           spellCheck={false}
                           style={
                             field.kind === "secretJson"
-                              ? ({ WebkitTextSecurity: "disc" } as React.CSSProperties)
+                              ? ({ WebkitTextSecurity: visibleFields[field.name] ? "none" : "disc" } as React.CSSProperties)
                               : field.kind === "json"
                                 ? { fontFamily: "monospace" }
                                 : undefined
