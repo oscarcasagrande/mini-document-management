@@ -29,10 +29,17 @@ Um campo reprovado nas regras sai como `validationStatus: "INVALID"` com o valor
 documento não traz, como `NOT_FOUND`; uma CNH ou CIN com validade vencida continua `VALID`, com a mensagem
 `DOCUMENT_EXPIRED`. Nada é corrigido, descartado nem inventado.
 
-**Estado e limites.** As Etapas 1 a 3 do plano (PRD §26) estão implementadas. A Etapa 4 tem o framework de
-avaliação pronto ([Avaliação](#avaliação)), mas **a medição em documentos reais não foi feita**: este repositório
-não tem dataset real, e os extratores foram escritos e testados sobre amostras **sintéticas**. A decisão de
-continuidade e produção depende dessa medição, e a comparação opcional com Tesseract/Docling não foi feita.
+**Estado e limites.** As Etapas 1 a 3 do plano (PRD §26) estão implementadas, mais sete épicos de produção
+entregues depois da Etapa 4 (produto/serviço, retenção com expurgo, armazenamento configurável,
+webhooks, referência externa, tipos documentais em runtime, autenticação OIDC/RBAC, auditoria, cifra em
+repouso, exclusão LGPD/GDPR, fila alternativa RabbitMQ e pré-processamento completo de OCR — ver PRD v3.0). A
+Etapa 4 tem o framework de avaliação pronto ([Avaliação](#avaliação)), mas **a medição em documentos reais
+não foi feita com significância estatística**: este repositório não tem dataset real, e os extratores foram
+calibrados sobre amostras **sintéticas**, exceto CNH e CIN/RIC (Etapa 5, dois exemplares cada). Um teste
+exploratório com 4 documentos reais (`docs/bench/real-exploratory-v1.md`) achou e corrigiu três defeitos que
+a amostra sintética não revelava; quatro achados continuam abertos, cada um calibração de um ou dois
+exemplares que não generaliza sem um dataset maior. A decisão de continuidade e produção depende dessa
+medição, e a comparação opcional com Tesseract/Docling não foi feita.
 
 ## Pré-requisitos
 
@@ -82,10 +89,11 @@ só documenta essas variáveis para quem quiser sobrescrevê-las (ou os `RABBITM
 publicados) — nunca defina `QUEUE_PROVIDER=Postgres` no `.env` para usar este overlay, isso anularia o próprio
 propósito dele. UI de management do broker em http://localhost:15672 (mesmas credenciais).
 
-> **Sem autenticação.** Qualquer pessoa com acesso à URL pode enviar, listar, visualizar, baixar e
-> excluir documentos. Não publique na internet e use apenas documentos sintéticos, mascarados ou
-> autorizados. `ALLOW_ANONYMOUS_ACCESS=false` fecha `/api/v1` com `503`, porque a PoC não tem
-> provedor de autenticação para onde cair.
+> **Sem autenticação, por padrão.** Qualquer pessoa com acesso à URL pode enviar, listar, visualizar, baixar
+> e excluir documentos. Não publique na internet e use apenas documentos sintéticos, mascarados ou
+> autorizados. `ALLOW_ANONYMOUS_ACCESS=false` fecha `/api/v1` com `503` enquanto `OIDC_AUTHORITY` estiver
+> vazia. Configurando `OIDC_AUTHORITY` (ADR 0003), a API passa a exigir token JWT bearer em toda chamada —
+> os dois modos nunca coexistem. Ver "Autenticação (opcional)" abaixo.
 
 ### Usar
 
@@ -222,6 +230,30 @@ Produtos, Retenção, Repositórios, Webhooks). Nenhum guarda conteúdo document
   documento **mais recente** enviado com essa `externalReference` (a referência não é única), ou `404`. A busca é exata e
   diferencia maiúsculas; codifique na URL o que for reservado (`/` vira `%2F`). A lista aceita `externalReference` como
   filtro parcial, sem diferenciar maiúsculas, e a tela de lista tem o campo correspondente.
+
+### Autenticação (opcional), auditoria, cifra e exclusão LGPD/GDPR
+
+- **Autenticação.** `OIDC_AUTHORITY` vazia (padrão) mantém o modo anônimo de sempre. Preenchida, a API exige
+  token JWT bearer em toda chamada e RBAC (`docreader-admin`) nos três endpoints `/api/v1/admin/*`; o BFF faz
+  login via NextAuth.js contra o mesmo emissor. Um Keycloak de desenvolvimento sobe com
+  `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d keycloak` — ver ADR 0003 e CLAUDE.md
+  para as variáveis. `GET /api/v1/me` devolve o usuário autenticado (ou payload vazio em modo anônimo).
+- **Auditoria.** Toda rota mutante administrativa relevante (cadastros acima, backup/restore/migração,
+  revelação de configuração de repositório) grava uma entrada em `audit_logs` — quem, quando, o quê, nunca o
+  valor. `GET /api/v1/audit-logs` lista com filtro; tela somente leitura em `/config/audit-logs`.
+- **Cifra em repouso.** A configuração de repositório de armazenamento e os valores de campo extraído
+  (`extracted_fields.raw_value`/`normalized_value`) são cifrados (AES-256-GCM), cada um com sua própria
+  chave (`STORAGE_CONFIG_ENCRYPTION_KEY` / `EXTRACTED_FIELD_ENCRYPTION_KEY`, ver a tabela de configuração
+  acima). Perder ou trocar uma chave torna o dado cifrado com ela ilegível — não há recifra automática.
+- **Exclusão sob LGPD/GDPR**, alternativa a `DELETE /api/v1/documents/{id}` quando é preciso aprovação e
+  trilha: `DELETE /api/v1/documents/{id}/gdpr-delete` cria um pedido `PENDING` (não apaga nada), decidido por
+  `POST .../approve` ou `.../reject`, ou aprovado automaticamente pelo worker após uma janela configurável
+  (`GDPR_AUTO_APPROVE_AFTER_HOURS`, padrão 24h). Aprovado, remove arquivo, texto e campos extraídos — o
+  documento vira o mesmo tombstone `PURGED` do expurgo por retenção, distinguível pelo evento
+  `GDPR_DELETION_EXECUTED` na linha do tempo.
+- **Risco não resolvido, registrado de propósito**: os três endpoints `/api/v1/admin/*` são anônimos como o
+  resto da API quando OIDC está desligado, mas o preço é maior ali (dump com dado pessoal, SQL arbitrário na
+  restauração) — não exponha a PoC além de localhost sem OIDC ligado. Ver PRD §21 e CLAUDE.md.
 
 ## Rodar os testes
 
@@ -500,10 +532,12 @@ apps/web-bff        Next.js: interface e BFF
 services/ocr-service  FastAPI + PaddleOCR
 src/                Domain, Application, Infrastructure, Api.Contracts
 schemas/documents   JSON Schema, sinais de classificação e validações de cada tipo
-tests/              unit, integration, e2e, accuracy (testes do avaliador)
+tests/              unit, integration, e2e, accuracy (avaliador), pii_scan (vazamento de PII)
 deploy/docker       Dockerfiles (contexto de build = raiz)
-docs/               PRD, ADRs, avaliação, contrato da API, evidência de benchmark
+deploy/keycloak     realm de desenvolvimento importado pelo overlay docker-compose.dev.yml
+docs/               PRD, ADRs, avaliação, contrato da API, evidência de benchmark, teste exploratório
 scripts/            geradores de amostra, avaliador, benchmarks, helpers de desenvolvimento
+scripts/pii         varredura de vazamento de PII e mascaramento de fixture de OCR real
 samples/synthetic   amostras geradas
 ```
 
@@ -511,9 +545,10 @@ samples/synthetic   amostras geradas
 
 | Documento | Conteúdo |
 |---|---|
-| [`docs/PRD.md`](docs/PRD.md) | Produto e arquitetura |
-| [`docs/adr`](docs/adr) | Decisões: PostgreSQL como fila (0001); engine de OCR, latência e perfis de modelo (0002) |
+| [`docs/PRD.md`](docs/PRD.md) | Produto e arquitetura (v3.0) |
+| [`docs/adr`](docs/adr) | Decisões: PostgreSQL como fila (0001); engine de OCR, latência e perfis de modelo (0002); SSO por JWT bearer (0003); RabbitMQ como fila alternativa (0004) |
 | [`docs/evaluation.md`](docs/evaluation.md) | Ground truth, métricas e como avaliar |
+| [`docs/bench/real-exploratory-v1.md`](docs/bench/real-exploratory-v1.md) | Único teste contra documento real feito até hoje: achados, correções e o que segue aberto |
 | [`docs/bench`](docs/bench) | Medições de OCR: método, resultados e como reproduzir |
 | [`docs/api`](docs/api) | Contrato exportado da API |
 | [`schemas/documents`](schemas/documents) | Campos e validações por tipo |

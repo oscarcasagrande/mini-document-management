@@ -21,6 +21,14 @@ Endpoints da v1:
 | `POST` | `/api/v1/documents/{id}/reprocess` | 2 |
 | `GET` | `/api/v1/documents/{id}/classification-diagnostics` | 4 |
 | `GET` | `/api/v1/documents/{id}/extraction-diagnostics` | 5 |
+| `DELETE` | `/api/v1/documents/{id}/gdpr-delete` | extra |
+| `GET` | `/api/v1/documents/{id}/gdpr-deletion-requests` | extra |
+| `GET` | `/api/v1/gdpr-deletion-requests/{requestId}` | extra |
+| `POST` | `/api/v1/gdpr-deletion-requests/{requestId}/approve` | extra |
+| `POST` | `/api/v1/gdpr-deletion-requests/{requestId}/reject` | extra |
+| `GET` | `/api/v1/audit-logs` | extra |
+| `GET` | `/api/v1/me` | extra |
+| `GET` | `/api/v1/storage-repositories/{id}/connection-config` | extra |
 | `GET` `POST` | `/api/v1/product-services` | extra |
 | `GET` `PUT` `DELETE` | `/api/v1/product-services/{id}` | extra |
 | `GET` `POST` | `/api/v1/retention-policies` | extra |
