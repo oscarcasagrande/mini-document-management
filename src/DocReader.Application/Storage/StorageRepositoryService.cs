@@ -45,7 +45,7 @@ public sealed class StorageRepositoryService(
 
         if (isDefault)
         {
-            RequireCanBeDefault(provider, active);
+            RequireCanBeDefault(active);
         }
 
         if (await store.FindByCodeAsync(normalized, ct).ConfigureAwait(false) is not null)
@@ -106,7 +106,7 @@ public sealed class StorageRepositoryService(
         var becomesDefault = isDefault == true && !repository.IsDefault;
         if (becomesDefault)
         {
-            RequireCanBeDefault(repository.Provider, active);
+            RequireCanBeDefault(active);
         }
 
         if (connectionConfigPatch is { Count: > 0 })
@@ -184,15 +184,8 @@ public sealed class StorageRepositoryService(
             ? null
             : protector.Protect(config.ToJsonString(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 
-    private static void RequireCanBeDefault(StorageProvider provider, bool active)
+    private static void RequireCanBeDefault(bool active)
     {
-        if (!StorageRepository.IsProviderImplemented(provider))
-        {
-            throw new UnprocessableRequestException(
-                "STORAGE_PROVIDER_NOT_IMPLEMENTED",
-                $"The {provider} provider is registered but its adapter is not implemented yet, so it cannot be the default repository.");
-        }
-
         if (!active)
         {
             throw new UnprocessableRequestException(

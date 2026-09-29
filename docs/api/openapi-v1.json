@@ -3732,9 +3732,9 @@
                   "type": "https://docreader.local/problems/unprocessable-content",
                   "title": "Content cannot be processed",
                   "status": 422,
-                  "detail": "The AwsS3 provider is registered but its adapter is not implemented yet, so it cannot be the default repository.",
+                  "detail": "An inactive repository cannot be the default.",
                   "instance": "/api/v1/storage-repositories",
-                  "errorCode": "STORAGE_PROVIDER_NOT_IMPLEMENTED",
+                  "errorCode": "STORAGE_REPOSITORY_INACTIVE",
                   "correlationId": "9f1c1d0f2a5b4c8e9d7a6b5c4d3e2f10"
                 }
               }

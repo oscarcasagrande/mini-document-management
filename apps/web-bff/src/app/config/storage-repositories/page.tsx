@@ -30,9 +30,13 @@ export default async function StorageRepositoriesPage() {
       <AnonymousAccessBanner />
 
       <div className="alert alert--warning">
-        <strong>Sistema de arquivos</strong> e <strong>banco de dados</strong> funcionam. <strong>Azure Blob</strong> e{" "}
-        <strong>AWS S3</strong> podem ser cadastrados, mas ainda não têm adaptador: um envio para eles responde{" "}
-        <span className="mono">501</span>, e eles não podem ser o padrão.
+        Os quatro provedores funcionam: <strong>sistema de arquivos</strong>, <strong>banco de dados</strong>,{" "}
+        <strong>Azure Blob</strong> e <strong>AWS S3</strong> (qualquer um pode ser o padrão). Configuração esperada —
+        Azure: <span className="mono">connectionString</span> e <span className="mono">container</span> (obrigatórios);
+        S3: <span className="mono">bucket</span>, <span className="mono">accessKeyId</span> e{" "}
+        <span className="mono">secretAccessKey</span> (obrigatórios), <span className="mono">region</span> e{" "}
+        <span className="mono">serviceUrl</span> (opcionais — <span className="mono">serviceUrl</span> também atende
+        MinIO e outros serviços compatíveis com S3).
       </div>
 
       {failure && <div className="alert alert--error">{failure}</div>}

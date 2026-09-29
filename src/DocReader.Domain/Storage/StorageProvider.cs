@@ -9,9 +9,9 @@ public enum StorageProvider
     /// <summary>A table in the application database (<c>document_blobs</c>). Implemented.</summary>
     Database = 1,
 
-    /// <summary>Azure Blob Storage. Registered, adapter not implemented yet.</summary>
+    /// <summary>Azure Blob Storage. Implemented; needs <c>connectionString</c> and <c>container</c>.</summary>
     AzureBlobStorage = 2,
 
-    /// <summary>Amazon S3 or a compatible service. Registered, adapter not implemented yet.</summary>
+    /// <summary>Amazon S3 or a compatible service. Implemented; needs <c>bucket</c>, <c>accessKeyId</c> and <c>secretAccessKey</c>, with optional <c>region</c> and <c>serviceUrl</c>.</summary>
     AwsS3 = 3
 }

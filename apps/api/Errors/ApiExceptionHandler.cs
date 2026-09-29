@@ -105,12 +105,14 @@ public sealed class ApiExceptionHandler(
             conflict.ErrorCode,
             conflict.Message),
 
+        // Generic fallback: every storage provider (FileSystem, Database, AzureBlobStorage, AwsS3) has a working
+        // adapter today, so this no longer fires for storage. Kept for whatever else might throw NotImplementedException.
         NotImplementedException => new ErrorDescriptor(
             StatusCodes.Status501NotImplemented,
-            "Storage provider not implemented",
+            "Not implemented",
             ProblemTypes.Unexpected,
-            "STORAGE_PROVIDER_NOT_IMPLEMENTED",
-            "The storage repository uses a provider whose adapter is not implemented yet (Azure Blob Storage or AWS S3). Use a FILE_SYSTEM or DATABASE repository."),
+            "NOT_IMPLEMENTED",
+            "This capability is not implemented yet."),
 
         UnprocessableRequestException unprocessable => new ErrorDescriptor(
             StatusCodes.Status422UnprocessableEntity,
