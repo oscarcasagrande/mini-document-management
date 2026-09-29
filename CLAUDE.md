@@ -58,7 +58,7 @@ medidos em documento real.**
   Recusa pasta dentro do repo, não escreve valor de campo no relatório sem `--include-values`, apaga da API o
   que enviou. Smoke test com `samples/synthetic/documents` (`--truth-suffix .expected.json`).
 - Testes (na etapa 4): as sete amostras rodam sobre **OCR real** capturado em
-  `tests/unit/DocReader.UnitTests/Fixtures/ocr`; 29 do `pytest` do OCR, 49 do avaliador. Contagens atuais na seção acima.
+  `tests/unit/DocReader.UnitTests/Fixtures/ocr`; 49 do avaliador. Contagens do `pytest` do OCR e do .NET na seção acima.
   Ponta a ponta: `tests/e2e/stage3_acceptance.py`.
 - Latência de A4 fechada no ADR 0002: o alvo (≤ 18 s/página) é atingido **sem limite de CPU** (pior caso
   15,8 s) e não com 4 CPUs (28 s). `OCR_MODEL_PROFILE` troca o modelo; os menores são mais rápidos e menos
@@ -112,13 +112,43 @@ medidos em documento real.**
 - Tela de cadastro de tipos documentais no BFF (`/config/document-types`), no mesmo componente genérico das outras telas de
   configuração; ganhou um tipo de campo `"json"` (textarea visível e sempre enviado, ao contrário do `"secretJson"` mascarado
   e opcional que as outras telas usavam).
-- Testes: 929 unitários, 95 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
+- Testes: 934 unitários, 95 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
+
+**Pré-processamento de OCR (RF-009).** Três capacidades, todas no `ocr-service`; o contrato de `POST /v1/ocr/page`
+ganhou `hasNativeTextLayer`, `rotationDegrees`, `deskewed` e `processedWithStructure` por página, agregados em
+`DocumentExtraction` (`has_native_text_layer`, `rotation_degrees`, `deskewed`, `ocr_processed_with_structure`) e em
+quatro eventos novos (`TEXT_EXTRACTED_FROM_PDF_NATIVE_LAYER`, `DOCUMENT_ROTATED`, `DOCUMENT_DESKEWED`,
+`OCR_REPROCESSED_WITH_PP_STRUCTUREV3`):
+
+- **Camada de texto nativa** (`app/native_text.py`): uma página de PDF com pelo menos `OCR_PDF_NATIVE_TEXT_MIN_CHARS`
+  (20) letras e dígitos é lida por `pdfplumber`, sem rasterizar nem chamar o Paddle (~100-200 ms contra ~5 s/página);
+  os blocos vêm das linhas do pdfplumber, na mesma escala de pixel que a rasterização usaria, para não quebrar
+  `LineSearch`. Camada vazia, só numeração de página, lixo de `(cid:N)` ou página coberta por imagem caem para OCR.
+- **Rotação e deskew** (`app/preprocess.py`, `OCR_ORIENTATION_CORRECTION`): perfil de projeção por variância decide
+  entre 0/90/180/270° (a direção vem de ascendentes/descendentes das letras e do alinhamento da margem, não só da
+  variância, que empata 0° com 180°); Hough (`cv2.HoughLinesP`) corrige inclinação fina entre
+  `OCR_DESKEW_MIN_DEGREES` (0,5°) e `OCR_DESKEW_MAX_DEGREES` (20°). Roda em toda página que vai a OCR (rasterizada de
+  PDF ou imagem), antes do Paddle. Grade de validação de 300 casos: 276 corretos, nenhuma página já correta foi
+  girada (as 24 divergências são abstenções em página degradada ou sem caixa baixa, nunca um giro errado).
+- **PP-StructureV3 sob demanda** (`app/structure.py`, `app/tables.py`, `OCR_USE_PP_STRUCTUREV3_FOR_TABLES`, padrão
+  `false`): um heurístico puro sobre os blocos do v5 (linhas por centro Y, colunas reaproveitadas por várias linhas)
+  decide se a página parece tabela; se a confiança média da grade estiver abaixo de
+  `OCR_STRUCTURE_TABLE_CONFIDENCE_THRESHOLD` (0,80) e a página estiver dentro de `OCR_STRUCTURE_MAX_MEGAPIXELS` (4,0,
+  medido — não os 1,17 MP do ADR 0002 original, que media os modelos padrão do PP-StructureV3, maiores que o
+  detector/reconhecedor mobile que este serviço já usa), o Paddle roda de novo com PP-StructureV3, **em processo
+  filho, com oneDNN desligado** (ligado corrompe a heap) **e primeiro candidato do OOM killer** (`oom_score_adj`):
+  se o filho for morto, a página fica com o resultado do v5 e um aviso no log, sem derrubar o serviço. Pesos (~873 MB)
+  não vão na imagem; baixam sob demanda para `OCR_MODEL_CACHE_DIR` (`/health` expõe `structureEnabled`/`structureReady`).
+  **Ligar exige `OCR_MEMORY_LIMIT=6g`** (documentado no compose; o padrão do serviço continua 3g com a opção desligada).
+  Medido: **PP-StructureV3 piorou a leitura de tabela** (55→52, 56→54 e 3→0 campos exatos de 57 valores conhecidos,
+  substituindo os blocos do v5 pelos dele) — por isso o padrão é desligado; ver o adendo de 2026-09-29 do ADR 0002.
+- Testes: 92 do `pytest` do OCR (1 pulado fora do container), mais os unitários do .NET acima.
 
 **O que não foi feito, e por quê:** nenhuma medição em documento real (não há dataset; o framework existe para
 isso); a comparação opcional com Tesseract/Docling do PRD §26; e a decisão de continuidade e produção, que
 depende da medição. As amostras sintéticas provam que o pipeline funciona e que as regras não regridem, não
-que os extratores acertam em documento de outro estado, concessionária ou junta. Fora do escopo: PDF com camada
-de texto nativa (RF-009), orientação/deskew e PP-StructureV3.
+que os extratores acertam em documento de outro estado, concessionária ou junta. PP-StructureV3 funciona mas piora
+a exatidão de tabela medida; fica desligado por padrão até um gatilho de revisão do ADR 0002 mudar isso.
 
 ## Estrutura do repositório
 
