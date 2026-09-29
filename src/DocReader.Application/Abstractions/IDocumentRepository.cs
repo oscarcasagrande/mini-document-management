@@ -60,6 +60,17 @@ public interface IDocumentRepository
         CancellationToken ct);
 
     /// <summary>
+    /// Queues a new processing attempt against the document types in force now (Configuração Dinâmica), the
+    /// same mechanics as <see cref="QueueReprocessingAsync"/> plus a <see cref="Domain.Documents.DocumentEventTypes.ReclassificationTriggered"/>
+    /// entry on the timeline. The classifier picks up whatever rules are active once the worker runs the job.
+    /// </summary>
+    Task<ReprocessOutcome> QueueReclassificationAsync(
+        Guid documentId,
+        DateTimeOffset now,
+        RetentionPolicy? retentionPolicy,
+        CancellationToken ct);
+
+    /// <summary>
     /// Documents past their purge date and in a final status, oldest first, skipping <paramref name="exclude"/>
     /// (the ones this run already failed on).
     /// </summary>

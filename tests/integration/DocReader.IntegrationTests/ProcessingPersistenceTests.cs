@@ -351,6 +351,72 @@ public sealed class ProcessingPersistenceTests(PostgresFixture fixture) : IAsync
     }
 
     [Fact]
+    public async Task Reclassificar_documento_concluido_cria_novo_job_preserva_o_resultado_anterior_e_registra_o_evento()
+    {
+        Assert.SkipUnless(fixture.ConnectionString is not null, fixture.SkipReason ?? "sem banco");
+
+        var (job, documentId) = await AcquireJobAsync();
+
+        await using (var context = fixture.CreateContext())
+        {
+            await StoreFor(context).CompleteAsync(job, NewExtraction(documentId, job.Id), "BR_CPF_CARD", 1.0m, null, null, TestContext.Current.CancellationToken);
+        }
+
+        await using (var context = fixture.CreateContext())
+        {
+            var outcome = await new DocumentRepository(context)
+                .QueueReclassificationAsync(documentId, Now.AddHours(1), null, TestContext.Current.CancellationToken);
+
+            Assert.Equal(ReprocessOutcome.Queued, outcome);
+        }
+
+        await using var verification = fixture.CreateContext();
+
+        var document = await verification.Documents.AsNoTracking().Include(d => d.Events)
+            .FirstAsync(d => d.Id == documentId, TestContext.Current.CancellationToken);
+        Assert.Equal(DocumentStatus.Queued, document.Status);
+        Assert.Null(document.CompletedAt);
+        Assert.Contains(document.Events, e => e.EventType == DocumentEventTypes.Queued);
+        Assert.Contains(
+            document.Events,
+            e => e.EventType == DocumentEventTypes.ReclassificationTriggered && e.Details == "RECLASSIFY_REQUESTED");
+
+        var jobs = await verification.ProcessingJobs.AsNoTracking().Where(j => j.DocumentId == documentId).ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, jobs.Count);
+        Assert.Single(jobs, j => j.Status == ProcessingJobStatus.Pending);
+
+        // O resultado anterior continua lá: reclassificar acrescenta, não substitui.
+        Assert.Equal(1, await verification.Extractions.CountAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Reclassificar_documento_ainda_na_fila_ou_em_andamento_e_conflito()
+    {
+        Assert.SkipUnless(fixture.ConnectionString is not null, fixture.SkipReason ?? "sem banco");
+
+        var (_, documentId) = await AcquireJobAsync();
+
+        await using var context = fixture.CreateContext();
+        var repository = new DocumentRepository(context);
+
+        Assert.Equal(
+            ReprocessOutcome.Conflict,
+            await repository.QueueReclassificationAsync(documentId, Now.AddMinutes(1), null, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Reclassificar_documento_inexistente_e_not_found()
+    {
+        Assert.SkipUnless(fixture.ConnectionString is not null, fixture.SkipReason ?? "sem banco");
+
+        await using var context = fixture.CreateContext();
+
+        Assert.Equal(
+            ReprocessOutcome.NotFound,
+            await new DocumentRepository(context).QueueReclassificationAsync(Guid.NewGuid(), Now, null, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Dois_pedidos_simultaneos_de_reprocessamento_geram_um_unico_job_vivo()
     {
         Assert.SkipUnless(fixture.ConnectionString is not null, fixture.SkipReason ?? "sem banco");

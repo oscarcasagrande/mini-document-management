@@ -47,4 +47,40 @@ public sealed class DocumentReprocessingService(
         var document = await repository.FindByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
         return document ?? throw new DocumentNotFoundException(id.ToString());
     }
+
+    /// <summary>
+    /// Reclassification of the "Configuração Dinâmica" epic: a new attempt that runs classification and
+    /// extraction again against the document types in force now, without touching the previous results.
+    /// </summary>
+    /// <exception cref="DocumentNotFoundException">No document with this id.</exception>
+    /// <exception cref="ReprocessConflictException">The document is queued or being processed.</exception>
+    public async Task<Domain.Documents.Document> ReclassifyAndExtractAsync(Guid id, CancellationToken ct)
+    {
+        // Same reasoning as ReprocessAsync: the policy that fits the document today, picked up here.
+        var current = await repository.FindByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
+        var policy = current is null
+            ? null
+            : await retention
+                .ResolveAsync(current.DetectedDocumentType ?? current.ExpectedDocumentType, current.ProductServiceId, ct)
+                .ConfigureAwait(false);
+
+        var outcome = await repository
+            .QueueReclassificationAsync(id, timeProvider.GetUtcNow(), policy, ct)
+            .ConfigureAwait(false);
+
+        switch (outcome)
+        {
+            case ReprocessOutcome.NotFound:
+                throw new DocumentNotFoundException(id.ToString());
+            case ReprocessOutcome.Conflict:
+                throw new ReprocessConflictException(id);
+            case ReprocessOutcome.Purged:
+                throw new DocumentPurgedException(id);
+        }
+
+        logger.LogInformation("Reclassification requested. documentId={DocumentId}", id);
+
+        var document = await repository.FindByIdAsync(id, includeEvents: false, ct).ConfigureAwait(false);
+        return document ?? throw new DocumentNotFoundException(id.ToString());
+    }
 }

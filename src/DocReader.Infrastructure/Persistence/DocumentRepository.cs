@@ -200,10 +200,33 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
         return new ExtractionOcrView(summary, stored.RawOcrResultJson, stored.PageTextsJson);
     }
 
-    public async Task<ReprocessOutcome> QueueReprocessingAsync(
+    public Task<ReprocessOutcome> QueueReprocessingAsync(
         Guid documentId,
         DateTimeOffset now,
         RetentionPolicy? retentionPolicy,
+        CancellationToken ct) =>
+        QueueNewAttemptAsync(documentId, now, retentionPolicy, "REPROCESS_REQUESTED", onQueued: null, ct);
+
+    public Task<ReprocessOutcome> QueueReclassificationAsync(
+        Guid documentId,
+        DateTimeOffset now,
+        RetentionPolicy? retentionPolicy,
+        CancellationToken ct) =>
+        QueueNewAttemptAsync(
+            documentId,
+            now,
+            retentionPolicy,
+            "RECLASSIFY_REQUESTED",
+            onQueued: (document, occurredAt) =>
+                document.RecordProgress(DocumentEventTypes.ReclassificationTriggered, occurredAt, "RECLASSIFY_REQUESTED"),
+            ct);
+
+    private async Task<ReprocessOutcome> QueueNewAttemptAsync(
+        Guid documentId,
+        DateTimeOffset now,
+        RetentionPolicy? retentionPolicy,
+        string queuedDetails,
+        Action<Document, DateTimeOffset>? onQueued,
         CancellationToken ct)
     {
         var strategy = dbContext.Database.CreateExecutionStrategy();
@@ -249,7 +272,8 @@ public sealed class DocumentRepository(DocReaderDbContext dbContext) : IDocument
                 return ReprocessOutcome.Conflict;
             }
 
-            document.MarkQueued(now, "REPROCESS_REQUESTED");
+            document.MarkQueued(now, queuedDetails);
+            onQueued?.Invoke(document, now);
 
             // A new cycle starts: the retention period counts again from now, by the policy that fits the document today.
             if (retentionPolicy is not null)

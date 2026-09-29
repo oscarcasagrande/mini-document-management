@@ -207,4 +207,38 @@ public sealed class ResultQueriesAndReprocessTests
         await Assert.ThrowsAsync<DocumentNotFoundException>(() =>
             ReprocessService(new InMemoryDocumentStore()).ReprocessAsync(Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task Reclassificar_documento_concluido_enfileira_de_novo_e_registra_o_evento_de_reclassificacao()
+    {
+        var (store, document) = StoreWithDocument(DocumentStatus.Completed);
+
+        var queued = await ReprocessService(store).ReclassifyAndExtractAsync(document.Id, TestContext.Current.CancellationToken);
+
+        Assert.Equal(DocumentStatus.Queued, queued.Status);
+        Assert.Null(queued.CompletedAt);
+        var job = Assert.Single(store.Jobs);
+        Assert.Equal(ProcessingJobStatus.Pending, job.Status);
+        Assert.Contains(
+            document.Events,
+            e => e.EventType == DocumentEventTypes.ReclassificationTriggered && e.Details == "RECLASSIFY_REQUESTED");
+    }
+
+    [Fact]
+    public async Task Reclassificar_documento_com_job_ativo_e_conflito_e_nao_cria_outro_job()
+    {
+        var (store, document) = StoreWithDocument(DocumentStatus.Queued);
+
+        await Assert.ThrowsAsync<ReprocessConflictException>(() =>
+            ReprocessService(store).ReclassifyAndExtractAsync(document.Id, TestContext.Current.CancellationToken));
+
+        Assert.Single(store.Jobs);
+    }
+
+    [Fact]
+    public async Task Reclassificar_documento_inexistente_e_not_found()
+    {
+        await Assert.ThrowsAsync<DocumentNotFoundException>(() =>
+            ReprocessService(new InMemoryDocumentStore()).ReclassifyAndExtractAsync(Guid.NewGuid(), TestContext.Current.CancellationToken));
+    }
 }

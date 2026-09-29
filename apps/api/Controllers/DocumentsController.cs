@@ -434,6 +434,45 @@ public sealed class DocumentsController(
     }
 
     /// <summary>
+    /// Runs classification and extraction again on a document, against the document-type rules in force now.
+    /// </summary>
+    /// <remarks>
+    /// Part of Configuração Dinâmica: a <c>DocumentType</c> row edited through
+    /// <c>PUT /api/v1/document-types/{id}</c> only changes what the classifier and the extractor decide for a
+    /// document once it is reclassified. Creates a new processing attempt and a new extraction, exactly like
+    /// <c>/reprocess</c>; previous results are kept and the original file is never touched. If the new
+    /// classification finds a different type, or the new extraction finds different field values, those
+    /// become the document's latest recorded result once the worker finishes the job. The timeline also gets
+    /// a <c>RECLASSIFICATION_TRIGGERED</c> entry, in addition to the usual <c>QUEUED</c> one, so this trigger
+    /// is distinguishable from a plain reprocess. A document that is already queued or being processed
+    /// answers 409, so the same document is never processed twice at once.
+    /// </remarks>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="202">Queued again for reclassification. Poll <c>statusUrl</c> to follow it.</response>
+    /// <response code="404">No document with this id.</response>
+    /// <response code="409">The document is already queued or being processed.</response>
+    [HttpPut("{id:guid}/reclassify-and-extract")]
+    [ProducesResponseType(typeof(UploadAcceptedResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
+    public async Task<IActionResult> ReclassifyAndExtractAsync(Guid id, CancellationToken ct)
+    {
+        var document = await reprocessingService.ReclassifyAndExtractAsync(id, ct);
+        var links = DocumentResponseMapper.LinksFor(document.Id);
+
+        var response = new UploadAcceptedResponse(
+            document.Id,
+            document.Protocol,
+            document.Status,
+            links.Status,
+            links.Self,
+            links.Content);
+
+        return Accepted(links.Self, response);
+    }
+
+    /// <summary>
     /// Deletes a document permanently.
     /// </summary>
     /// <remarks>

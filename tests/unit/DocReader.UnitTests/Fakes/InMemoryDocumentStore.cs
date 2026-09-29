@@ -105,7 +105,28 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
         Guid documentId,
         DateTimeOffset now,
         RetentionPolicy? retentionPolicy,
-        CancellationToken ct)
+        CancellationToken ct) =>
+        QueueNewAttempt(documentId, now, retentionPolicy, "REPROCESS_REQUESTED", onQueued: null);
+
+    public Task<ReprocessOutcome> QueueReclassificationAsync(
+        Guid documentId,
+        DateTimeOffset now,
+        RetentionPolicy? retentionPolicy,
+        CancellationToken ct) =>
+        QueueNewAttempt(
+            documentId,
+            now,
+            retentionPolicy,
+            "RECLASSIFY_REQUESTED",
+            onQueued: (document, occurredAt) =>
+                document.RecordProgress(DocumentEventTypes.ReclassificationTriggered, occurredAt, "RECLASSIFY_REQUESTED"));
+
+    private Task<ReprocessOutcome> QueueNewAttempt(
+        Guid documentId,
+        DateTimeOffset now,
+        RetentionPolicy? retentionPolicy,
+        string queuedDetails,
+        Action<Document, DateTimeOffset>? onQueued)
     {
         if (!_documents.TryGetValue(documentId, out var document))
         {
@@ -126,7 +147,8 @@ public sealed class InMemoryDocumentStore : IDocumentRepository, IIdempotencySto
             return Task.FromResult(ReprocessOutcome.Conflict);
         }
 
-        document.MarkQueued(now, "REPROCESS_REQUESTED");
+        document.MarkQueued(now, queuedDetails);
+        onQueued?.Invoke(document, now);
 
         if (retentionPolicy is not null)
         {
