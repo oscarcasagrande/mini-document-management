@@ -20,6 +20,9 @@
     <ProjectReference Include="..\..\..\src\DocReader.Application\DocReader.Application.csproj" />
     <ProjectReference Include="..\..\..\src\DocReader.Domain\DocReader.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\DocReader.Infrastructure\DocReader.Infrastructure.csproj" />
+    <!-- Direct unit tests of Options/claims-mapping classes in apps/api (JWT bearer, RBAC — ADR 0003),
+         not a WebApplicationFactory/TestServer harness: see tests/unit/DocReader.UnitTests/Api. -->
+    <ProjectReference Include="..\..\..\apps\api\DocReader.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -21,4 +21,6 @@ public static class ProblemTypes
     public const string Unexpected = "unexpected-error";
     public const string SystemReadOnly = "system-read-only";
     public const string InvalidBackupArchive = "invalid-backup-archive";
+    public const string Unauthenticated = "unauthenticated";
+    public const string Forbidden = "forbidden";
 }

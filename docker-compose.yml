@@ -53,6 +53,12 @@ services:
       DocReader__Idempotency__Ttl: ${IDEMPOTENCY_KEY_TTL:-24:00:00}
       DocReader__Security__AllowAnonymousAccess: ${ALLOW_ANONYMOUS_ACCESS:-true}
       DocReader__Security__AllowedCorsOrigins__0: http://localhost:${WEB_PORT:-3000}
+      # Enterprise SSO (ADR 0003). Empty OIDC_AUTHORITY keeps anonymous mode; set it to register JWT
+      # bearer auth instead, and ALLOW_ANONYMOUS_ACCESS above stops applying.
+      DocReader__Security__Oidc__Authority: ${OIDC_AUTHORITY:-}
+      DocReader__Security__Oidc__ClientId: ${OIDC_CLIENT_ID:-}
+      DocReader__Security__Oidc__AdminRole: ${OIDC_ADMIN_ROLE:-docreader-admin}
+      DocReader__Security__Oidc__UserRole: ${OIDC_USER_ROLE:-docreader-user}
       DocReader__Ocr__BaseUrl: http://ocr-service:8000
       # Encrypts the connection settings of the storage repositories. API and worker must share it.
       DocReader__Secrets__EncryptionKey: ${STORAGE_CONFIG_ENCRYPTION_KEY:-ZG9jcmVhZGVyLWxvY2FsLWRlbW8ta2V5LTMyYnl0ZXM=}

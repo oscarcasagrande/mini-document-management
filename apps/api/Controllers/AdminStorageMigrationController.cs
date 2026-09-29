@@ -2,9 +2,11 @@ using DocReader.Api.Audit;
 using DocReader.Api.Contracts.V1;
 using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
+using DocReader.Api.Security;
 using DocReader.Application.StorageMigrations;
 using DocReader.Domain.Audit;
 using DocReader.Domain.StorageMigrations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DocReader.Api.Controllers;
@@ -13,9 +15,16 @@ namespace DocReader.Api.Controllers;
 /// Moves documents from one storage repository to another, in the background. The originals are copied, never
 /// deleted from the source.
 /// </summary>
+/// <remarks>
+/// Requires the <c>docreader-admin</c> role (<c>OIDC_ADMIN_ROLE</c>) once OIDC is configured; anonymous when it is not
+/// (ADR 0003).
+/// </remarks>
 [ApiController]
 [Route("api/v1/admin/storage-migration")]
 [Produces("application/json")]
+[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemTypes.ContentType)]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden, ProblemTypes.ContentType)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError, ProblemTypes.ContentType)]
 public sealed class AdminStorageMigrationController(StorageMigrationService service) : ControllerBase
 {
