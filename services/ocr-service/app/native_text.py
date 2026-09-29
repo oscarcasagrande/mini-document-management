@@ -21,6 +21,15 @@ layer misleads:
 - **Rotated pages** (``/Rotate`` other than 0). pdfplumber reports their words in rotated coordinates
   but keeps the unrotated page size, so the boxes cannot be placed reliably; they go to OCR, where the
   orientation correction turns them upright.
+- **A cover sheet over a photo.** A digitally signed ID (a CNH issued by the government's own app, for
+  example) carries a real, substantial text layer — a letterhead, an issuing-authority notice, a
+  signature disclaimer, comfortably above ``min_chars`` and ``SCAN_STAMP_MAX_CHARS`` alike — while the
+  actual field data (name, document number, dates) is burned into an image below it. Neither the "too
+  little text" nor the "scan with a stamp" check catches this: there is plenty of text, and the image
+  covers less than half the page. What gives it away is the combination: a meaningful share of the page
+  under images (``LOW_DENSITY_IMAGE_COVERAGE``) next to very few lines of text
+  (``LOW_DENSITY_MAX_BLOCKS``) — a real densely-labeled page has many more blocks than a cover sheet's
+  handful of paragraphs. Measured against one real document; see CLAUDE.md's RF-009 section.
 """
 
 from __future__ import annotations
@@ -38,6 +47,14 @@ from .engine import RecognizedBlock
 # means "scan with a stamp", not "digital page".
 SCAN_IMAGE_COVERAGE = 0.5
 SCAN_STAMP_MAX_CHARS = 200
+
+# See the module docstring's "cover sheet over a photo". 15% of the page under images together with
+# fewer than this many text blocks means the text is a letterhead, not field data - even though the
+# page has plenty of alnum characters and comfortably passes the two checks above. Calibrated against
+# one real digital CNH page (imageCoverage=0.3549, 10 blocks): both numbers land well inside the
+# rejected region, not at the edges. Revisit if a legitimate dense page ever trips this.
+LOW_DENSITY_IMAGE_COVERAGE = 0.15
+LOW_DENSITY_MAX_BLOCKS = 20
 
 # Share of letters and digits among the non-space characters below which a layer is garbage.
 MIN_ALNUM_SHARE = 0.5
@@ -95,19 +112,31 @@ def read_native_page(content: bytes, page: int, *, dpi: int, max_side: int, min_
     Never raises for a malformed PDF: whatever pdfplumber cannot parse is left to the rasterizer,
     which reports the page count and decoding errors the way the OCR path always has.
     """
+    native, _reason = read_native_page_with_reason(content, page, dpi=dpi, max_side=max_side, min_chars=min_chars)
+    return native
+
+
+def read_native_page_with_reason(
+    content: bytes, page: int, *, dpi: int, max_side: int, min_chars: int
+) -> tuple[NativePage | None, str | None]:
+    """Same contract as :func:`read_native_page`, plus *why* the page was sent to OCR, for the one
+    rejection worth explaining to a caller: the "cover sheet over a photo" case in the module docstring.
+    Every other rejection (too little text, garbage glyphs, a rotated page, an ordinary scan with a
+    stamp) reports ``None`` as the reason - those are unremarkable, and not worth surfacing per page.
+    """
     try:
         import pdfplumber
     except ImportError:
-        return None
+        return None, None
 
     try:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             page_count = len(pdf.pages)
             if page < 1 or page > page_count:
-                return None
+                return None, None
             pdf_page = pdf.pages[page - 1]
             if (pdf_page.rotation or 0) % 360 != 0:
-                return None
+                return None, None
 
             # Diagonal watermarks and vertical margin notes ("documento assinado digitalmente...")
             # are not lines of the page: their boxes would be tall slivers across the layout.
@@ -123,19 +152,23 @@ def read_native_page(content: bytes, page: int, *, dpi: int, max_side: int, min_
             image_share = _image_coverage(pdf_page.images, page_width * page_height)
             version = getattr(pdfplumber, "__version__", "unknown")
     except Exception:  # noqa: BLE001 - any parser failure means "let OCR read it"
-        return None
+        return None, None
 
     text = "".join(word.text for word in words)
     alnum = sum(1 for character in text if character.isalnum())
     if alnum < min_chars:
-        return None
+        return None, None
     if alnum < MIN_ALNUM_SHARE * len(text):
-        return None
+        return None, None
     if image_share >= SCAN_IMAGE_COVERAGE and alnum < SCAN_STAMP_MAX_CHARS:
-        return None
+        return None, None
+
+    segments = _segments(words)
+    if image_share >= LOW_DENSITY_IMAGE_COVERAGE and len(segments) < LOW_DENSITY_MAX_BLOCKS:
+        reason = f"IMAGE_COVERAGE_WITH_SPARSE_TEXT imageCoverage={image_share:.4f} blocks={len(segments)}"
+        return None, reason
 
     width, height, factor = rendered_size(page_width, page_height, dpi=dpi, max_side=max_side)
-    segments = _segments(words)
 
     blocks = [
         RecognizedBlock(
@@ -167,7 +200,7 @@ def read_native_page(content: bytes, page: int, *, dpi: int, max_side: int, min_
         ],
     }
 
-    return NativePage(page_count, width, height, blocks, raw)
+    return NativePage(page_count, width, height, blocks, raw), None
 
 
 def _horizontal(obj: dict[str, Any]) -> bool:

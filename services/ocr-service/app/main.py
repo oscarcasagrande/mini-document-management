@@ -31,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from .engine import OcrEngine, PaddleOcrEngine, RecognizedBlock
-from .native_text import read_native_page
+from .native_text import read_native_page_with_reason
 from .pages import (
     PageOutOfRangeError,
     UnreadableFileError,
@@ -170,6 +170,14 @@ class PageAnalysisResponse(ApiModel):
     processed_with_structure: bool = Field(
         default=False, description="Blocks come from PP-StructureV3, which re-read a low-confidence table."
     )
+    native_text_rejected_reason: str | None = Field(
+        default=None,
+        description=(
+            "Set only when the page had a real, sufficient-looking PDF text layer that was still rejected as "
+            "not real field data (RF-009's 'cover sheet over a photo' case), before falling back to OCR. "
+            "None for every other page, including one that never had a native text layer to try."
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -188,6 +196,9 @@ class PageOutcome:
     processed_with_structure: bool = False
     # Why PP-StructureV3 was considered and not used, for the log; None when it was not considered.
     structure_skipped: str | None = None
+    # Why a native text layer that looked sufficient was still rejected; None when there was none to
+    # reject, or the page never reaches OCR at all.
+    native_text_rejected_reason: str | None = None
 
 
 class ServiceError(Exception):
@@ -477,8 +488,9 @@ def create_app(
             def elapsed() -> int:
                 return round((time.perf_counter() - started) * 1000)
 
+            native_rejected_reason = None
             if kind == "pdf":
-                native = read_native_page(
+                native, native_rejected_reason = read_native_page_with_reason(
                     content,
                     page,
                     dpi=settings.pdf_dpi,
@@ -542,7 +554,7 @@ def create_app(
             return PageOutcome(
                 rendered.page_count, image.width, image.height, blocks, raw, elapsed(),
                 rotation_degrees=rotation, deskewed=deskewed, processed_with_structure=with_structure,
-                structure_skipped=skipped,
+                structure_skipped=skipped, native_text_rejected_reason=native_rejected_reason,
             )
 
         try:
@@ -554,7 +566,8 @@ def create_app(
 
         logger.info(
             "page analyzed. kind=%s page=%s pageCount=%s width=%s height=%s blocks=%s durationMs=%s "
-            "nativeTextLayer=%s rotationDegrees=%s deskewed=%s processedWithStructure=%s",
+            "nativeTextLayer=%s rotationDegrees=%s deskewed=%s processedWithStructure=%s "
+            "nativeTextRejectedReason=%s",
             kind,
             page,
             outcome.page_count,
@@ -566,6 +579,7 @@ def create_app(
             outcome.rotation_degrees,
             outcome.deskewed,
             outcome.processed_with_structure,
+            outcome.native_text_rejected_reason,
             extra={"correlation_id": correlation_id},
         )
 
@@ -590,6 +604,7 @@ def create_app(
             rotation_degrees=outcome.rotation_degrees,
             deskewed=outcome.deskewed,
             processed_with_structure=outcome.processed_with_structure,
+            native_text_rejected_reason=outcome.native_text_rejected_reason,
         )
 
     return app

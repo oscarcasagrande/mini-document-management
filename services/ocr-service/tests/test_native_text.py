@@ -3,7 +3,7 @@ import io
 import pypdfium2 as pdfium
 import pytest
 
-from app.native_text import read_native_page, rendered_size
+from app.native_text import read_native_page, read_native_page_with_reason, rendered_size
 from app.pages import render_page
 
 from .pdfs import build
@@ -124,3 +124,41 @@ def test_the_requested_page_of_a_mixed_pdf_is_the_one_read():
 def test_a_page_beyond_the_end_or_a_broken_pdf_is_left_to_the_rasterizer():
     assert read(build("text"), page=2) is None
     assert read(b"%PDF-1.7 not really a pdf") is None
+
+
+def test_a_cover_sheet_over_a_photo_goes_to_ocr():
+    """A digitally signed ID's cover page (moderate image, real but sparse letterhead text, no field
+    data) is the shape of the real CNH in docs/bench/real-exploratory-v1.md, finding 5. It must not be
+    accepted as a sufficient native text layer."""
+    assert read(build("digital-id")) is None
+
+
+def test_a_dense_field_data_page_is_not_mistaken_for_a_cover_sheet():
+    """Regression guard for the low-density check: a real densely-labeled page (many blocks) must stay
+    unaffected even though it also draws no images (image_share=0), which alone would already exempt
+    it - this asserts the reason explicitly so the exemption is not accidental."""
+    native, reason = read_native_page_with_reason(build("text"), 1, dpi=200, max_side=3200, min_chars=20)
+
+    assert native is not None
+    assert reason is None
+
+
+def test_the_low_density_rejection_reports_a_reason():
+    native, reason = read_native_page_with_reason(build("digital-id"), 1, dpi=200, max_side=3200, min_chars=20)
+
+    assert native is None
+    assert reason is not None
+    assert reason.startswith("IMAGE_COVERAGE_WITH_SPARSE_TEXT")
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["image", "empty", "number", "stamped"],
+    ids=["scanned page", "empty page", "page number only", "scan with a digital stamp"],
+)
+def test_ordinary_rejections_do_not_report_a_reason(kind):
+    """Only the low-density "cover sheet" case is worth explaining per page; every other rejection stays
+    silent, as documented on read_native_page_with_reason."""
+    _native, reason = read_native_page_with_reason(build(kind), 1, dpi=200, max_side=3200, min_chars=20)
+
+    assert reason is None

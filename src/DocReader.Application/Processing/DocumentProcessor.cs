@@ -266,6 +266,21 @@ public sealed class DocumentProcessor(
                 ct).ConfigureAwait(false);
         }
 
+        var rejectedNativeText = ocrResult.Pages.Where(page => page.NativeTextRejectedReason is not null).ToList();
+        if (rejectedNativeText.Count > 0)
+        {
+            // Metadata about a decision (which page, which heuristic, its measured numbers), never document
+            // content: the reason string never carries anything derived from the page's own text.
+            var detail = string.Join(
+                "; ",
+                rejectedNativeText.Select(page => $"page={page.PageNumber} reason={page.NativeTextRejectedReason}"));
+            await store.RecordProgressAsync(
+                documentId,
+                DocumentEventTypes.NativeTextLayerRejected,
+                detail,
+                ct).ConfigureAwait(false);
+        }
+
         var rotated = ocrResult.Pages.FirstOrDefault(page => page.RotationDegrees != 0);
         if (rotated is not null)
         {

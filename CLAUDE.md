@@ -132,15 +132,28 @@ medidos em documento real.**
 - Testes: 934 unitários, 95 de integração (rodam só com PostgreSQL alcançável: senão são pulados, confira o total).
 
 **Pré-processamento de OCR (RF-009).** Três capacidades, todas no `ocr-service`; o contrato de `POST /v1/ocr/page`
-ganhou `hasNativeTextLayer`, `rotationDegrees`, `deskewed` e `processedWithStructure` por página, agregados em
-`DocumentExtraction` (`has_native_text_layer`, `rotation_degrees`, `deskewed`, `ocr_processed_with_structure`) e em
-quatro eventos novos (`TEXT_EXTRACTED_FROM_PDF_NATIVE_LAYER`, `DOCUMENT_ROTATED`, `DOCUMENT_DESKEWED`,
-`OCR_REPROCESSED_WITH_PP_STRUCTUREV3`):
+ganhou `hasNativeTextLayer`, `rotationDegrees`, `deskewed`, `processedWithStructure` e `nativeTextRejectedReason` por
+página, agregados em `DocumentExtraction` (`has_native_text_layer`, `rotation_degrees`, `deskewed`,
+`ocr_processed_with_structure`) e em cinco eventos novos (`TEXT_EXTRACTED_FROM_PDF_NATIVE_LAYER`,
+`NATIVE_TEXT_LAYER_REJECTED`, `DOCUMENT_ROTATED`, `DOCUMENT_DESKEWED`, `OCR_REPROCESSED_WITH_PP_STRUCTUREV3`):
 
 - **Camada de texto nativa** (`app/native_text.py`): uma página de PDF com pelo menos `OCR_PDF_NATIVE_TEXT_MIN_CHARS`
   (20) letras e dígitos é lida por `pdfplumber`, sem rasterizar nem chamar o Paddle (~100-200 ms contra ~5 s/página);
   os blocos vêm das linhas do pdfplumber, na mesma escala de pixel que a rasterização usaria, para não quebrar
   `LineSearch`. Camada vazia, só numeração de página, lixo de `(cid:N)` ou página coberta por imagem caem para OCR.
+- **Capa sobre foto** (mesmo `app/native_text.py`, `LOW_DENSITY_IMAGE_COVERAGE`/`LOW_DENSITY_MAX_BLOCKS`): uma CNH
+  digital emitida pelo aplicativo oficial (PDF assinado, com QR-code) passa nos dois limiares acima — tem cabeçalho e
+  aviso de assinatura digital de sobra — mas os campos da pessoa (nome, CPF, categoria, datas) ficam como imagem, não
+  como texto. `read_native_page` rejeita quando a cobertura de imagem chega a 15% da página **e** menos de 20 blocos
+  de texto saíram do pdfplumber — a combinação, não cada limiar isolado (uma página sem imagem nenhuma nunca cai
+  aqui). A página cai para OCR igual a qualquer outra insuficiência. `read_native_page_with_reason` devolve o motivo
+  (`IMAGE_COVERAGE_WITH_SPARSE_TEXT imageCoverage=... blocks=...`) só para essa rejeição; as demais continuam mudas.
+  O motivo atravessa `PageAnalysisResponse.nativeTextRejectedReason` → `PaddleOcrServiceProvider` →
+  `OcrPage.NativeTextRejectedReason` → o evento `NATIVE_TEXT_LAYER_REJECTED` na linha do tempo
+  (`DocumentProcessor.RecordPreprocessingEventsAsync`), com `page=N reason=...` — nunca texto do próprio documento.
+  **Medido contra um único documento real** (achado 5 de `docs/bench/real-exploratory-v1.md`: imageCoverage=0,3549,
+  10 blocos), não uma bancada de validação como o deskew acima — os dois limiares (0,15 e 20) foram calibrados para
+  deixar esse exemplar bem dentro da região rejeitada, não na borda; revisar se aparecer um contra-exemplo.
 - **Rotação e deskew** (`app/preprocess.py`, `OCR_ORIENTATION_CORRECTION`): perfil de projeção por variância decide
   entre 0/90/180/270° (a direção vem de ascendentes/descendentes das letras e do alinhamento da margem, não só da
   variância, que empata 0° com 180°); Hough (`cv2.HoughLinesP`) corrige inclinação fina entre
@@ -159,7 +172,9 @@ quatro eventos novos (`TEXT_EXTRACTED_FROM_PDF_NATIVE_LAYER`, `DOCUMENT_ROTATED`
   **Ligar exige `OCR_MEMORY_LIMIT=6g`** (documentado no compose; o padrão do serviço continua 3g com a opção desligada).
   Medido: **PP-StructureV3 piorou a leitura de tabela** (55→52, 56→54 e 3→0 campos exatos de 57 valores conhecidos,
   substituindo os blocos do v5 pelos dele) — por isso o padrão é desligado; ver o adendo de 2026-09-29 do ADR 0002.
-- Testes: 92 do `pytest` do OCR (1 pulado fora do container), mais os unitários do .NET acima.
+- Testes: 99 do `pytest` do OCR (1 pulado fora do container; 92 + 7 da capa sobre foto), mais os unitários do .NET
+  acima — 1089 no total (1086 + 3 do evento `NATIVE_TEXT_LAYER_REJECTED` e da travessia do motivo pela cadeia
+  Python → C#).
 
 **O que não foi feito, e por quê:** nenhuma medição em documento real (não há dataset; o framework existe para
 isso); a comparação opcional com Tesseract/Docling do PRD §26; e a decisão de continuidade e produção, que
@@ -563,7 +578,16 @@ Coisas que já custaram tempo e não se enxergam no código.
   estado, outra geração de layout ou foto ruim vão trazer rótulos e ordens novas. O primeiro passo é sempre
   `extraction-diagnostics` no documento que falhou, e o segundo é uma fixture mascarada em `Fixtures/ocr`.
 - **Valor errado com status VALID é pior que NOT_FOUND.** O `birthPlace` do RIC saía `VALID` com o número vertical da borda
-  da carteira, que o OCR entrega como bloco alto e estreito alinhado ao rótulo. Confira o valor, não só o status.
+  da carteira, que o OCR entrega como bloco alto e estreito alinhado ao rótulo. Confira o valor, não só o status. Uma
+  DANFE real repetiu o padrão: `holderName` do comprovante de residência aceitava metadado de nota fiscal ("NOTA FISCAL
+  No. ... SÉRIE ... DATA DE EMISSÃO: ...") como nome do titular. Duas correções, em `LineSearch`/`FieldFactory`: (1)
+  `noiseMarkers` no construtor de `LineSearch` — substrings (casadas por `Contains`, diferente do `IsKnownLabel` que casa
+  rótulo inteiro) que nunca são valor de campo, mesmo sem ser rótulo de outro campo; opt-in por extrator
+  (`BrProofOfAddressExtractor` é o único que usa até agora). (2) `FieldFactory.Found` agora rebaixa VALID para
+  `UNCERTAIN` quando a penalidade é de fallback (achado sem rótulo por perto, `NO_LABEL_NEARBY`) — uma leitura sem
+  rótulo é uma heurística fraca mesmo que o formato bata. `FieldReaders.CpfOrCnpj` precisou de um caso a mais
+  (`UNCERTAIN`) para não descartar como `NOT_FOUND` um achado fraco quando o outro documento (CPF ou CNPJ) não achou
+  nada.
 - **Resultado gravado não muda sozinho.** Depois de mudar regras, `recorded` e `current` do diagnóstico divergem até o
   `POST .../reprocess`; o `/result` continua mostrando a classificação antiga.
 

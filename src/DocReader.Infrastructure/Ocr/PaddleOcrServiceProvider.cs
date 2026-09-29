@@ -75,7 +75,8 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
                 analysis.HasNativeTextLayer,
                 analysis.RotationDegrees,
                 analysis.Deskewed,
-                analysis.ProcessedWithStructure));
+                analysis.ProcessedWithStructure,
+                analysis.NativeTextRejectedReason));
 
             if (progress is not null)
             {
@@ -256,6 +257,15 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
                 writer.WriteNumber("rotationDegrees", page.RotationDegrees);
                 writer.WriteBoolean("deskewed", page.Deskewed);
                 writer.WriteBoolean("processedWithStructure", page.ProcessedWithStructure);
+                if (page.NativeTextRejectedReason is { } nativeTextRejectedReason)
+                {
+                    writer.WriteString("nativeTextRejectedReason", nativeTextRejectedReason);
+                }
+                else
+                {
+                    writer.WriteNull("nativeTextRejectedReason");
+                }
+
                 WriteBlocks(writer, page.Blocks);
                 writer.WritePropertyName("raw");
                 if (page.Raw.ValueKind == JsonValueKind.Undefined)
@@ -320,7 +330,8 @@ public sealed class PaddleOcrServiceProvider(HttpClient httpClient, ILogger<Padd
         bool HasNativeTextLayer = false,
         int RotationDegrees = 0,
         bool Deskewed = false,
-        bool ProcessedWithStructure = false);
+        bool ProcessedWithStructure = false,
+        string? NativeTextRejectedReason = null);
 
     private sealed record BlockDto(string Text, decimal? Confidence, List<double> BoundingBox);
 }

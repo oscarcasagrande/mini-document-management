@@ -35,6 +35,10 @@ public static class DocumentEventTypes
     /// <summary>A PDF page's text came from its own text layer (pdfplumber), so OCR was skipped for it (RF-009).</summary>
     public const string TextExtractedFromPdfNativeLayer = "TEXT_EXTRACTED_FROM_PDF_NATIVE_LAYER";
 
+    /// <summary>A PDF page's text layer looked sufficient but was rejected as not real field data (RF-009's
+    /// "cover sheet over a photo"), so the page fell back to OCR instead of being read natively.</summary>
+    public const string NativeTextLayerRejected = "NATIVE_TEXT_LAYER_REJECTED";
+
     /// <summary>A page was rotated 90, 180 or 270 degrees before OCR read it.</summary>
     public const string DocumentRotated = "DOCUMENT_ROTATED";
 

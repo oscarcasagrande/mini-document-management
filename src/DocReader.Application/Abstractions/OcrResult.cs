@@ -20,6 +20,9 @@ public sealed record OcrResult(
 /// <param name="RotationDegrees">Cardinal rotation the service corrected before reading the page: 0, 90, 180 or 270.</param>
 /// <param name="Deskewed">Whether a small tilt was also straightened, on top of any cardinal rotation.</param>
 /// <param name="ProcessedWithStructure">Whether PP-StructureV3 replaced PP-OCRv5's reading of this page (a suspected table, low confidence, opt-in).</param>
+/// <param name="NativeTextRejectedReason">Set only when the page had a text layer that looked sufficient but was rejected as not
+/// real field data (RF-009's "cover sheet over a photo") before falling back to OCR. Null for every other page, including one
+/// that never had a native text layer to try.</param>
 public sealed record OcrPage(
     int PageNumber,
     string Text,
@@ -27,7 +30,8 @@ public sealed record OcrPage(
     bool HasNativeTextLayer = false,
     int RotationDegrees = 0,
     bool Deskewed = false,
-    bool ProcessedWithStructure = false);
+    bool ProcessedWithStructure = false,
+    string? NativeTextRejectedReason = null);
 
 /// <param name="Text">Block text.</param>
 /// <param name="Confidence">Provider confidence between 0 and 1.</param>

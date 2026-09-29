@@ -61,8 +61,43 @@ def image_page(pdf: canvas.Canvas, *, stamp: str | None = None) -> None:
     pdf.showPage()
 
 
+def digital_id_page(pdf: canvas.Canvas) -> None:
+    """A digitally signed ID's cover page: a moderate-size photo/QR area plus several lines of real
+    letterhead and legal-notice text - comfortably over 200 alnum characters, in a handful of blocks -
+    with no field data anywhere on the page. Synthetic reproduction of the shape described in
+    docs/bench/real-exploratory-v1.md, finding 5 (a real digital CNH): plenty of real text, a
+    meaningful but not full-page image, and none of it is the person's data."""
+    width, height = A4
+    picture = Image.new("RGB", (700, 1280), (232, 232, 236))
+    draw = ImageDraw.Draw(picture)
+    draw.rectangle((30, 30, 670, 1250), outline=(110, 110, 110), width=8)
+    buffer = io.BytesIO()
+    picture.save(buffer, format="PNG")
+    buffer.seek(0)
+    # ~300x550 pt in the left column, about a third of an A4 page - a QR-code/photo block, not a scan.
+    pdf.drawImage(ImageReader(buffer), 40, height - 590, 300, 550)
+
+    pdf.setFont("Helvetica-Bold", 13)
+    pdf.drawString(360, height - 80, "REPUBLICA FEDERATIVA DO BRASIL")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(360, height - 100, "MINISTERIO DE EXEMPLO - AGENCIA FEDERAL DE TESTE - SENATESTE")
+    pdf.setFont("Helvetica", 9)
+    for index, line in enumerate(
+        [
+            "Documento assinado com certificado digital, nos termos da legislacao vigente.",
+            "A autenticidade deste documento pode ser conferida pelo QR-code ao lado ou pelo",
+            "codigo de validacao informado junto ao emissor responsavel por este registro.",
+            "Este documento nao dispensa a apresentacao de outros exigidos em lei quando",
+            "solicitado por autoridade competente no exercicio da fiscalizacao pertinente.",
+        ]
+    ):
+        pdf.drawString(360, height - 130 - index * 16, line)
+    pdf.showPage()
+
+
 def build(*pages: str, rotate: int = 0) -> bytes:
-    """``pages`` of "text", "image", "stamped" (image + short text), "empty" or "number" (a page number only)."""
+    """``pages`` of "text", "image", "stamped" (image + short text), "digital-id" (moderate image +
+    letterhead text, no field data), "empty" or "number" (a page number only)."""
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4, invariant=1)
     if rotate:
@@ -74,6 +109,8 @@ def build(*pages: str, rotate: int = 0) -> bytes:
             image_page(pdf)
         elif kind == "stamped":
             image_page(pdf, stamp="Documento assinado digitalmente por EXEMPLO em 24/09/2026 codigo 1A2B3C")
+        elif kind == "digital-id":
+            digital_id_page(pdf)
         elif kind == "number":
             pdf.setFont("Helvetica", 9)
             pdf.drawString(500, 30, "pagina 3")

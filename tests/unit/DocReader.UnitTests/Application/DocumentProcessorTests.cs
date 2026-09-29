@@ -414,6 +414,22 @@ public sealed class DocumentProcessorTests
     }
 
     [Fact]
+    public async Task Pagina_com_camada_nativa_rejeitada_registra_o_evento_com_a_pagina_e_o_motivo()
+    {
+        var blocks = CpfCardLines.Select(CpfBlock).ToArray();
+        var reason = "IMAGE_COVERAGE_WITH_SPARSE_TEXT imageCoverage=0.3549 blocks=10";
+        var page = new OcrPage(1, string.Join('\n', CpfCardLines), blocks, NativeTextRejectedReason: reason);
+        var rig = BuildRig(ReadingOnePage(page));
+
+        await rig.Processor.ProcessAsync(rig.Job, TestContext.Current.CancellationToken);
+
+        var rejected = Assert.Single(
+            rig.Store.Progress, entry => entry.EventType == DocumentEventTypes.NativeTextLayerRejected);
+        Assert.Contains("page=1", rejected.Details);
+        Assert.Contains($"reason={reason}", rejected.Details);
+    }
+
+    [Fact]
     public async Task Pagina_rotacionada_registra_o_evento_e_o_grau_na_extracao()
     {
         var blocks = CpfCardLines.Select(CpfBlock).ToArray();
@@ -463,6 +479,7 @@ public sealed class DocumentProcessorTests
         var newEventTypes = new[]
         {
             DocumentEventTypes.TextExtractedFromPdfNativeLayer,
+            DocumentEventTypes.NativeTextLayerRejected,
             DocumentEventTypes.DocumentRotated,
             DocumentEventTypes.DocumentDeskewed,
             DocumentEventTypes.OcrReprocessedWithPpStructureV3

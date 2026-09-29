@@ -78,6 +78,51 @@ public sealed class PaddleOcrServiceProviderTests
     }
 
     [Fact]
+    public async Task Motivo_de_rejeicao_da_camada_nativa_chega_ate_o_ocrpage_e_ao_resultado_bruto()
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            page = 1,
+            pageCount = 1,
+            imageWidth = 1100,
+            imageHeight = 700,
+            provider = "paddleocr",
+            modelVersion = "PP-OCRv5 test",
+            durationMs = 7000,
+            blocks = Array.Empty<object>(),
+            raw = new { },
+            nativeTextRejectedReason = "IMAGE_COVERAGE_WITH_SPARSE_TEXT imageCoverage=0.3549 blocks=10",
+        });
+        var provider = ProviderFor((_, _) => Task.FromResult(Json(HttpStatusCode.OK, body)));
+
+        var result = await provider.AnalyzeAsync(Document(), Options, null, TestContext.Current.CancellationToken);
+
+        var page = Assert.Single(result.Pages);
+        Assert.Equal("IMAGE_COVERAGE_WITH_SPARSE_TEXT imageCoverage=0.3549 blocks=10", page.NativeTextRejectedReason);
+
+        using var raw = JsonDocument.Parse(result.RawResult);
+        var rawPage = raw.RootElement.GetProperty("pages")[0];
+        Assert.Equal(
+            "IMAGE_COVERAGE_WITH_SPARSE_TEXT imageCoverage=0.3549 blocks=10",
+            rawPage.GetProperty("nativeTextRejectedReason").GetString());
+    }
+
+    [Fact]
+    public async Task Sem_rejeicao_da_camada_nativa_o_motivo_fica_nulo_no_ocrpage_e_no_resultado_bruto()
+    {
+        var provider = ProviderFor((_, _) => Task.FromResult(Json(HttpStatusCode.OK, PageJson(1))));
+
+        var result = await provider.AnalyzeAsync(Document(), Options, null, TestContext.Current.CancellationToken);
+
+        var page = Assert.Single(result.Pages);
+        Assert.Null(page.NativeTextRejectedReason);
+
+        using var raw = JsonDocument.Parse(result.RawResult);
+        var rawPage = raw.RootElement.GetProperty("pages")[0];
+        Assert.Equal(JsonValueKind.Null, rawPage.GetProperty("nativeTextRejectedReason").ValueKind);
+    }
+
+    [Fact]
     public async Task Preserva_o_resultado_bruto_de_cada_pagina_como_veio_do_servico()
     {
         var provider = ProviderFor((_, _) => Task.FromResult(Json(HttpStatusCode.OK, PageJson(1))));
