@@ -88,6 +88,22 @@ medidos em documento real.**
   (`WEBHOOK_ALLOW_PRIVATE_NETWORKS`).
 - **Referência externa**: `GET /api/v1/documents/by-external-reference/{reference}` devolve o documento mais recente (exato, com
   diferença de caixa) ou 404; a lista filtra por `externalReference` (parcial). Índice parcial em `external_reference`.
+- **Exclusão LGPD/GDPR** (`Domain/GdprDeletion`, `Application/GdprDeletion`): `DELETE /api/v1/documents/{id}` continua a
+  limpeza rápida e incondicional de sempre (RF-014). Ao lado dela, `DELETE /api/v1/documents/{id}/gdpr-delete` não apaga
+  nada: cria um `GdprDeletionRequest` `PENDING` (409 se o documento está vinculado a um `ProductService` ativo, 400 se
+  `expiresAt` ainda não venceu). `POST /api/v1/gdpr-deletion-requests/{requestId}/approve` (**TODO(RBAC)**, mesmo estilo do
+  endpoint de revelar configuração) ou `.../reject` decide o pedido; sem decisão em `GDPR_AUTO_APPROVE_AFTER_HOURS` horas
+  (padrão 24, `DocReader:GdprDeletion:AutoApproveAfterHours`), o `GdprDeletionWorker` aprova sozinho
+  (`approvedBy=system:auto-approve-24h`, distinguível de um operador real). Aprovado, o mesmo worker reivindica com
+  `FOR UPDATE` (lock-e-reconfere, o idioma de `MarkPurgedAsync`/`RetentionReapplyRequestRepository`) e executa: apaga o
+  arquivo primeiro (nunca grava "apagado" antes de apagar de verdade), depois o texto do OCR e os campos extraídos — a
+  extração mesma que a rotina de expurgo apaga, via `ExtractionCleanup` compartilhado entre as duas. O documento reaproveita
+  o status `PURGED` (mesmo tombstone, mesmo 410 em `/content`, `/text`, `/result`, `/reprocess` e os `*-diagnostics` via
+  `EnsureNotPurged`), mas grava `GDPR_DELETION_EXECUTED` na linha do tempo em vez de `PURGED`, com `reason=GDPR_REQUEST` e o
+  id do pedido — por isso as duas origens continuam distinguíveis apesar do status compartilhado. Cada transição
+  (`GDPR_DELETION_REQUESTED/APPROVED/REJECTED/EXECUTED`) grava também um `AuditLog`. `GET
+  /api/v1/documents/{id}/gdpr-deletion-requests` lista os pedidos de um documento; `GET
+  /api/v1/gdpr-deletion-requests/{requestId}` busca um pelo id.
 
 **Configuração Dinâmica.** Três itens que tiram classificação e extração do código:
 
@@ -217,10 +233,10 @@ a exatidão de tabela medida; fica desligado por padrão até um gatilho de revi
   não tem autenticação), ação, tipo e id do recurso, quando, IP, user agent e `changes` (metadado do que mudou, nunca conteúdo
   ou segredo). Por ora só o `GET .../connection-config` grava nele; é a base para a auditoria completa (tabela, endpoint de
   leitura, tela no BFF) quando o épico de OIDC/RBAC/auditoria for implementado.
-- Testes: 993 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula os 6
-  testes de backup/restore que precisam de `psql`/`pg_dump` (99 passam, 6 pulados) e os 3 de Azurite; com
-  `postgresql-client-17` instalado na imagem, os 6 rodam de verdade (109 no total, 106 passam, os 3 do Azurite
-  continuam pulados sem esse emulador).
+- Testes: 1006 unitários; a integração varia com a imagem do SDK usada — o comando documentado (SDK puro) pula 3
+  testes de backup/restore que precisam de `psql`/`pg_dump` e 3 de Azurite (106 passam, 6 pulados, 112 no total,
+  medido contra um PostgreSQL real na rede `docreader_internal`); com `postgresql-client-17` instalado na imagem,
+  os 3 de backup/restore rodam de verdade e só os 3 do Azurite continuam pulados sem esse emulador.
 
 ## Estrutura do repositório
 

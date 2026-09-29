@@ -3,6 +3,7 @@ using DocReader.Api.Errors;
 using DocReader.Api.Mapping;
 using DocReader.Application.Documents;
 using DocReader.Application.Errors;
+using DocReader.Application.GdprDeletion;
 using DocReader.Application.Options;
 using DocReader.Domain;
 using DocReader.Domain.Documents;
@@ -24,6 +25,7 @@ public sealed class DocumentsController(
     DocumentQueryService queryService,
     DocumentDeletionService deletionService,
     DocumentReprocessingService reprocessingService,
+    GdprDeletionRequestService gdprDeletionRequestService,
     IOptions<PagingOptions> pagingOptions,
     IOptions<UploadOptions> uploadOptions,
     IOptions<ProcessingQueueOptions> queueOptions) : ControllerBase
@@ -492,6 +494,64 @@ public sealed class DocumentsController(
         await deletionService.DeleteAsync(id, ct);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Requests the GDPR/LGPD deletion of a document: an approvable, auditable alternative to
+    /// <c>DELETE /api/v1/documents/{id}</c>.
+    /// </summary>
+    /// <remarks>
+    /// This does not delete anything by itself. It records a PENDING request, which an operator can approve
+    /// (<c>POST /api/v1/gdpr-deletion-requests/{requestId}/approve</c>) or reject, or which the worker approves on
+    /// its own after the configured window (24 hours by default, <c>GDPR_AUTO_APPROVE_AFTER_HOURS</c>) if nobody
+    /// decides. Once approved, the worker removes the file, the OCR text and the extracted fields, the same
+    /// content a retention purge removes; the document becomes a tombstone (record, metadata and timeline kept)
+    /// and <c>/content</c>, <c>/text</c>, <c>/result</c>, <c>/reprocess</c> and the <c>*-diagnostics</c> endpoints
+    /// answer 410. A document still in use, or whose retention period has not expired yet, is refused outright:
+    /// the retention period existing at all is a signal it may still be needed, so a GDPR request does not skip it.
+    /// </remarks>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="reason">Short operator-supplied reason for the request; never document content.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="202">Request recorded, PENDING. The <c>Location</c> header points at it.</response>
+    /// <response code="400">The document's retention period has not expired yet.</response>
+    /// <response code="404">No document with this id.</response>
+    /// <response code="409">The document is linked to an active product or service.</response>
+    [HttpDelete("{id:guid}/gdpr-delete")]
+    [ProducesResponseType(typeof(GdprDeletionRequestResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemTypes.ContentType)]
+    public async Task<IActionResult> RequestGdprDeletionAsync(Guid id, [FromQuery] string? reason, CancellationToken ct)
+    {
+        var request = await gdprDeletionRequestService.RequestDeletionAsync(
+            id,
+            User.Identity?.Name,
+            reason,
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            Request.Headers.UserAgent.ToString(),
+            ct);
+
+        return Accepted(
+            $"/api/v1/gdpr-deletion-requests/{request.Id}",
+            ConfigurationResponseMapper.ToResponse(request));
+    }
+
+    /// <summary>Lists the GDPR/LGPD deletion requests of one document, most recent first.</summary>
+    /// <param name="id">Identity of the document.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    /// <response code="200">The requests, possibly empty.</response>
+    /// <response code="404">No document with this id.</response>
+    [HttpGet("{id:guid}/gdpr-deletion-requests")]
+    [ProducesResponseType(typeof(IReadOnlyList<GdprDeletionRequestResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemTypes.ContentType)]
+    public async Task<ActionResult<IReadOnlyList<GdprDeletionRequestResponse>>> ListGdprDeletionRequestsAsync(
+        Guid id,
+        CancellationToken ct)
+    {
+        var requests = await gdprDeletionRequestService.ListByDocumentAsync(id, ct);
+
+        return Ok(requests.Select(ConfigurationResponseMapper.ToResponse).ToArray());
     }
 
     private static UploadChannel ParseChannel(string? value) =>

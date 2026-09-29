@@ -378,10 +378,26 @@ Casos de teste obrigatórios:
 
 ### RF-014 — Exclusão para limpeza
 
-- Excluir pela tela e API.
+- Excluir pela tela e API (`DELETE /api/v1/documents/{id}`).
 - Exigir confirmação na interface.
 - Remover arquivo, derivados, resultados e jobs.
 - Informar que a ação é irreversível.
+
+### RF-014a — Exclusão por solicitação do titular (LGPD/GDPR)
+
+Alternativa ao RF-014 quando a exclusão precisa de aprovação e trilha de auditoria, em vez de ser imediata e
+incondicional; os dois caminhos coexistem.
+
+- `DELETE /api/v1/documents/{id}/gdpr-delete` não apaga nada: registra um pedido `PENDING`. Recusa (409) documento
+  vinculado a produto/serviço ativo, e recusa (400) documento cujo prazo de retenção (`expiresAt`) ainda não
+  venceu — o titular pode pedir a exclusão assim que o prazo vencer, sem esperar o expurgo automático.
+- Aprovação manual (`POST /api/v1/gdpr-deletion-requests/{requestId}/approve`) ou automática, por um worker, após
+  uma janela configurável sem decisão (padrão 24 horas); rejeição (`.../reject`) fecha o pedido sem apagar nada.
+- Aprovado, um worker executa: remove o arquivo, o texto do OCR e os campos extraídos — o mesmo conteúdo que o
+  expurgo por retenção remove — e o documento vira o mesmo tipo de registro-lápide (`PURGED`), com um evento
+  próprio na linha do tempo que distingue as duas origens.
+- Cada pedido e cada transição (solicitado, aprovado, rejeitado, executado) grava um evento na linha do tempo do
+  documento e uma entrada de auditoria (quem, quando, nunca o conteúdo).
 
 ### RF-015 — Swagger/OpenAPI
 

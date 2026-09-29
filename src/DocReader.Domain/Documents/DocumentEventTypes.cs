@@ -46,4 +46,16 @@ public static class DocumentEventTypes
 
     /// <summary>The document's file was copied to another storage repository and StorageRepositoryId now points at it.</summary>
     public const string StorageMigrated = "STORAGE_MIGRATED";
+
+    /// <summary>A data-subject deletion request (LGPD/GDPR) was created for this document and awaits a decision.</summary>
+    public const string GdprDeletionRequested = "GDPR_DELETION_REQUESTED";
+
+    /// <summary>A GDPR deletion request was approved, by an operator or automatically after the configured window.</summary>
+    public const string GdprDeletionApproved = "GDPR_DELETION_APPROVED";
+
+    /// <summary>A GDPR deletion request was rejected and will not be executed.</summary>
+    public const string GdprDeletionRejected = "GDPR_DELETION_REJECTED";
+
+    /// <summary>An approved GDPR deletion request was executed: the file, the OCR text and the extracted fields were removed.</summary>
+    public const string GdprDeletionExecuted = "GDPR_DELETION_EXECUTED";
 }

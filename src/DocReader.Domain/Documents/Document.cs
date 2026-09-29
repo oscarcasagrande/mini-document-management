@@ -190,6 +190,25 @@ public sealed class Document
     }
 
     /// <summary>
+    /// Records that the content was removed because an approved GDPR/LGPD deletion request was executed (see
+    /// <see cref="PurgedContent"/>; the file alone when omitted). Reuses the same terminal status and 410 gate as a
+    /// retention purge, but records its own event type so the two are distinguishable on the timeline and in the
+    /// audit trail. Idempotent: a document already <see cref="DocumentStatus.Purged"/> (by either path) is left alone.
+    /// </summary>
+    public void MarkGdprDeleted(DateTimeOffset occurredAt, Guid gdprDeletionRequestId, IReadOnlyCollection<string>? deleted = null)
+    {
+        if (Status == DocumentStatus.Purged)
+        {
+            return;
+        }
+
+        Status = DocumentStatus.Purged;
+        PurgedAt = occurredAt;
+        _events.Add(DocumentEvent.Create(Id, DocumentEventTypes.GdprDeletionExecuted, DocumentStatus.Purged, occurredAt,
+            $"reason=GDPR_REQUEST requestId={gdprDeletionRequestId} deleted={string.Join(',', deleted ?? [PurgedContent.File])}"));
+    }
+
+    /// <summary>
     /// Marks the document as queued for the worker. Called in the same transaction that persists the job.
     /// </summary>
     public void MarkQueued(DateTimeOffset occurredAt, string? details = null)
